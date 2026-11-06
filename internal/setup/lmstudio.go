@@ -76,7 +76,7 @@ func (b *builder) lmstudio() error {
 	if mlx {
 		get = lms + " get " + b.q("https://huggingface.co/"+repo) + " --mlx -y"
 	} else {
-		get = lms + " get " + b.q("https://huggingface.co/"+repo+"@"+q.Name) + " --gguf -y"
+		get = lms + " get " + b.q("https://huggingface.co/"+repo+"@"+q.HFTag()) + " --gguf -y"
 	}
 	dl := Step{
 		ID: "download-model", Kind: KindDownload,

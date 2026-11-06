@@ -555,7 +555,9 @@ func Predict(in Input) Result {
 		}
 		res.Warnings = append(res.Warnings, w)
 	}
-	if !in.Model.QuantMatchesCloud {
+	if in.Model.TrialStandIn != "" {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("trial stand-in: no cloud provider hosts this exact model, so trials use its base model %s. Speed is simulated from this file exactly; behaviour (fine-tuning, abliteration, style) is the base model's", in.Model.TrialStandIn))
+	} else if !in.Model.QuantMatchesCloud {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("quality caveat: the trial uses the cloud's %s weights; local %s is typically 0–3 points worse on coding tasks and makes more tool-call mistakes", in.Model.CloudPrecision, q.Name))
 	}
 	return res

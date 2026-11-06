@@ -552,6 +552,9 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 		if base != upstream.OpenRouterBaseURL {
 			return nil, "", errors.New("--upstream-model is required with a custom upstream URL")
 		}
+		if model == "" {
+			return nil, "", errors.New("no cloud model is known for this file: pass --upstream-model <openrouter id> (e.g. its base model)")
+		}
 	}
 	if keyEnv == "" {
 		keyEnv = "OPENROUTER_API_KEY"

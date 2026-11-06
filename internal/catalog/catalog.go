@@ -16,6 +16,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -39,6 +40,34 @@ type Quant struct {
 	ReadBytesPerToken int64
 	// Estimated is true when FileBytes was computed from bits-per-weight.
 	Estimated bool
+	// FileTag selects this file in its Hugging Face repo when it differs
+	// from Name (e.g. "UD-Q4_K_M", "MXFP4_MOE", "Q4_K"); used as
+	// hf.co/<repo>:<tag> by Ollama, llama.cpp and LM Studio.
+	FileTag string `json:",omitempty"`
+}
+
+// HFTag returns the tag that selects the quant's file on Hugging Face.
+func (q Quant) HFTag() string {
+	if q.FileTag != "" {
+		return q.FileTag
+	}
+	return q.Name
+}
+
+var fileTagRe = regexp.MustCompile(`(?i)((?:UD-)?(?:I?Q\d[_A-Z0-9]*|MXFP4(?:_MOE)?|BF16|F16|F32))$`)
+
+// FileTag derives the quant tag from a GGUF file name such as
+// "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf" → "UD-Q4_K_M" ("" if none).
+func FileTag(filename string) string {
+	base := filename
+	if i := strings.LastIndex(base, "/"); i >= 0 {
+		base = base[i+1:]
+	}
+	base = strings.TrimSuffix(base, ".gguf")
+	if m := fileTagRe.FindStringSubmatch(base); m != nil {
+		return m[1]
+	}
+	return ""
 }
 
 // Model is one catalog entry.
@@ -86,8 +115,11 @@ type Model struct {
 	RecurrentStateBytes float64
 	// Generated is true for entries read from GGUF headers.
 	Generated bool
-	// UpstreamVerified is false when OpenRouterID is a best guess.
+	// UpstreamUnverified is true when OpenRouterID is a best guess.
 	UpstreamUnverified bool
+	// TrialStandIn is set when no provider hosts this exact model and the
+	// trial uses its base model instead (description for users).
+	TrialStandIn string
 
 	// DecodeEff scales predicted decode speed for architectures whose
 	// kernels run below the bandwidth model (1 = no adjustment). Qwen3 MoE

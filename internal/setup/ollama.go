@@ -55,7 +55,7 @@ func (b *builder) ollama() error {
 	b.add(inst)
 
 	// 3. download
-	src, fromHF := ollamaSource(m.HFGGUFRepo, m.OllamaTag, q.Name, m.Quants)
+	src, fromHF := ollamaSource(m.HFGGUFRepo, m.OllamaTag, q.HFTag(), m.Quants)
 	if src == "" {
 		return fmt.Errorf("%s has neither a Hugging Face GGUF repo nor an Ollama tag", m.Name)
 	}
@@ -69,7 +69,7 @@ func (b *builder) ollama() error {
 	}
 	if fromHF {
 		dl.Why = fmt.Sprintf("Pulls the exact %s GGUF from Hugging Face (%s) — the file cyrlm's prediction is based on. If Ollama reports an unsupported architecture for this file, use the library build instead: `ollama pull %s`.", q.Name, m.HFGGUFRepo, m.OllamaTag)
-		if m.OllamaTag == "" {
+		if !strings.Contains(m.OllamaTag, ":") { // no Ollama library build to fall back to
 			dl.Why = fmt.Sprintf("Pulls the exact %s GGUF from Hugging Face (%s) — the file cyrlm's prediction is based on.", q.Name, m.HFGGUFRepo)
 		}
 	} else {

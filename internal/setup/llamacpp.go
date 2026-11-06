@@ -21,7 +21,7 @@ func (b *builder) llamacpp() error {
 	if m.HFGGUFRepo == "" {
 		return fmt.Errorf("no Hugging Face GGUF repo is known for %s; download a %s GGUF yourself and run llama-server -m <file>", m.Name, q.Name)
 	}
-	hf := m.HFGGUFRepo + ":" + q.Name
+	hf := m.HFGGUFRepo + ":" + q.HFTag()
 
 	b.checkStep([]Command{
 		b.llamaCmd(b.llamaBin("llama-server") + " --version"),

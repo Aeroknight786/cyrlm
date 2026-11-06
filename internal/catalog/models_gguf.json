@@ -24,6 +24,7 @@
     "RecurrentStateBytes": 156893184,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 262144,
     "Tools": true,
@@ -79,6 +80,7 @@
     "RecurrentStateBytes": 65863680,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 262144,
     "Tools": true,
@@ -89,14 +91,16 @@
         "Format": "gguf",
         "FileBytes": 22134528992,
         "ReadBytesPerToken": 2626185728,
-        "Estimated": false
+        "Estimated": false,
+        "FileTag": "UD-Q4_K_M"
       },
       {
         "Name": "MXFP4",
         "Format": "gguf",
         "FileBytes": 21706144736,
         "ReadBytesPerToken": 2732116480,
-        "Estimated": false
+        "Estimated": false,
+        "FileTag": "MXFP4_MOE"
       },
       {
         "Name": "Q8_0",
@@ -141,6 +145,7 @@
     "RecurrentStateBytes": 52690944,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 262144,
     "Tools": true,
@@ -196,6 +201,7 @@
     "RecurrentStateBytes": 52690944,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 262144,
     "Tools": true,
@@ -251,6 +257,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 262144,
     "Tools": true,
@@ -305,6 +312,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 262144,
     "Tools": true,
@@ -315,14 +323,16 @@
         "Format": "gguf",
         "FileBytes": 16947541728,
         "ReadBytesPerToken": 3475727416,
-        "Estimated": false
+        "Estimated": false,
+        "FileTag": "UD-Q4_K_M"
       },
       {
         "Name": "MXFP4",
         "Format": "gguf",
         "FileBytes": 16551048928,
         "ReadBytesPerToken": 3450946616,
-        "Estimated": false
+        "Estimated": false,
+        "FileTag": "MXFP4_MOE"
       },
       {
         "Name": "Q8_0",
@@ -366,6 +376,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 393216,
     "Tools": true,
@@ -420,6 +431,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 202752,
     "Tools": true,
@@ -437,7 +449,8 @@
         "Format": "gguf",
         "FileBytes": 16968499296,
         "ReadBytesPerToken": 2784733696,
-        "Estimated": false
+        "Estimated": false,
+        "FileTag": "MXFP4_MOE"
       },
       {
         "Name": "Q8_0",
@@ -481,6 +494,7 @@
     "RecurrentStateBytes": 99860480,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 1048576,
     "Tools": true,
@@ -529,6 +543,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 131072,
     "Tools": true,
@@ -583,6 +598,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
+    "TrialStandIn": "",
     "DecodeEff": 0,
     "NativeCtx": 131072,
     "Tools": true,

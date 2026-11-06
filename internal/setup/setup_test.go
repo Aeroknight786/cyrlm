@@ -663,7 +663,7 @@ func TestCatalogModelSources(t *testing.T) {
 		want  string
 		conf  string
 	}{
-		{"generated", gen, "Q4_K_M", "ollama pull hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:Q4_K_M", High},
+		{"generated", gen, "Q4_K_M", "ollama pull hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M", High},
 		{"generated non-default quant", gen, "Q8_0", "ollama pull hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:Q8_0", High},
 		{"hand-entered", hand, "MXFP4", "ollama pull hf.co/ggml-org/gpt-oss-20b-GGUF:MXFP4", High},
 		{"library tag fallback", noHF, "Q4_K_M", "ollama pull qwen3:8b\n", Medium},

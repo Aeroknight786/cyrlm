@@ -121,7 +121,11 @@ func build(src source) (catalog.Model, error) {
 		if size <= 0 {
 			size = int64(s.TensorBytes)
 		}
-		m.Quants = append(m.Quants, catalog.Quant{Name: fl.quant, Format: "gguf", FileBytes: size, ReadBytesPerToken: int64(s.ActiveBytes)})
+		q := catalog.Quant{Name: fl.quant, Format: "gguf", FileBytes: size, ReadBytesPerToken: int64(s.ActiveBytes)}
+		if tag := catalog.FileTag(fl.name); tag != "" && tag != fl.quant {
+			q.FileTag = tag
+		}
+		m.Quants = append(m.Quants, q)
 	}
 	return m, nil
 }
