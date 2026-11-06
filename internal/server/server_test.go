@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/catalog"
-	"github.com/aeroknight786/cyrlm/internal/predict"
-	"github.com/aeroknight786/cyrlm/internal/runtime"
-	"github.com/aeroknight786/cyrlm/internal/sim"
-	"github.com/aeroknight786/cyrlm/internal/tok"
-	"github.com/aeroknight786/cyrlm/internal/upstream"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/predict"
+	"github.com/aeroknight786/trialm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/sim"
+	"github.com/aeroknight786/trialm/internal/tok"
+	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
 // fakeUpstream is an OpenAI-compatible endpoint that answers with text, or a
@@ -223,7 +223,7 @@ func TestContextErrorAndTruncation(t *testing.T) {
 
 func TestDiscoveryAndProtections(t *testing.T) {
 	ts, _ := newTestServer(t, "ollama", 65536)
-	for _, path := range []string{"/", "/api/version", "/api/tags", "/v1/models", "/api/ps", "/cyrlm/stats"} {
+	for _, path := range []string{"/", "/api/version", "/api/tags", "/v1/models", "/api/ps", "/trialm/stats"} {
 		r, err := http.Get(ts.URL + path)
 		if err != nil || r.StatusCode != 200 {
 			t.Fatalf("GET %s: %v %v", path, err, r)

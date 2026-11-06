@@ -68,7 +68,7 @@ type Defaults struct {
 	RAMCacheGiB         float64     `json:"ram_cache_gib"`
 }
 
-// Tuned are the settings cyrlm recommends for agentic use.
+// Tuned are the settings trialm recommends for agentic use.
 type Tuned struct {
 	ContextTokens  int      `json:"context_tokens,omitempty"`
 	KeepAliveS     *int     `json:"keep_alive_s,omitempty"`
@@ -239,7 +239,7 @@ type ResolveInput struct {
 	NativeCtx int
 	// MaxFitCtx is the largest context that fits memory (0 = unknown).
 	MaxFitCtx int
-	// Tuned selects cyrlm's recommended settings.
+	// Tuned selects triaLM's recommended settings.
 	Tuned bool
 	// CtxOverride forces a context (0 = none).
 	CtxOverride int

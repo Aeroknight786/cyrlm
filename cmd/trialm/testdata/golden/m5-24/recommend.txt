@@ -1,0 +1,15 @@
+
+Best local models for Claude Code on what-if: Apple M5 (10-core GPU), 24 GB unified memory
+
+#  MODEL            RUNTIME                   FILE               FIRST REPLY  FOLLOW-UP  TASK*        FEEL
+1  qwen3.6:35b-a3b  llama.cpp (llama-server)  IQ3_XXS 13.2 GB    41 s         14 s       10 min 52 s  comfortable
+2  gemma4:26b-a4b   llama.cpp (llama-server)  IQ4_XS 13.6 GB     52 s         19 s       13 min 15 s  comfortable
+3  gpt-oss:20b      LM Studio (MLX engine)    MLX-MXFP4 12.1 GB  48 s         16 s       13 min 16 s  comfortable
+4  qwen3.5:4b       llama.cpp (llama-server)  Q4_K_M 2.7 GB      43 s         17 s       13 min 27 s  comfortable
+5  gemma4:12b       llama.cpp (llama-server)  Q4_K_M 7.1 GB      1 min 54 s   34 s       26 min 33 s  usable
+
+* TASK = a 40-call agent task (cloud: ~2 min 00 s). Tuned settings. ● = runtime installed. More options: --top 20
+Ranked by speed tier, then model size (a rough capability proxy — triaLM does not score coding quality; try the top picks).
+Each model shows the file that runs best here: its usual 4-bit file when that is fast, else a smaller 3-bit file (more mistakes; see the quality caveat in `trialm predict`).
+Try #1: trialm try qwen3.6:35b-a3b --runtime llamacpp --quant IQ3_XXS --harness claude-code
+

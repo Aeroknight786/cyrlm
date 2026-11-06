@@ -15,14 +15,14 @@ import (
 
 func TestConfigRoundTripAndPermissions(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("CYRLM_HOME", dir)
-	t.Setenv("CYRLM_KEY", "")
-	t.Setenv("CYRLM_API_URL", "")
+	t.Setenv("TRIALM_HOME", dir)
+	t.Setenv("TRIALM_KEY", "")
+	t.Setenv("TRIALM_API_URL", "")
 	c := Load()
 	if c.Share != ShareAsk || c.LoggedIn() || c.CanShare() {
 		t.Fatalf("defaults: %+v", c)
 	}
-	c.Key, c.APIURL, c.Share = "cyrlm_abcdef123456", "https://example.invalid", ShareAlways
+	c.Key, c.APIURL, c.Share = "trialm_abcdef123456", "https://example.invalid", ShareAlways
 	if err := c.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -41,20 +41,20 @@ func TestConfigRoundTripAndPermissions(t *testing.T) {
 	if m := got.MaskedKey(); strings.Contains(m, "abcdef123") {
 		t.Fatalf("masked key leaks: %s", m)
 	}
-	t.Setenv("CYRLM_KEY", "envkey")
+	t.Setenv("TRIALM_KEY", "envkey")
 	if Load().Key != "envkey" {
-		t.Fatal("CYRLM_KEY should override the file")
+		t.Fatal("TRIALM_KEY should override the file")
 	}
 }
 
 func sampleReport() Report {
-	return Report{Schema: 1, ID: NewID(), CyrlmVersion: "test", CreatedAt: time.Now(), Runtime: "ollama", Model: "qwen3.6-35b-a3b", Quant: "Q4_K_M",
+	return Report{Schema: 1, ID: NewID(), TrialmVersion: "test", CreatedAt: time.Now(), Runtime: "ollama", Model: "qwen3.6-35b-a3b", Quant: "Q4_K_M",
 		Machine:   Machine{OS: "darwin", Arch: "arm64", CPU: "Apple M4 Pro", RAMGB: 48, GPU: "Apple M4 Pro", GPUCores: 20, Unified: true, DeviceSpec: "Apple M4 Pro 20c", Segment: "apple_pro"},
 		DecodeTPS: NewMetric(48, 51), PromptSec: NewMetric(10, 11)}
 }
 
 func TestReportsSaveLastAndPrivacy(t *testing.T) {
-	t.Setenv("CYRLM_HOME", t.TempDir())
+	t.Setenv("TRIALM_HOME", t.TempDir())
 	r := sampleReport()
 	p, err := SaveReport(r)
 	if err != nil {

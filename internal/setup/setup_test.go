@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroknight786/cyrlm/internal/catalog"
-	"github.com/aeroknight786/cyrlm/internal/harness"
-	"github.com/aeroknight786/cyrlm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/harness"
+	"github.com/aeroknight786/trialm/internal/runtime"
 )
 
 // ---------------------------------------------------------------- fixtures
@@ -248,7 +248,7 @@ func checkInvariants(t *testing.T, in Input, p Plan) {
 		t.Errorf("download bytes: step %d plan %d, want %d", downloads[0].DownloadBytes, p.DownloadBytes, q.FileBytes)
 	}
 	v := runs(p.Steps[len(p.Steps)-1])
-	contains(t, "verify command", v, "cyrlm verify", "--runtime "+p.Runtime, "--endpoint "+p.Endpoint,
+	contains(t, "verify command", v, "trialm verify", "--runtime "+p.Runtime, "--endpoint "+p.Endpoint,
 		"--catalog-model "+p.Model, "--quant "+p.Quant, "--ctx "+itoa(p.ContextTokens))
 	if !strings.Contains(v, "--model "+p.LocalModelName) && !strings.Contains(v, "--model '"+p.LocalModelName+"'") {
 		t.Errorf("verify command lacks --model %s: %s", p.LocalModelName, v)
@@ -312,7 +312,7 @@ func TestOllamaDarwinTunedQ8ClaudeCode(t *testing.T) {
 	p := build(t, in)
 
 	assertKindSequence(t, p, KindCheck, KindInstall, KindDownload, KindConfigure, KindService, KindStart, KindHarness, KindVerify)
-	if p.Endpoint != "http://127.0.0.1:11434" || p.LocalModelName != "qwen3-coder:30b-cyrlm" {
+	if p.Endpoint != "http://127.0.0.1:11434" || p.LocalModelName != "qwen3-coder:30b-trialm" {
 		t.Errorf("endpoint %s name %s", p.Endpoint, p.LocalModelName)
 	}
 	if !p.Tuned || p.ContextTokens != 65536 || p.KVCacheType != "q8_0" || p.KeepAliveS != -1 || !p.FlashAttention {
@@ -325,12 +325,12 @@ func TestOllamaDarwinTunedQ8ClaudeCode(t *testing.T) {
 	contains(t, "download", runs(mustStep(t, p, "download-model")), "ollama pull hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M")
 
 	cfg := mustStep(t, p, "configure-modelfile")
-	mf := file(t, cfg, "~/.cyrlm/ollama/qwen3-coder-30b-cyrlm.Modelfile")
+	mf := file(t, cfg, "~/.trialm/ollama/qwen3-coder-30b-trialm.Modelfile")
 	if mf.Format != "modelfile" || mf.Merge != "create" {
 		t.Errorf("modelfile edit: %+v", mf)
 	}
 	contains(t, "Modelfile", mf.Content, "FROM hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M\n", "PARAMETER num_ctx 65536\n")
-	contains(t, "create", runs(cfg), `ollama create qwen3-coder:30b-cyrlm -f "$HOME/.cyrlm/ollama/qwen3-coder-30b-cyrlm.Modelfile"`)
+	contains(t, "create", runs(cfg), `ollama create qwen3-coder:30b-trialm -f "$HOME/.trialm/ollama/qwen3-coder-30b-trialm.Modelfile"`)
 
 	env := mustStep(t, p, "service-ollama-env")
 	r := runs(env)
@@ -346,7 +346,7 @@ func TestOllamaDarwinTunedQ8ClaudeCode(t *testing.T) {
 	}
 
 	cc := mustStep(t, p, "harness-claude-code")
-	f := file(t, cc, "~/.cyrlm/harness/claude-code-ollama.json")
+	f := file(t, cc, "~/.trialm/harness/claude-code-ollama.json")
 	var settings struct {
 		Env map[string]string `json:"env"`
 	}
@@ -355,8 +355,8 @@ func TestOllamaDarwinTunedQ8ClaudeCode(t *testing.T) {
 	}
 	want := map[string]string{
 		"ANTHROPIC_BASE_URL":             "http://127.0.0.1:11434",
-		"ANTHROPIC_MODEL":                "qwen3-coder:30b-cyrlm",
-		"ANTHROPIC_DEFAULT_SONNET_MODEL": "qwen3-coder:30b-cyrlm",
+		"ANTHROPIC_MODEL":                "qwen3-coder:30b-trialm",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL": "qwen3-coder:30b-trialm",
 		"CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
 		"CLAUDE_CODE_MAX_CONTEXT_TOKENS": "65536",
 	}
@@ -386,7 +386,7 @@ func TestOllamaEnvOnlyForNonDefaults(t *testing.T) {
 	}
 	lacks(t, "untuned plan", allRuns(p), "OLLAMA_KV_CACHE_TYPE", "OLLAMA_KEEP_ALIVE", "OLLAMA_FLASH_ATTENTION")
 	// The Modelfile is still written with the resolved context.
-	contains(t, "Modelfile", file(t, mustStep(t, p, "configure-modelfile"), "~/.cyrlm/ollama/qwen3-8b-cyrlm.Modelfile").Content,
+	contains(t, "Modelfile", file(t, mustStep(t, p, "configure-modelfile"), "~/.trialm/ollama/qwen3-8b-trialm.Modelfile").Content,
 		"PARAMETER num_ctx "+itoa(p.ContextTokens))
 
 	// Tuned with an f16 cache: only keep-alive differs (flash attention is
@@ -394,7 +394,7 @@ func TestOllamaEnvOnlyForNonDefaults(t *testing.T) {
 	p = build(t, spec{model: "qwen3-8b", runtime: "ollama", goos: "linux", goarch: "amd64", backend: "cuda", tuned: true}.input(t))
 	env := mustStep(t, p, "service-ollama-env")
 	r := runs(env)
-	contains(t, "systemd drop-in", r, `Environment="OLLAMA_KEEP_ALIVE=-1"`, "/etc/systemd/system/ollama.service.d/cyrlm.conf", "sudo systemctl daemon-reload", "sudo systemctl restart ollama")
+	contains(t, "systemd drop-in", r, `Environment="OLLAMA_KEEP_ALIVE=-1"`, "/etc/systemd/system/ollama.service.d/trialm.conf", "sudo systemctl daemon-reload", "sudo systemctl restart ollama")
 	lacks(t, "systemd drop-in", r, "OLLAMA_KV_CACHE_TYPE", "OLLAMA_FLASH_ATTENTION")
 	if !env.NeedsAdmin {
 		t.Error("systemd drop-in needs admin")
@@ -422,12 +422,12 @@ func TestOllamaWindows(t *testing.T) {
 		"[Environment]::SetEnvironmentVariable('OLLAMA_KV_CACHE_TYPE', 'q8_0', 'User')",
 		"[Environment]::SetEnvironmentVariable('OLLAMA_KEEP_ALIVE', '-1', 'User')",
 		"Stop-Process", "Start-Process")
-	contains(t, "modelfile command", runs(mustStep(t, p, "configure-modelfile")), `"$HOME\.cyrlm\ollama\gpt-oss-20b-cyrlm.Modelfile"`)
-	// Codex goes through cyrlm bridge and is configured on the command
+	contains(t, "modelfile command", runs(mustStep(t, p, "configure-modelfile")), `"$HOME\.trialm\ollama\gpt-oss-20b-trialm.Modelfile"`)
+	// Codex goes through trialm bridge and is configured on the command
 	// line only: no config file edits.
-	contains(t, "codex bridge", runs(mustStep(t, p, "start-bridge")), "cyrlm bridge --endpoint http://127.0.0.1:11434 --model gpt-oss:20b-cyrlm --harness codex", "--background")
+	contains(t, "codex bridge", runs(mustStep(t, p, "start-bridge")), "trialm bridge --endpoint http://127.0.0.1:11434 --model gpt-oss:20b-trialm --harness codex", "--background")
 	cx := mustStep(t, p, "harness-codex")
-	contains(t, "codex command", runs(cx), "model_providers.cyrlm.base_url=http://127.0.0.1:11535/v1", "model_providers.cyrlm.wire_api=responses", "web_search=disabled", "-m gpt-oss:20b-cyrlm")
+	contains(t, "codex command", runs(cx), "model_providers.trialm.base_url=http://127.0.0.1:11535/v1", "model_providers.trialm.wire_api=responses", "web_search=disabled", "-m gpt-oss:20b-trialm")
 	if len(cx.Files) != 0 {
 		t.Errorf("codex step must not edit files: %+v", cx.Files)
 	}
@@ -443,14 +443,14 @@ func TestOllamaWindows(t *testing.T) {
 func TestLlamaCppLinuxCUDACodexBridge(t *testing.T) {
 	in := spec{model: "qwen3-coder-30b-a3b", quant: "Q4_K_M", runtime: "llamacpp", goos: "linux", goarch: "amd64",
 		backend: "cuda", tuned: true, harness: "codex"}.input(t)
-	// Without a Responses API, Codex still works through cyrlm bridge
+	// Without a Responses API, Codex still works through trialm bridge
 	// (Chat Completions on the runtime side).
 	in.Profile.APIs = []string{"openai-chat", "anthropic"}
 	p := build(t, in)
 	if !p.HarnessCompatible {
 		t.Fatal("Codex must connect through the bridge")
 	}
-	contains(t, "harness note", p.HarnessNote, "Codex", "cyrlm bridge", "Chat Completions")
+	contains(t, "harness note", p.HarnessNote, "Codex", "trialm bridge", "Chat Completions")
 	contains(t, "bridge", runs(mustStep(t, p, "start-bridge")), "--endpoint http://127.0.0.1:8080")
 	// Without any API the bridge can call, it is incompatible.
 	in.Profile.APIs = []string{"anthropic"}
@@ -468,21 +468,21 @@ func TestLlamaCppLinuxCUDACodexBridge(t *testing.T) {
 	contains(t, "linux install", inst, "api.github.com/repos/ggml-org/llama.cpp/releases", "bin-ubuntu-cuda-", "cudart-", "-x64")
 	contains(t, "download", runs(mustStep(t, p, "download-model")), "llama-cli -hf unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M --no-mmproj")
 
-	script := file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/llamacpp/qwen3-coder-30b-cyrlm.sh").Content
+	script := file(t, mustStep(t, p, "configure-launch-script"), "~/.trialm/llamacpp/qwen3-coder-30b-trialm.sh").Content
 	contains(t, "launch script", script, "llama-server -hf unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M", "-c 65536", "-fa on", "--jinja",
-		"-ngl 999", "--alias qwen3-coder:30b-cyrlm", "--port 8080", "--no-mmproj", "-np 1")
+		"-ngl 999", "--alias qwen3-coder:30b-trialm", "--port 8080", "--no-mmproj", "-np 1")
 	lacks(t, "launch script (f16 cache)", script, "-ctk", "-ctv")
-	contains(t, "start", runs(mustStep(t, p, "start-server")), "cyrlm bg --log", "--ready http://127.0.0.1:8080/health", "-- sh ")
+	contains(t, "start", runs(mustStep(t, p, "start-server")), "trialm bg --log", "--ready http://127.0.0.1:8080/health", "-- sh ")
 
 	// q8_0 KV cache adds the cache-type flags.
 	in.Settings.KVCacheType = "q8_0"
 	p = build(t, in)
-	contains(t, "launch script (q8_0)", file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/llamacpp/qwen3-coder-30b-cyrlm.sh").Content, "-ctk q8_0 -ctv q8_0")
+	contains(t, "launch script (q8_0)", file(t, mustStep(t, p, "configure-launch-script"), "~/.trialm/llamacpp/qwen3-coder-30b-trialm.sh").Content, "-ctk q8_0 -ctv q8_0")
 
 	// A port override (something else on 8080) moves every artifact.
 	in.Port = 8081
 	p = build(t, in)
-	contains(t, "moved port", file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/llamacpp/qwen3-coder-30b-cyrlm.sh").Content, "--port 8081")
+	contains(t, "moved port", file(t, mustStep(t, p, "configure-launch-script"), "~/.trialm/llamacpp/qwen3-coder-30b-trialm.sh").Content, "--port 8081")
 	contains(t, "moved port", runs(mustStep(t, p, "start-server")), "http://127.0.0.1:8081/health")
 	contains(t, "moved port", runs(mustStep(t, p, "start-bridge")), "--endpoint http://127.0.0.1:8081")
 }
@@ -538,7 +538,7 @@ func TestLMStudioWindowsOpenCode(t *testing.T) {
 	contains(t, "manual settings", manual.Why, "Flash Attention: On", "K Cache Quantization Type: Q8_0", "V Cache Quantization Type: Q8_0")
 	contains(t, "server", runs(mustStep(t, p, "service-lms-server")), "server start --port 1234")
 	load := runs(mustStep(t, p, "start-model"))
-	contains(t, "load", load, "load qwen3-coder-30b-a3b-instruct --context-length 65536 --gpu max --identifier qwen3-coder:30b-cyrlm -y")
+	contains(t, "load", load, "load qwen3-coder-30b-a3b-instruct --context-length 65536 --gpu max --identifier qwen3-coder:30b-trialm -y")
 	lacks(t, "load", load, "--ttl")
 
 	oc := file(t, mustStep(t, p, "harness-opencode"), "~/.config/opencode/opencode.json")
@@ -556,11 +556,11 @@ func TestLMStudioWindowsOpenCode(t *testing.T) {
 	if err := json.Unmarshal([]byte(oc.Content), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	prov := cfg.Provider["cyrlm-lmstudio"]
+	prov := cfg.Provider["trialm-lmstudio"]
 	if prov.Options.BaseURL != "http://127.0.0.1:1234/v1" || prov.NPM != "@ai-sdk/openai-compatible" {
 		t.Errorf("opencode provider: %+v", prov)
 	}
-	if prov.Models["qwen3-coder:30b-cyrlm"].Limit.Context != 65536 {
+	if prov.Models["qwen3-coder:30b-trialm"].Limit.Context != 65536 {
 		t.Errorf("opencode model limit: %+v", prov.Models)
 	}
 
@@ -581,9 +581,9 @@ func TestLMStudioMLX(t *testing.T) {
 	contains(t, "install", runs(mustStep(t, p, "install-lmstudio")), "brew install --cask lm-studio")
 	contains(t, "download", runs(mustStep(t, p, "download-model")), "get https://huggingface.co/mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit --mlx -y")
 	load := runs(mustStep(t, p, "start-model"))
-	contains(t, "load", load, "--context-length 65536", "--identifier qwen3-coder:30b-mlx-4bit-cyrlm")
+	contains(t, "load", load, "--context-length 65536", "--identifier qwen3-coder:30b-mlx-4bit-trialm")
 	lacks(t, "mlx load", load, "--gpu")
-	if p.LocalModelName != "qwen3-coder:30b-mlx-4bit-cyrlm" {
+	if p.LocalModelName != "qwen3-coder:30b-mlx-4bit-trialm" {
 		t.Errorf("LocalModelName %s", p.LocalModelName)
 	}
 	if !p.HarnessCompatible {
@@ -599,20 +599,20 @@ func TestMLXLM(t *testing.T) {
 	}
 	contains(t, "install", runs(mustStep(t, p, "install-mlx-lm")), "uv tool install mlx-lm")
 	contains(t, "download", runs(mustStep(t, p, "download-model")), "mlx_lm.generate --model mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit")
-	script := file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/mlx-lm/qwen3-coder-30b-mlx-4bit-cyrlm.sh").Content
+	script := file(t, mustStep(t, p, "configure-launch-script"), "~/.trialm/mlx-lm/qwen3-coder-30b-mlx-4bit-trialm.sh").Content
 	contains(t, "launch", script, "exec mlx_lm.server --model mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit --host 127.0.0.1 --port 8080")
 	lacks(t, "launch (f16)", script, "--kv-bits")
 
 	q8 := base
 	q8.kv = "q8_0"
 	p = build(t, q8.input(t))
-	contains(t, "launch (q8)", file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/mlx-lm/qwen3-coder-30b-mlx-4bit-cyrlm.sh").Content, "--kv-bits 8")
+	contains(t, "launch (q8)", file(t, mustStep(t, p, "configure-launch-script"), "~/.trialm/mlx-lm/qwen3-coder-30b-mlx-4bit-trialm.sh").Content, "--kv-bits 8")
 
 	// mlx-lm has no Anthropic API: Claude Code connects through the bridge.
 	cc := base
 	cc.harness = "claude-code"
 	p = build(t, cc.input(t))
-	if !p.HarnessCompatible || !strings.Contains(p.HarnessNote, "cyrlm bridge") {
+	if !p.HarnessCompatible || !strings.Contains(p.HarnessNote, "trialm bridge") {
 		t.Errorf("claude-code on mlx-lm: %v %q", p.HarnessCompatible, p.HarnessNote)
 	}
 	mustStep(t, p, "start-bridge")
@@ -757,7 +757,7 @@ func TestOtherHarnesses(t *testing.T) {
 	// mlx-lm only serves Chat Completions: Claude Code goes through the bridge.
 	mp := build(t, spec{model: "qwen3-coder-30b-a3b", quant: "MLX-4bit", runtime: "mlx-lm", goos: "darwin", goarch: "arm64", backend: "mlx", harness: "claude-code"}.input(t))
 	if !mp.HarnessCompatible {
-		t.Error("claude-code must connect to mlx-lm through cyrlm bridge")
+		t.Error("claude-code must connect to mlx-lm through trialm bridge")
 	}
 }
 
@@ -794,10 +794,10 @@ func TestPlanJSONShape(t *testing.T) {
 
 func TestLocalNameAndQuoting(t *testing.T) {
 	m := catalog.Model{ID: "x", OllamaTag: "Foo/Bar:7B", Quants: []catalog.Quant{{Name: "Q4_K_M"}, {Name: "Q8_0"}}}
-	if got := localName(m, m.Quants[0]); got != "foo-bar:7b-cyrlm" {
+	if got := localName(m, m.Quants[0]); got != "foo-bar:7b-trialm" {
 		t.Errorf("localName = %s", got)
 	}
-	if got := localName(m, m.Quants[1]); got != "foo-bar:7b-q8_0-cyrlm" {
+	if got := localName(m, m.Quants[1]); got != "foo-bar:7b-q8_0-trialm" {
 		t.Errorf("localName = %s", got)
 	}
 	if got := shQuote("it's here"); got != `'it'\''s here'` {

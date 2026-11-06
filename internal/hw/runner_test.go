@@ -27,7 +27,7 @@ func TestLoopbackGet(t *testing.T) {
 }
 
 func TestOSRunnerRun(t *testing.T) {
-	if _, err := (osRunner{}).Run(context.Background(), "cyrlm-no-such-tool-xyz"); err == nil {
+	if _, err := (osRunner{}).Run(context.Background(), "trialm-no-such-tool-xyz"); err == nil {
 		t.Fatal("missing tool should fail")
 	}
 }

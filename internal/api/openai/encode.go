@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 // ---- wire types ----
@@ -400,7 +400,7 @@ func WriteModels(w http.ResponseWriter, models []api.ModelInfo) {
 			ID:      m.Name,
 			Object:  "model",
 			Created: unixSeconds(m.ModifiedAt),
-			OwnedBy: "cyrlm",
+			OwnedBy: "trialm",
 		})
 	}
 	_ = api.WriteJSON(w, http.StatusOK, out)

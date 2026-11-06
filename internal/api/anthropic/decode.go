@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 // Frontend is the Anthropic Messages protocol.

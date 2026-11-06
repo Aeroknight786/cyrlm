@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aeroknight786/cyrlm/internal/harness"
-	"github.com/aeroknight786/cyrlm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/harness"
+	"github.com/aeroknight786/trialm/internal/runtime"
 )
 
 const (
@@ -37,7 +37,7 @@ func (b *builder) harnessSteps() {
 	proto := h.ProtocolFor(b.p.APIs)
 	if h.NeedsBridge(b.p.APIs) {
 		pl.HarnessCompatible = true
-		pl.HarnessNote = fmt.Sprintf("%s connects through `cyrlm bridge`, which passes its requests to %s's Chat Completions API at %s as model %s.", h.Name, b.p.Name, pl.Endpoint, pl.LocalModelName)
+		pl.HarnessNote = fmt.Sprintf("%s connects through `trialm bridge`, which passes its requests to %s's Chat Completions API at %s as model %s.", h.Name, b.p.Name, pl.Endpoint, pl.LocalModelName)
 		b.bridgeSteps(*h)
 		return
 	}
@@ -87,11 +87,11 @@ func incompatibleNote(h harness.Harness, p runtime.Profile, format, goos, goarch
 	if proto == "" {
 		proto = h.Protocol
 	}
-	note := fmt.Sprintf("%s needs the %s, which %s does not serve according to cyrlm's runtime profile (it serves %s), so no harness step is included.", h.Name, proto, p.Name, apiList(p.APIs))
+	note := fmt.Sprintf("%s needs the %s, which %s does not serve according to triaLM's runtime profile (it serves %s), so no harness step is included.", h.Name, proto, p.Name, apiList(p.APIs))
 	if len(ok) > 0 {
-		note += " Use " + strings.Join(ok, " or ") + " instead, or keep `cyrlm serve` running in front as a translator."
+		note += " Use " + strings.Join(ok, " or ") + " instead, or keep `trialm serve` running in front as a translator."
 	} else {
-		note += " Keep `cyrlm serve` running in front as a translator."
+		note += " Keep `trialm serve` running in front as a translator."
 	}
 	return note
 }
@@ -124,7 +124,7 @@ func (b *builder) claudeCodeSteps(s harness.Setup) {
 	env["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] = fmt.Sprint(pl.ContextTokens)
 	content, _ := json.MarshalIndent(map[string]any{"env": env}, "", "  ")
 
-	rel := ".cyrlm/harness/claude-code-" + pl.Runtime + ".json"
+	rel := ".trialm/harness/claude-code-" + pl.Runtime + ".json"
 	launch := "claude --settings " + b.home(rel)
 	why := fmt.Sprintf("Writes a separate Claude Code settings file that points it at %s (ANTHROPIC_BASE_URL=%s) for every model alias, so only sessions started with --settings use the local model; your normal Claude Code setup is untouched. CLAUDE_CODE_MAX_CONTEXT_TOKENS=%d makes Claude Code compact before the local context is full.", b.p.Name, pl.Endpoint, pl.ContextTokens)
 	if pl.Tuned {
@@ -152,7 +152,7 @@ func (b *builder) claudeCodeSteps(s harness.Setup) {
 		Optional: true,
 		Files: []FileEdit{{
 			Path: "~/.claude/settings.json", Format: "json", Content: string(content) + "\n", Merge: "merge",
-			Note: "Merge the keys into the existing \"env\" object; back the file up to ~/.claude/settings.json.bak-cyrlm first.",
+			Note: "Merge the keys into the existing \"env\" object; back the file up to ~/.claude/settings.json.bak-trialm first.",
 		}},
 		Restart:    "Claude Code (new sessions)",
 		Undo:       []Command{b.os(b.restoreBackup(".claude/settings.json"))},
@@ -161,13 +161,13 @@ func (b *builder) claudeCodeSteps(s harness.Setup) {
 	})
 }
 
-// bridgeSteps connect a harness through `cyrlm bridge`.
+// bridgeSteps connect a harness through `trialm bridge`.
 func (b *builder) bridgeSteps(h harness.Harness) {
 	pl := b.plan
 	if h.ID == "codex" && pl.ContextTokens < 64000 {
 		b.warn(fmt.Sprintf("Codex recommends a context window of at least 64k tokens; this plan uses %d.", pl.ContextTokens))
 	}
-	why := fmt.Sprintf("`cyrlm bridge` accepts %s's requests on port 11535 (or the next free port) and passes them to %s/v1/chat/completions, the runtime's most mature API, with system messages merged for the model's chat template and tool calls mapped back; runtime errors are shown in %s instead of being retried. It returns once it answers and prints the exact %s command.", h.Name, pl.Endpoint, h.Name, h.Name)
+	why := fmt.Sprintf("`trialm bridge` accepts %s's requests on port 11535 (or the next free port) and passes them to %s/v1/chat/completions, the runtime's most mature API, with system messages merged for the model's chat template and tool calls mapped back; runtime errors are shown in %s instead of being retried. It returns once it answers and prints the exact %s command.", h.Name, pl.Endpoint, h.Name, h.Name)
 	if h.ID == "codex" {
 		why = fmt.Sprintf("Codex sends requests that local runtimes' own Responses endpoints do not fully handle (namespaced tools, several developer messages, hosted web search; llama.cpp skips namespace tools and strict chat templates reject a second system message). ") + why
 	}
@@ -175,8 +175,8 @@ func (b *builder) bridgeSteps(h harness.Harness) {
 		ID: "start-bridge", Kind: KindStart,
 		Title:      "Start the " + h.Name + " bridge",
 		Why:        why,
-		Commands:   []Command{b.any(fmt.Sprintf("cyrlm bridge --endpoint %s --model %s --harness %s --ctx %d --background", pl.Endpoint, pl.LocalModelName, h.ID, pl.ContextTokens))},
-		Undo:       []Command{b.os(b.pkill("cyrlm bridge"))},
+		Commands:   []Command{b.any(fmt.Sprintf("trialm bridge --endpoint %s --model %s --harness %s --ctx %d --background", pl.Endpoint, pl.LocalModelName, h.ID, pl.ContextTokens))},
+		Undo:       []Command{b.os(b.pkill("trialm bridge"))},
 		Confidence: High,
 	})
 	st := Step{
@@ -197,7 +197,7 @@ func (b *builder) bridgeSteps(h harness.Harness) {
 
 func (b *builder) openCodeStep() {
 	pl := b.plan
-	id := "cyrlm-" + pl.Runtime
+	id := "trialm-" + pl.Runtime
 	cfg := map[string]any{
 		"$schema": "https://opencode.ai/config.json",
 		"provider": map[string]any{
@@ -226,7 +226,7 @@ func (b *builder) openCodeStep() {
 		Why:   fmt.Sprintf("Adds an OpenAI-compatible provider for %s at %s/v1 with the model's context limit, so OpenCode compacts before the window is full.", b.p.Name, pl.Endpoint),
 		Files: []FileEdit{{
 			Path: "~/.config/opencode/opencode.json", Format: "json", Content: string(content) + "\n", Merge: "merge",
-			Note: "Merge into the \"provider\" object of the global config (or a project's opencode.json); back the file up to opencode.json.bak-cyrlm first.",
+			Note: "Merge into the \"provider\" object of the global config (or a project's opencode.json); back the file up to opencode.json.bak-trialm first.",
 		}},
 		Restart:    "OpenCode: start it with `" + launch + "`",
 		Undo:       []Command{b.os(b.restoreBackup(".config/opencode/opencode.json"))},
@@ -271,11 +271,12 @@ func (b *builder) manualHarnessStep(h harness.Harness, s harness.Setup) {
 	})
 }
 
-// restoreBackup restores a config file from the .bak-cyrlm backup the
-// merge note asks for.
+// restoreBackup restores a config file from the .bak-trialm backup the
+// merge note asks for, or from the .bak-cyrlm backup an older plan asked for.
 func (b *builder) restoreBackup(rel string) string {
+	bak, old, dst := b.home(rel+".bak-trialm"), b.home(rel+".bak-cyrlm"), b.home(rel)
 	if b.win {
-		return `Move-Item -Force ` + b.home(rel+".bak-cyrlm") + ` ` + b.home(rel)
+		return `if (Test-Path ` + bak + `) { Move-Item -Force ` + bak + ` ` + dst + ` } else { Move-Item -Force ` + old + ` ` + dst + ` }`
 	}
-	return `mv ` + b.home(rel+".bak-cyrlm") + ` ` + b.home(rel)
+	return `if [ -f ` + bak + ` ]; then mv ` + bak + ` ` + dst + `; else mv ` + old + ` ` + dst + `; fi`
 }

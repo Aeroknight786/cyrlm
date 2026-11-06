@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -644,7 +644,7 @@ func TestWriteModels(t *testing.T) {
 		t.Fatalf("%s", rec.Body.String())
 	}
 	d := got.Data[0]
-	if d["id"] != "gpt-oss:20b" || d["object"] != "model" || d["created"] != 1710000000.0 || d["owned_by"] != "cyrlm" {
+	if d["id"] != "gpt-oss:20b" || d["object"] != "model" || d["created"] != 1710000000.0 || d["owned_by"] != "trialm" {
 		t.Fatalf("%v", d)
 	}
 	if c, _ := got.Data[1]["created"].(float64); c <= 0 {

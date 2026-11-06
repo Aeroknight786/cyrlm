@@ -14,7 +14,7 @@ import (
 const (
 	ollamaURL      = "http://127.0.0.1:11434"
 	lmStudioURL    = "http://127.0.0.1:1234"
-	llamaCppURL    = "http://127.0.0.1:8080" // older default and cyrlm's setup port
+	llamaCppURL    = "http://127.0.0.1:8080" // older default and triaLM's setup port
 	llamaCppNewURL = "http://127.0.0.1:9931" // default of recent llama-server builds
 	vllmURL        = "http://127.0.0.1:8000"
 	lemonadeURL    = "http://127.0.0.1:8000"

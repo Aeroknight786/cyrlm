@@ -15,7 +15,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 // StreamMeta describes the response being produced.

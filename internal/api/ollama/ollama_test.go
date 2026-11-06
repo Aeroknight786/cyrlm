@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 // zedBody is shaped like an agent-panel request from Zed / Continue after a

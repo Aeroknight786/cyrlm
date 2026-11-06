@@ -199,7 +199,7 @@
         "Calibration baseline: the predictor's efficiencies were fitted on llama.cpp benchmarks.",
         "Requests larger than the context return an error instead of being truncated.",
         "Four slots share one KV cache; evicted prompts can be restored from a RAM cache.",
-        "Recent builds listen on port 9931 by default (older: 8080); cyrlm's setup starts it on 8080 explicitly."
+        "Recent builds listen on port 9931 by default (older: 8080); triaLM's setup starts it on 8080 explicitly."
       ]
     },
     {

@@ -1,6 +1,6 @@
 // Package harness knows how coding harnesses connect to a local runtime:
 // which protocol they speak, how big their per-request prompt is (which
-// dominates local prefill time), and how to point them at cyrlm.
+// dominates local prefill time), and how to point them at trialm.
 package harness
 
 import (
@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aeroknight786/cyrlm/internal/predict"
+	"github.com/aeroknight786/trialm/internal/predict"
 )
 
 // Harness is one coding tool.
@@ -57,7 +57,7 @@ func (h Harness) CompatibleWith(apis []string) bool {
 }
 
 // NeedsBridge reports whether the harness should reach a runtime with
-// these APIs through `cyrlm bridge`: always for Codex (local runtimes'
+// these APIs through `trialm bridge`: always for Codex (local runtimes'
 // Responses endpoints miss namespaced tools and reject Codex's message
 // layout), and for any harness whose protocol the runtime lacks, as long
 // as the runtime has Chat Completions for the bridge to call.
@@ -115,10 +115,10 @@ func Get(id string) (Harness, error) {
 // endpoint at baseURL (".../v1") with model, using -c overrides only.
 func CodexCommand(baseURL, model string, contextTokens int) []string {
 	c := []string{FindBinary("codex"),
-		"-c", "model_providers.cyrlm.name=cyrlm",
-		"-c", "model_providers.cyrlm.base_url=" + baseURL,
-		"-c", "model_providers.cyrlm.wire_api=responses",
-		"-c", "model_provider=cyrlm",
+		"-c", "model_providers.trialm.name=trialm",
+		"-c", "model_providers.trialm.base_url=" + baseURL,
+		"-c", "model_providers.trialm.wire_api=responses",
+		"-c", "model_provider=trialm",
 		"-c", "web_search=disabled",
 	}
 	if contextTokens > 0 {
@@ -128,9 +128,9 @@ func CodexCommand(baseURL, model string, contextTokens int) []string {
 	return append(c, "-m", model)
 }
 
-// knownBinaries are install locations that are often missing from the
+// KnownBinaries are install locations that are often missing from the
 // user's shell PATH (an app bundle, a per-user npm prefix).
-var knownBinaries = map[string][]string{
+var KnownBinaries = map[string][]string{
 	"codex": {
 		"/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
 		"/Applications/Codex.app/Contents/Resources/codex",
@@ -149,7 +149,7 @@ func FindBinary(name string) string {
 		return name
 	}
 	home, _ := os.UserHomeDir()
-	for _, p := range knownBinaries[name] {
+	for _, p := range KnownBinaries[name] {
 		if strings.HasPrefix(p, "~/") {
 			p = filepath.Join(home, p[2:])
 		}
@@ -199,7 +199,7 @@ func (h Harness) SetupFor(o Options) Setup {
 	case "claude-code":
 		s.Env = [][2]string{
 			{"ANTHROPIC_BASE_URL", base},
-			{"ANTHROPIC_AUTH_TOKEN", "cyrlm"},
+			{"ANTHROPIC_AUTH_TOKEN", "trialm"},
 			{"ANTHROPIC_API_KEY", ""},
 			{"ANTHROPIC_MODEL", m},
 			{"ANTHROPIC_DEFAULT_HAIKU_MODEL", m},
@@ -213,7 +213,7 @@ func (h Harness) SetupFor(o Options) Setup {
 			s.Env = append(s.Env, [2]string{"CLAUDE_CODE_ATTRIBUTION_HEADER", "0"})
 			s.Notes = append(s.Notes, "CLAUDE_CODE_ATTRIBUTION_HEADER=0 keeps the system prompt identical across requests so the local prompt cache can be reused (recommended by LM Studio's Claude Code guide).")
 		} else {
-			s.Notes = append(s.Notes, "Default Claude Code settings: if its system prompt changes per request, every turn re-processes the whole prompt — watch for \"cache miss\" lines. cyrlm's tuned settings (the default) apply the fix.")
+			s.Notes = append(s.Notes, "Default Claude Code settings: if its system prompt changes per request, every turn re-processes the whole prompt — watch for \"cache miss\" lines. triaLM's tuned settings (the default) apply the fix.")
 		}
 		s.Command = []string{"claude", "--model", m}
 	case "codex":
@@ -228,15 +228,15 @@ func (h Harness) SetupFor(o Options) Setup {
 		s.Config = fmt.Sprintf(`{
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "cyrlm": {
+    "trialm": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "cyrlm (simulated local model)",
+      "name": "triaLM (simulated local model)",
       "options": { "baseURL": "%s/v1" },
       "models": { "%s": { "name": "%s (simulated)", "tool_call": true } }
     }
   }
 }`, base, m, m)
-		s.Command = []string{"opencode", "--model", "cyrlm/" + m}
+		s.Command = []string{"opencode", "--model", "trialm/" + m}
 	case "aider":
 		if o.Protocol == "openai-chat" {
 			s.Env = [][2]string{{"OPENAI_API_BASE", base + "/v1"}, {"OPENAI_API_KEY", "local"}}
@@ -259,7 +259,7 @@ func (h Harness) SetupFor(o Options) Setup {
 		}
 		s.ConfigPath = "~/.continue/config.yaml"
 		s.Config = fmt.Sprintf(`models:
-  - name: %s (cyrlm)
+  - name: %s (triaLM)
     provider: %s
     model: %s
     apiBase: %s
@@ -277,7 +277,7 @@ func (h Harness) SetupFor(o Options) Setup {
 }`, base)
 		s.Steps = []string{"Open the Agent panel and pick " + m + " under Ollama"}
 	case "qwen-code":
-		s.Env = [][2]string{{"OPENAI_BASE_URL", base + "/v1"}, {"OPENAI_API_KEY", "cyrlm"}, {"OPENAI_MODEL", m}}
+		s.Env = [][2]string{{"OPENAI_BASE_URL", base + "/v1"}, {"OPENAI_API_KEY", "trialm"}, {"OPENAI_MODEL", m}}
 		s.Command = []string{"qwen"}
 	default:
 		s.Steps = []string{

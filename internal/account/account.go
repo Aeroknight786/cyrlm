@@ -1,4 +1,4 @@
-// Package account stores the user's cyrlm account key and sharing
+// Package account stores the user's triaLM account key and sharing
 // preference, keeps verification reports on disk, and uploads them only
 // when the user opts in. Reports contain timings, token counts and a coarse
 // hardware description — never prompts, file paths, hostnames or usernames.
@@ -19,6 +19,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/aeroknight786/trialm/internal/paths"
 )
 
 // Sharing modes.
@@ -28,8 +30,8 @@ const (
 	ShareNever  = "never"
 )
 
-// DefaultAPIURL is the cyrlm account server. Empty until the service is
-// deployed; set CYRLM_API_URL or `cyrlm config set api-url` meanwhile.
+// DefaultAPIURL is the triaLM account server. Empty until the service is
+// deployed; set TRIALM_API_URL or `trialm config set api-url` meanwhile.
 const DefaultAPIURL = ""
 
 // Config is the local account configuration.
@@ -38,21 +40,12 @@ type Config struct {
 	Key    string `json:"key,omitempty"`
 	Share  string `json:"share,omitempty"`
 	// OpenRouterKey is the user's own OpenRouter key for trials, stored
-	// here by `cyrlm login` so it never passes through a chat.
+	// here by `trialm login` so it never passes through a chat.
 	OpenRouterKey string `json:"openrouter_key,omitempty"`
 }
 
-// Dir returns cyrlm's config directory (CYRLM_HOME overrides).
-func Dir() (string, error) {
-	if d := os.Getenv("CYRLM_HOME"); d != "" {
-		return d, nil
-	}
-	base, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(base, "cyrlm"), nil
-}
+// Dir returns triaLM's home directory, ~/.trialm (TRIALM_HOME overrides).
+func Dir() (string, error) { return paths.Home() }
 
 func configPath() (string, error) {
 	d, err := Dir()
@@ -62,7 +55,7 @@ func configPath() (string, error) {
 	return filepath.Join(d, "config.json"), nil
 }
 
-// Load reads the config; CYRLM_KEY and CYRLM_API_URL override the file.
+// Load reads the config; TRIALM_KEY and TRIALM_API_URL override the file.
 func Load() Config {
 	var c Config
 	if p, err := configPath(); err == nil {
@@ -70,10 +63,10 @@ func Load() Config {
 			_ = json.Unmarshal(b, &c)
 		}
 	}
-	if v := os.Getenv("CYRLM_KEY"); v != "" {
+	if v := paths.Getenv("KEY"); v != "" {
 		c.Key = v
 	}
-	if v := os.Getenv("CYRLM_API_URL"); v != "" {
+	if v := paths.Getenv("API_URL"); v != "" {
 		c.APIURL = v
 	}
 	if c.APIURL == "" {
@@ -174,16 +167,16 @@ func round(v float64, d int) float64 {
 
 // Report is one verification, as stored and (opt-in) shared.
 type Report struct {
-	Schema       int       `json:"schema"`
-	ID           string    `json:"id"`
-	CyrlmVersion string    `json:"cyrlm_version"`
-	CreatedAt    time.Time `json:"created_at"`
-	Machine      Machine   `json:"machine"`
-	Runtime      string    `json:"runtime"`
-	RuntimeVer   string    `json:"runtime_version,omitempty"`
-	Model        string    `json:"model"`
-	Quant        string    `json:"quant"`
-	Settings     Settings  `json:"settings"`
+	Schema        int       `json:"schema"`
+	ID            string    `json:"id"`
+	TrialmVersion string    `json:"trialm_version"`
+	CreatedAt     time.Time `json:"created_at"`
+	Machine       Machine   `json:"machine"`
+	Runtime       string    `json:"runtime"`
+	RuntimeVer    string    `json:"runtime_version,omitempty"`
+	Model         string    `json:"model"`
+	Quant         string    `json:"quant"`
+	Settings      Settings  `json:"settings"`
 	// Workload sizes used by the measurement.
 	PromptTokens   int `json:"prompt_tokens"`
 	FollowUpTokens int `json:"follow_up_new_tokens"`
@@ -270,7 +263,7 @@ func LastReport() (string, Report, error) {
 		}
 	}
 	if len(names) == 0 {
-		return "", Report{}, errors.New("no verification results yet — run `cyrlm verify` first")
+		return "", Report{}, errors.New("no verification results yet — run `trialm verify` first")
 	}
 	sort.Strings(names)
 	p := filepath.Join(d, names[len(names)-1])
@@ -291,10 +284,10 @@ var client = &http.Client{Timeout: 20 * time.Second}
 
 func (c Config) do(ctx context.Context, method, path string, body any, out any) error {
 	if c.APIURL == "" {
-		return errors.New("no cyrlm account server is configured yet (set CYRLM_API_URL or `cyrlm config set api-url <url>`)")
+		return errors.New("no triaLM account server is configured yet (set TRIALM_API_URL or `trialm config set api-url <url>`)")
 	}
 	if c.Key == "" {
-		return errors.New("not logged in — run `cyrlm login` (get a key from your cyrlm account page)")
+		return errors.New("not logged in — run `trialm login` (get a key from your triaLM account page)")
 	}
 	var rd io.Reader
 	if body != nil {
@@ -310,7 +303,7 @@ func (c Config) do(ctx context.Context, method, path string, body any, out any) 
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Key)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "cyrlm")
+	req.Header.Set("User-Agent", "trialm")
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -318,7 +311,7 @@ func (c Config) do(ctx context.Context, method, path string, body any, out any) 
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("cyrlm server: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return fmt.Errorf("triaLM server: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 	if out != nil {
 		return json.Unmarshal(b, out)

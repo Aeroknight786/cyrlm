@@ -3,7 +3,7 @@ package tok
 import (
 	"strings"
 
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 // RenderOptions controls template behaviour that affects cache reuse.

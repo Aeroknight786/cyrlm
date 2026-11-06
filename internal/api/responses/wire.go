@@ -89,7 +89,7 @@ type customSchema struct {
 	Properties           customSchemaProps `json:"properties"`
 	Required             []string          `json:"required"`
 	AdditionalProperties bool              `json:"additionalProperties"`
-	Marker               bool              `json:"x-cyrlm-custom"`
+	Marker               bool              `json:"x-trialm-custom"`
 }
 
 type customSchemaProps struct {

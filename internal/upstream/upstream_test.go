@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 const openRouterStream = `: OPENROUTER PROCESSING
@@ -78,7 +78,7 @@ func TestBuildBodyAndErrors(t *testing.T) {
 		{Role: llm.RoleSystem, Content: "sys"},
 		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "bash"}}},
 		{Role: llm.RoleTool, ToolCallID: "c1", Content: "out"},
-	}, Tools: []llm.Tool{{Name: "bash", Parameters: json.RawMessage(`{"type":"object","x-cyrlm-custom":true}`)}}}
+	}, Tools: []llm.Tool{{Name: "bash", Parameters: json.RawMessage(`{"type":"object","x-trialm-custom":true}`)}}}
 	ch, err := c.Stream(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestBuildBodyAndErrors(t *testing.T) {
 		t.Errorf("assistant tool-call message: %v", asst)
 	}
 	params := got["tools"].([]any)[0].(map[string]any)["function"].(map[string]any)["parameters"].(map[string]any)
-	if _, ok := params["x-cyrlm-custom"]; ok {
+	if _, ok := params["x-trialm-custom"]; ok {
 		t.Error("internal schema marker must be stripped")
 	}
 	if got["provider"] == nil || got["stream"] != true {

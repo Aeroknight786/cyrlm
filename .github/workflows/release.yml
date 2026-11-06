@@ -2,7 +2,9 @@ name: release
 
 # Runs when a v* tag is pushed, or when a release is published in the
 # GitHub UI (Releases → Draft a new release). Builds every platform and
-# attaches the archives + checksums to the release.
+# attaches the archives, checksums and both installers to the release, so
+# https://github.com/aeroknight786/trialm/releases/latest/download/install.sh
+# always serves the newest installer. Then installs it on clean runners.
 on:
   push:
     tags: ["v*"]
@@ -31,7 +33,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.zip dist/checksums.txt --clobber
+            gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.zip dist/checksums.txt install.sh install.ps1 --clobber
           else
-            gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.zip dist/checksums.txt --generate-notes --title "cyrlm $GITHUB_REF_NAME"
+            gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.zip dist/checksums.txt install.sh install.ps1 --generate-notes --title "triaLM $GITHUB_REF_NAME"
           fi
+
+  # The README's install line, on clean runners, against this release.
+  install-check:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: install from the release
+        env:
+          TRIALM_VERSION: ${{ github.ref_name }}
+          TRIALM_NO_START: "1"
+        run: curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/install.sh" | sh
+      - name: check the installed version
+        run: |
+          out=$("$HOME/.local/bin/trialm" version)
+          echo "$out"
+          test "$out" = "trialm ${GITHUB_REF_NAME}"

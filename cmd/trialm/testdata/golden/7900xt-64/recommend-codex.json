@@ -1,0 +1,244 @@
+{
+  "harness": "codex",
+  "machine": "what-if: RX 7900 XT (20 GB VRAM), 64 GB RAM",
+  "options": [
+    {
+      "rank": 1,
+      "model": "qwen3.6:35b-a3b",
+      "model_name": "Qwen3.6 35B-A3B",
+      "quant": "Q3_K_XL",
+      "runtime": "ollama",
+      "try_command": "trialm try qwen3.6:35b-a3b --runtime ollama --quant Q3_K_XL --harness codex",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "ollama",
+        "tuned": true,
+        "backend": "rocm",
+        "quant": "Q3_K_XL",
+        "download_gb": 16.845511648,
+        "context_tokens": 65536,
+        "memory_gb": 18.467677831903583,
+        "budget_gb": 21.0453397504,
+        "fit": "fits",
+        "decode_tps": 187.84604454561327,
+        "decode_tps_deep": 168.61895242857776,
+        "prefill_tps": 2363.2644302208337,
+        "cold_first_reply_s": 13.052009597,
+        "follow_up_ttft_s": 2.067514691,
+        "follow_up_turn_s": 3.846674125,
+        "session_s": 194.732255602,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 45,
+        "prefill_error_range_pct": 90,
+        "no_speed_claim": false,
+        "warnings": [
+          "quality caveat: Q3_K_XL is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than the cloud's provider-dependent weights the trial uses (often a few points on coding benchmarks, more tool-call errors). A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed"
+        ],
+        "assumptions": [
+          "flash_attention=true (unverified for this version)",
+          "otherwise_tokens=262144 (unverified for this version)",
+          "overflow=truncate_oldest (unverified for this version)",
+          "swa_rollback=checkpoints (unverified for this version)"
+        ],
+        "tune_steps": [
+          "Set the context length: OLLAMA_CONTEXT_LENGTH=65536 (or num_ctx in a Modelfile)",
+          "Keep the model loaded: OLLAMA_KEEP_ALIVE=-1",
+          "Enable flash attention: OLLAMA_FLASH_ATTENTION=1",
+          "Use an 8-bit KV cache to fit the longer context: OLLAMA_KV_CACHE_TYPE=q8_0 (needs flash attention)"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    },
+    {
+      "rank": 2,
+      "model": "qwen3-coder:30b",
+      "model_name": "Qwen3-Coder 30B-A3B",
+      "quant": "Q3_K_XL",
+      "runtime": "ollama",
+      "try_command": "trialm try qwen3-coder:30b --runtime ollama --quant Q3_K_XL --harness codex",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "ollama",
+        "tuned": true,
+        "backend": "rocm",
+        "quant": "Q3_K_XL",
+        "download_gb": 13.81,
+        "context_tokens": 65536,
+        "memory_gb": 18.077028533739522,
+        "budget_gb": 21.0453397504,
+        "fit": "fits",
+        "decode_tps": 229.68401410159527,
+        "decode_tps_deep": 119.03872305043083,
+        "prefill_tps": 1330.7655063489942,
+        "cold_first_reply_s": 14.792644269,
+        "follow_up_ttft_s": 6.724966403,
+        "follow_up_turn_s": 9.245154728,
+        "session_s": 534.775178503,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 30,
+        "prefill_error_range_pct": 75,
+        "no_speed_claim": false,
+        "warnings": [
+          "quality caveat: Q3_K_XL is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than the cloud's BF16/FP8 (provider-dependent) weights the trial uses (often a few points on coding benchmarks, more tool-call errors). A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed"
+        ],
+        "assumptions": [
+          "flash_attention=true (unverified for this version)",
+          "otherwise_tokens=262144 (unverified for this version)",
+          "overflow=truncate_oldest (unverified for this version)",
+          "swa_rollback=checkpoints (unverified for this version)"
+        ],
+        "tune_steps": [
+          "Set the context length: OLLAMA_CONTEXT_LENGTH=65536 (or num_ctx in a Modelfile)",
+          "Keep the model loaded: OLLAMA_KEEP_ALIVE=-1",
+          "Enable flash attention: OLLAMA_FLASH_ATTENTION=1",
+          "Use an 8-bit KV cache to fit the longer context: OLLAMA_KV_CACHE_TYPE=q8_0 (needs flash attention)"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    },
+    {
+      "rank": 3,
+      "model": "glm-4.7-flash",
+      "model_name": "GLM-4.7-Flash",
+      "quant": "Q3_K_XL",
+      "runtime": "ollama",
+      "try_command": "trialm try glm-4.7-flash --runtime ollama --quant Q3_K_XL --harness codex",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "ollama",
+        "tuned": true,
+        "backend": "rocm",
+        "quant": "Q3_K_XL",
+        "download_gb": 13.782004064,
+        "context_tokens": 65536,
+        "memory_gb": 18.194134815959448,
+        "budget_gb": 21.0453397504,
+        "fit": "fits",
+        "decode_tps": 208.99878362707932,
+        "decode_tps_deep": 127.94205834133558,
+        "prefill_tps": 659.1582888374987,
+        "cold_first_reply_s": 21.672311041,
+        "follow_up_ttft_s": 17.139104942,
+        "follow_up_turn_s": 19.483916366,
+        "session_s": 1167.207147813,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 30,
+        "prefill_error_range_pct": 75,
+        "no_speed_claim": false,
+        "warnings": [
+          "quality caveat: Q3_K_XL is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than the cloud's provider-dependent weights the trial uses (often a few points on coding benchmarks, more tool-call errors). A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed"
+        ],
+        "assumptions": [
+          "flash_attention=true (unverified for this version)",
+          "otherwise_tokens=262144 (unverified for this version)",
+          "overflow=truncate_oldest (unverified for this version)",
+          "swa_rollback=checkpoints (unverified for this version)"
+        ],
+        "tune_steps": [
+          "Set the context length: OLLAMA_CONTEXT_LENGTH=65536 (or num_ctx in a Modelfile)",
+          "Keep the model loaded: OLLAMA_KEEP_ALIVE=-1",
+          "Enable flash attention: OLLAMA_FLASH_ATTENTION=1",
+          "Use an 8-bit KV cache to fit the longer context: OLLAMA_KV_CACHE_TYPE=q8_0 (needs flash attention)"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    },
+    {
+      "rank": 4,
+      "model": "gemma4:26b-a4b",
+      "model_name": "Gemma 4 26B-A4B",
+      "quant": "Q4_K_M",
+      "runtime": "ollama",
+      "try_command": "trialm try gemma4:26b-a4b --runtime ollama --harness codex",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "ollama",
+        "tuned": true,
+        "backend": "rocm",
+        "quant": "Q4_K_M",
+        "download_gb": 16.947541728,
+        "context_tokens": 65536,
+        "memory_gb": 18.737955064528915,
+        "budget_gb": 21.0453397504,
+        "fit": "fits",
+        "decode_tps": 130.90790638044425,
+        "decode_tps_deep": 117.99363155378863,
+        "prefill_tps": 1629.2526039457232,
+        "cold_first_reply_s": 14.811079853,
+        "follow_up_ttft_s": 2.557622921,
+        "follow_up_turn_s": 5.100133021,
+        "session_s": 245.376222804,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 30,
+        "prefill_error_range_pct": 75,
+        "no_speed_claim": false,
+        "warnings": [
+          "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+        ],
+        "assumptions": [
+          "flash_attention=true (unverified for this version)",
+          "otherwise_tokens=262144 (unverified for this version)",
+          "overflow=truncate_oldest (unverified for this version)",
+          "swa_rollback=checkpoints (unverified for this version)"
+        ],
+        "tune_steps": [
+          "Set the context length: OLLAMA_CONTEXT_LENGTH=65536 (or num_ctx in a Modelfile)",
+          "Keep the model loaded: OLLAMA_KEEP_ALIVE=-1",
+          "Enable flash attention: OLLAMA_FLASH_ATTENTION=1",
+          "Use an 8-bit KV cache to fit the longer context: OLLAMA_KV_CACHE_TYPE=q8_0 (needs flash attention)"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    },
+    {
+      "rank": 5,
+      "model": "devstral-small-2:24b",
+      "model_name": "Devstral Small 2 24B",
+      "quant": "Q3_K_XL",
+      "runtime": "llamacpp",
+      "try_command": "trialm try devstral-small-2:24b --runtime llamacpp --quant Q3_K_XL --harness codex",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "llamacpp",
+        "tuned": true,
+        "backend": "vulkan",
+        "quant": "Q3_K_XL",
+        "download_gb": 11.851410592,
+        "context_tokens": 65536,
+        "memory_gb": 18.656051591211828,
+        "budget_gb": 21.0453397504,
+        "fit": "fits",
+        "decode_tps": 48.346631592154594,
+        "decode_tps_deep": 40.41634333591998,
+        "prefill_tps": 757.6069742704408,
+        "cold_first_reply_s": 18.142028101,
+        "follow_up_ttft_s": 7.704230423,
+        "follow_up_turn_s": 15.126970217,
+        "session_s": 755.480885118,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 30,
+        "prefill_error_range_pct": 65,
+        "no_speed_claim": false,
+        "warnings": [
+          "quality caveat: Q3_K_XL is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than the cloud's provider-dependent weights the trial uses (often a few points on coding benchmarks, more tool-call errors). A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed"
+        ],
+        "assumptions": [
+          "default context: recent builds size the context to free memory (--fit); older builds default to 4096",
+          "checkpoints=8 (unverified for this version)"
+        ],
+        "tune_steps": [
+          "llama-server -m \u003cmodel.gguf\u003e -c 65536 -fa on --jinja",
+          "Optional: --slot-save-path to persist the harness prompt cache across restarts",
+          "Use an 8-bit KV cache to fit the longer context: add -ctk q8_0 -ctv q8_0"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    }
+  ],
+  "ranking": "speed tier (comfortable/usable/slow), then model size as a capability proxy — not a coding-quality score"
+}

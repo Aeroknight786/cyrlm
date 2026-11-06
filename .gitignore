@@ -1,7 +1,7 @@
 /dist/
 /bin/
-/cyrlm
-/cyrlm.exe
+/trialm
+/trialm.exe
 *.test
 *.out
 .DS_Store

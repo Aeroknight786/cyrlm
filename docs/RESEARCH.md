@@ -1,6 +1,6 @@
 # Research summary (2026-11)
 
-The decisions behind cyrlm. Raw data and scripts are in [`research/`](../research/).
+The decisions behind triaLM. Raw data and scripts are in [`research/`](../research/).
 
 ## 1. Can local performance be predicted without running the model?
 
@@ -23,7 +23,7 @@ Findings:
 - Pure spec rooflines over-predict by ~1.5×; fitted efficiencies are required (CUDA 0.74 + 0.9 ms/token, Metal 0.85 + 4.3 ms/token, ROCm 0.64, Vulkan 0.75).
 - On independent crowd data errors are ~3× larger than on curated scoreboards (software versions, settings, mislabelled runs): claims must be scoped by segment and shown as ranges.
 - Not predictable from specs: partial/expert offload to CPU (2–7×), ROCm and Strix Halo/Arc prompt processing (one env var moves Strix Halo pp512 349 → 883 tok/s), long-context prefill on some backends, new architectures.
-- Many-small-expert MoE (Qwen3-30B-A3B) runs at ~0.7 of the bandwidth model on two independent devices; cyrlm applies a per-model factor.
+- Many-small-expert MoE (Qwen3-30B-A3B) runs at ~0.7 of the bandwidth model on two independent devices; triaLM applies a per-model factor.
 - A ≤60 s on-device probe (bandwidth microbenchmark + a 2–5B model run) cuts generation error to ~5–8% median where it applies.
 
 ## 2. llmfit: reuse or rebuild?

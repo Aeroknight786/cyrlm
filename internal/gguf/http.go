@@ -12,7 +12,7 @@ import (
 )
 
 // UserAgent is sent with every HTTP request.
-const UserAgent = "cyrlm (gguf header reader)"
+const UserAgent = "trialm (gguf header reader)"
 
 // StatusError is returned when the server answers with an unexpected HTTP
 // status.

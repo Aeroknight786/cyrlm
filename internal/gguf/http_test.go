@@ -52,7 +52,7 @@ func TestOpenURLRange(t *testing.T) {
 	if f.HeaderBytesRead >= int64(len(data)) {
 		t.Errorf("read %d of %d bytes: tensor data was downloaded", f.HeaderBytesRead, len(data))
 	}
-	if got := ua.Load().(string); !strings.HasPrefix(got, "cyrlm") {
+	if got := ua.Load().(string); !strings.HasPrefix(got, "trialm") {
 		t.Errorf("User-Agent %q", got)
 	}
 	local, err := Parse(bytes.NewReader(data), int64(len(data)))

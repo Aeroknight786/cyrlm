@@ -8,7 +8,7 @@
 // the Quant is marked Estimated. Upstream (cloud) model IDs are best-effort
 // and can be overridden with --upstream-model.
 //
-// For models not listed here, `cyrlm inspect <gguf file or URL>` reads exact
+// For models not listed here, `trialm inspect <gguf file or URL>` reads exact
 // metadata from the GGUF header without downloading the weights.
 package catalog
 

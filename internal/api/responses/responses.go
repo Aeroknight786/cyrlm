@@ -11,7 +11,7 @@
 // Upstream models only know JSON function tools, so DecodeRequest turns each
 // custom tool into a function tool with a single required string property
 // "input" (whose description carries the grammar) and marks the schema with
-// "x-cyrlm-custom": true (see CustomToolMarker / IsCustomTool).
+// "x-trialm-custom": true (see CustomToolMarker / IsCustomTool).
 //
 // Encoding needs the reverse mapping, but NewStream and WriteResponse never
 // see the request. The Frontend therefore keeps a name -> custom registry
@@ -34,15 +34,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 // CustomToolMarker is the JSON-schema key set to true in the Parameters of
 // tools decoded from Responses "custom" (freeform) tools. Upstream adapters
 // with strict schema validation may strip it; the frontend does not rely on
 // it when encoding.
-const CustomToolMarker = "x-cyrlm-custom"
+const CustomToolMarker = "x-trialm-custom"
 
 // IsCustomTool reports whether t was decoded from a Responses custom tool.
 func IsCustomTool(t llm.Tool) bool {
@@ -714,7 +714,7 @@ func (f *Frontend) WriteError(w http.ResponseWriter, status int, errType, messag
 	_ = api.WriteJSON(w, status, errorEnvelope{Error: errorBody{Message: message, Type: typ, Code: code}})
 }
 
-// errorShape maps a cyrlm error kind to OpenAI's error type and code.
+// errorShape maps a trialm error kind to OpenAI's error type and code.
 func errorShape(errType string) (string, *string) {
 	switch errType {
 	case "context_length_exceeded":
@@ -733,7 +733,7 @@ func errorShape(errType string) (string, *string) {
 	return errType, nil
 }
 
-// failureCode maps a cyrlm error kind to a response.failed error code.
+// failureCode maps a trialm error kind to a response.failed error code.
 func failureCode(errType string) string {
 	switch errType {
 	case "context_length_exceeded":

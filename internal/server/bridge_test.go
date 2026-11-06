@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/upstream"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
 func newBridge(t *testing.T, h http.Handler) *httptest.Server {

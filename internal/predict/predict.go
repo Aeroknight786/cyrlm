@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/catalog"
-	"github.com/aeroknight786/cyrlm/internal/runtime"
-	"github.com/aeroknight786/cyrlm/internal/specs"
+	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/specs"
 )
 
 type decodeEff struct{ eff, t0ms float64 }
@@ -232,7 +232,7 @@ func AccuracyFor(d specs.Device, backend string, depth int, calibrated, offload 
 	case specs.CPUApple, specs.CPUx86, specs.CPUOther:
 		b = band{50, 25, 50, 50}
 		a.Basis = "CPU-only depends on memory configuration and threads"
-		a.CalibrateAdvice = "CPU-only: run `cyrlm detect --probe` to measure memory bandwidth"
+		a.CalibrateAdvice = "CPU-only: run `trialm detect --probe` to measure memory bandwidth"
 	}
 	if calibrated {
 		a.DecodePct, a.PrefillPct = b.decCal, b.preCal

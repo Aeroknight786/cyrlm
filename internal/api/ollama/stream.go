@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 var errClosed = errors.New("ollama: stream already finished")

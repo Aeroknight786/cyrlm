@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 // Client streams a model response.
@@ -102,7 +102,7 @@ func (c *OpenAICompat) BuildBody(req *llm.Request) map[string]any {
 		for i, t := range req.Tools {
 			params := json.RawMessage(`{"type":"object","properties":{}}`)
 			if len(t.Parameters) > 0 {
-				params = stripCyrlmKeys(t.Parameters)
+				params = stripTrialmKeys(t.Parameters)
 			}
 			tools[i] = map[string]any{"type": "function", "function": map[string]any{"name": t.Name, "description": t.Description, "parameters": params}}
 		}
@@ -184,10 +184,10 @@ func NormalizeForTemplates(in []llm.Message) []llm.Message {
 	return out
 }
 
-// stripCyrlmKeys removes cyrlm-internal schema markers (x-cyrlm-*) that
+// stripTrialmKeys removes trialm-internal schema markers (x-trialm-*) that
 // strict upstream schema validators reject.
-func stripCyrlmKeys(raw json.RawMessage) json.RawMessage {
-	if !bytes.Contains(raw, []byte("x-cyrlm-")) {
+func stripTrialmKeys(raw json.RawMessage) json.RawMessage {
+	if !bytes.Contains(raw, []byte("x-trialm-")) {
 		return raw
 	}
 	var m map[string]any
@@ -195,7 +195,7 @@ func stripCyrlmKeys(raw json.RawMessage) json.RawMessage {
 		return raw
 	}
 	for k := range m {
-		if strings.HasPrefix(k, "x-cyrlm-") {
+		if strings.HasPrefix(k, "x-trialm-") {
 			delete(m, k)
 		}
 	}
@@ -222,8 +222,8 @@ func (c *OpenAICompat) Stream(ctx context.Context, req *llm.Request) (<-chan llm
 		hreq.Header.Set("Authorization", "Bearer "+c.APIKey)
 	}
 	if c.isOpenRouter() {
-		hreq.Header.Set("X-Title", "cyrlm local-model trial")
-		hreq.Header.Set("HTTP-Referer", "https://github.com/aeroknight786/cyrlm")
+		hreq.Header.Set("X-Title", "triaLM local-model trial")
+		hreq.Header.Set("HTTP-Referer", "https://github.com/aeroknight786/trialm")
 	}
 	hc := c.HTTP
 	if hc == nil {
@@ -442,7 +442,7 @@ func (m *Mock) Stream(ctx context.Context, req *llm.Request) (<-chan llm.Event, 
 	if len(last) > 80 {
 		last = last[:80] + "…"
 	}
-	text := "This reply comes from cyrlm's offline mock upstream, not a language model. " +
+	text := "This reply comes from triaLM's offline mock upstream, not a language model. " +
 		"It exists so you can feel the simulated timing of your device: the delay before this text appeared is the predicted model load and prompt processing, " +
 		"and the pace of these words is the predicted generation speed. "
 	if last != "" {

@@ -1,14 +1,14 @@
-# cyrlm account server API (v1) — roadmap, not deployed yet
+# triaLM account server API (v1) — roadmap, not deployed yet
 
-The CLI works without an account: everything except the hosted trial and result sharing runs locally. This document is the contract the account server (website + API) must implement. The CLI side is built (`internal/account`, `cyrlm login/share/config`, `--upstream cyrlm`).
+The CLI works without an account: everything except the hosted trial and result sharing runs locally. This document is the contract the account server (website + API) must implement. The CLI side is built (`internal/account`, `trialm login/share/config`, `--upstream trialm`).
 
-Base URL: configured by `CYRLM_API_URL` or `cyrlm config set api-url <url>` (`account.DefaultAPIURL` once the service exists).
+Base URL: configured by `TRIALM_API_URL` or `trialm config set api-url <url>` (`account.DefaultAPIURL` once the service exists).
 
 ## Authentication
 
 - Users sign in on the website and copy a **key** from their account page.
-- They run `cyrlm login` **themselves** (the agent prompt tells coding agents never to handle keys). The key is stored in `<user config dir>/cyrlm/config.json` with mode 0600; `CYRLM_KEY` overrides it.
-- Every request: `Authorization: Bearer <key>`, `User-Agent: cyrlm`.
+- They run `trialm login` **themselves** (the agent prompt tells coding agents never to handle keys). The key is stored in `~/.trialm/config.json` with mode 0600; `TRIALM_KEY` overrides it.
+- Every request: `Authorization: Bearer <key>`, `User-Agent: trialm`.
 - Keys should be revocable and scoped (trial inference, measurement upload).
 
 ## Endpoints
@@ -21,7 +21,7 @@ Uploads one verification report (opt-in only: the CLI shows the full payload and
 
 ```json
 {
-  "schema": 1, "id": "9c3081beda7ffb0a", "cyrlm_version": "0.1.0", "created_at": "2026-11-06T09:53:54Z",
+  "schema": 1, "id": "9c3081beda7ffb0a", "trialm_version": "0.1.0", "created_at": "2026-11-06T09:53:54Z",
   "machine": {"os": "darwin", "arch": "arm64", "cpu": "Apple M4 Pro", "cpu_cores": 14, "ram_gb": 48,
               "gpu": "Apple M4 Pro", "gpu_cores": 20, "unified_memory": true,
               "device_spec": "Apple M4 Pro 20c", "segment": "apple_pro"},
@@ -41,7 +41,7 @@ Never contains prompt text, file paths, hostnames, usernames or IP-derived data 
 These reports are the dataset that recalibrates the predictor (per-backend efficiencies, runtime multipliers, segment accuracy bands) and validates runtime profiles.
 
 ### `POST /v1/chat/completions` (hosted trial)
-OpenAI Chat Completions, streaming, used by `cyrlm try/serve --upstream cyrlm` so users don't need their own OpenRouter key. The server forwards to a provider pinned per model (precision where possible).
+OpenAI Chat Completions, streaming, used by `trialm try/serve --upstream trialm` so users don't need their own OpenRouter key. The server forwards to a provider pinned per model (precision where possible).
 
 Because the user is not paying per token directly, **the server must enforce the trial's economics itself** — a local pacer is trivially bypassed for free fast inference:
 - meter tokens against `credits_usd`;

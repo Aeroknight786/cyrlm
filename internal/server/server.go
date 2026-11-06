@@ -19,15 +19,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/api/anthropic"
-	"github.com/aeroknight786/cyrlm/internal/api/ollama"
-	"github.com/aeroknight786/cyrlm/internal/api/openai"
-	"github.com/aeroknight786/cyrlm/internal/api/responses"
-	"github.com/aeroknight786/cyrlm/internal/llm"
-	"github.com/aeroknight786/cyrlm/internal/sim"
-	"github.com/aeroknight786/cyrlm/internal/tok"
-	"github.com/aeroknight786/cyrlm/internal/upstream"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/api/anthropic"
+	"github.com/aeroknight786/trialm/internal/api/ollama"
+	"github.com/aeroknight786/trialm/internal/api/openai"
+	"github.com/aeroknight786/trialm/internal/api/responses"
+	"github.com/aeroknight786/trialm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/sim"
+	"github.com/aeroknight786/trialm/internal/tok"
+	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
 // OllamaVersion is the version reported on /api/version. Clients such as
@@ -97,7 +97,7 @@ func (s *Server) routes() {
 	m := s.mux
 	m.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprint(w, "Ollama is running (simulated by cyrlm)")
+		fmt.Fprint(w, "Ollama is running (simulated by triaLM)")
 	})
 	m.HandleFunc("HEAD /{$}", func(w http.ResponseWriter, r *http.Request) {})
 	m.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +120,7 @@ func (s *Server) routes() {
 		openai.WriteModels(w, []api.ModelInfo{s.cfg.Model})
 	})
 	m.HandleFunc("GET /v1/models/{id...}", func(w http.ResponseWriter, r *http.Request) {
-		api.WriteJSON(w, 200, map[string]any{"id": r.PathValue("id"), "object": "model", "created": s.startedAt.Unix(), "owned_by": "cyrlm"})
+		api.WriteJSON(w, 200, map[string]any{"id": r.PathValue("id"), "object": "model", "created": s.startedAt.Unix(), "owned_by": "trialm"})
 	})
 	m.HandleFunc("GET /api/version", func(w http.ResponseWriter, r *http.Request) { ollama.WriteVersion(w, OllamaVersion) })
 	m.HandleFunc("GET /api/tags", func(w http.ResponseWriter, r *http.Request) { ollama.WriteTags(w, []api.ModelInfo{s.cfg.Model}) })
@@ -143,7 +143,7 @@ func (s *Server) routes() {
 		api.WriteJSON(w, 200, map[string]string{"status": "success"})
 	})
 	// Introspection.
-	m.HandleFunc("GET /cyrlm/stats", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("GET /trialm/stats", func(w http.ResponseWriter, r *http.Request) {
 		if s.cfg.Device == nil {
 			api.WriteJSON(w, 200, map[string]any{"bridge": s.cfg.Upstream.Describe(), "requests": s.bridgeN.Load()})
 			return
@@ -159,7 +159,7 @@ func (s *Server) routes() {
 // ServeHTTP applies localhost protections, then routes.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !localHost(r.Host) {
-		http.Error(w, "cyrlm only accepts requests addressed to localhost", http.StatusForbidden)
+		http.Error(w, "triaLM only accepts requests addressed to localhost", http.StatusForbidden)
 		return
 	}
 	if o := r.Header.Get("Origin"); o != "" && !s.originAllowed(o) {
@@ -294,7 +294,7 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 			n := dev.Stats().Add(rec)
 			s.logf("#%d %s  ✗ upstream error: %v\n", n, fe.Name(), err)
 			status, kind := upstreamErrorStatus(err)
-			fe.WriteError(w, status, kind, "cyrlm upstream: "+err.Error())
+			fe.WriteError(w, status, kind, "triaLM upstream: "+err.Error())
 			return
 		}
 		timed := sim.Buffer(upCtx, events, clock)
@@ -317,7 +317,7 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 			switch {
 			case res.Cancelled:
 			case res.Err != nil:
-				st.Fail("api_error", "cyrlm upstream: "+res.Err.Error())
+				st.Fail("api_error", "triaLM upstream: "+res.Err.Error())
 			default:
 				st.Finish(res.Resp.FinishReason, s.usage(plan, res), sim.Timings(plan, res))
 			}
@@ -326,7 +326,7 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 			switch {
 			case res.Cancelled:
 			case res.Err != nil:
-				fe.WriteError(w, http.StatusBadGateway, "api_error", "cyrlm upstream: "+res.Err.Error())
+				fe.WriteError(w, http.StatusBadGateway, "api_error", "triaLM upstream: "+res.Err.Error())
 			default:
 				// Hold the response until the simulated device would finish.
 				_ = clock.SleepUntil(r.Context(), res.LastTokenAt)
@@ -624,7 +624,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // Summary returns the session summary text.
 func (s *Server) Summary() string {
 	if s.cfg.Device == nil {
-		return fmt.Sprintf("cyrlm bridge relayed %d request(s) to %s\n", s.bridgeN.Load(), s.cfg.Upstream.Describe())
+		return fmt.Sprintf("trialm bridge relayed %d request(s) to %s\n", s.bridgeN.Load(), s.cfg.Upstream.Describe())
 	}
 	return s.cfg.Device.Stats().Summarize().Report(s.cfg.DeviceName, s.cfg.RuntimeName, s.cfg.Model.Name)
 }

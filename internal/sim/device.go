@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/catalog"
-	"github.com/aeroknight786/cyrlm/internal/llm"
-	"github.com/aeroknight786/cyrlm/internal/predict"
-	"github.com/aeroknight786/cyrlm/internal/runtime"
-	"github.com/aeroknight786/cyrlm/internal/tok"
+	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/predict"
+	"github.com/aeroknight786/trialm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/tok"
 )
 
 // Clock abstracts time for tests.

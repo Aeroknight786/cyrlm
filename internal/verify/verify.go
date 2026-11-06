@@ -1,7 +1,7 @@
 // Package verify measures a real local runtime the way a coding harness
 // uses it: a model-load probe, a long uncached prompt (prompt processing and
 // generation speed), and a follow-up that extends it (prompt-cache reuse).
-// Results are compared with cyrlm's prediction and can be shared, opt-in,
+// Results are compared with triaLM's prediction and can be shared, opt-in,
 // to improve future predictions. Only timings and token counts are kept —
 // never prompt text.
 package verify
@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/llm"
-	"github.com/aeroknight786/cyrlm/internal/tok"
-	"github.com/aeroknight786/cyrlm/internal/upstream"
+	"github.com/aeroknight786/trialm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/tok"
+	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
 // Cache check outcomes.

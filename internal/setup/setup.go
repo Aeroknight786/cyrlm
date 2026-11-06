@@ -4,8 +4,8 @@
 // settings, start the server, connect the harness and verify.
 //
 // The package only describes steps; it never executes anything. A coding
-// agent runs `cyrlm plan ... --json`, shows each step to the user and runs
-// it after approval, then runs the final `cyrlm verify` step.
+// agent runs `trialm plan ... --json`, shows each step to the user and runs
+// it after approval, then runs the final `trialm verify` step.
 //
 // Commands are written for the plan's OS and shell (POSIX sh on macOS and
 // Linux, PowerShell on Windows). Each Command runs on its own, in order;
@@ -21,9 +21,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/catalog"
-	"github.com/aeroknight786/cyrlm/internal/harness"
-	"github.com/aeroknight786/cyrlm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/harness"
+	"github.com/aeroknight786/trialm/internal/runtime"
 )
 
 // Command is one shell command.
@@ -188,7 +188,7 @@ type builder struct {
 	win   bool
 	shell string
 	port  int
-	// fileName is the local model name ("<tag>-cyrlm") made safe for file
+	// fileName is the local model name ("<tag>-trialm") made safe for file
 	// names; used for Modelfiles, launch scripts and logs.
 	fileName string
 }
@@ -264,14 +264,14 @@ func DefaultPort(p runtime.Profile) int {
 }
 
 // bgStart is the command that starts a launch script detached, logged and
-// checked: `cyrlm bg` returns only once healthURL answers, so the server
+// checked: `trialm bg` returns only once healthURL answers, so the server
 // survives the agent's command runner and a printed pid is not mistaken
 // for a running server.
 func (b *builder) bgStart(scriptRel, logRel, healthURL string) Command {
 	if b.win {
-		return b.os("cyrlm bg --log " + b.home(logRel) + " --ready " + healthURL + " -- powershell -NoProfile -ExecutionPolicy Bypass -File " + b.home(scriptRel))
+		return b.os("trialm bg --log " + b.home(logRel) + " --ready " + healthURL + " -- powershell -NoProfile -ExecutionPolicy Bypass -File " + b.home(scriptRel))
 	}
-	return b.os("cyrlm bg --log " + b.home(logRel) + " --ready " + healthURL + " -- sh " + b.home(scriptRel))
+	return b.os("trialm bg --log " + b.home(logRel) + " --ready " + healthURL + " -- sh " + b.home(scriptRel))
 }
 
 var defaultPorts = map[string]int{"ollama": 11434, "llamacpp": 8080, "lmstudio": 1234, "lmstudio-mlx": 1234, "mlx-lm": 8080}
@@ -287,8 +287,8 @@ func quantFor(m catalog.Model, formats []string) (catalog.Quant, bool) {
 
 // localName is the model name the runtime serves and the harness requests:
 // the Ollama tag (or catalog id) plus the quant when it is not the
-// default, suffixed "-cyrlm", e.g. "qwen3-coder:30b-cyrlm" or
-// "qwen3-coder:30b-q8_0-cyrlm". It has no slashes.
+// default, suffixed "-trialm", e.g. "qwen3-coder:30b-trialm" or
+// "qwen3-coder:30b-q8_0-trialm". It has no slashes.
 func localName(m catalog.Model, q catalog.Quant) string {
 	base := m.OllamaTag
 	if base == "" {
@@ -306,7 +306,7 @@ func localName(m catalog.Model, q catalog.Quant) string {
 			sb.WriteByte('-')
 		}
 	}
-	return sb.String() + "-cyrlm"
+	return sb.String() + "-trialm"
 }
 
 func safeFile(s string) string {
@@ -462,11 +462,11 @@ func outputTokens(ctx int) int {
 func (b *builder) installedNote() string {
 	switch {
 	case b.in.Installed && b.in.InstalledVersion != "":
-		return fmt.Sprintf("cyrlm found %s %s installed", b.p.Name, b.in.InstalledVersion)
+		return fmt.Sprintf("triaLM found %s %s installed", b.p.Name, b.in.InstalledVersion)
 	case b.in.Installed:
-		return fmt.Sprintf("cyrlm found %s installed", b.p.Name)
+		return fmt.Sprintf("triaLM found %s installed", b.p.Name)
 	}
-	return fmt.Sprintf("cyrlm did not find %s", b.p.Name)
+	return fmt.Sprintf("triaLM did not find %s", b.p.Name)
 }
 
 // checkStep is the first step: what is installed and running, disk space.
@@ -516,7 +516,7 @@ func (b *builder) verifyStep() {
 	if pl.Harness != "" {
 		args = append(args, "--harness", pl.Harness)
 	}
-	run := "cyrlm verify " + b.args(args...)
+	run := "trialm verify " + b.args(args...)
 	b.add(Step{
 		ID: "verify", Kind: KindVerify,
 		Title:      "Verify the setup",
@@ -591,7 +591,7 @@ func (b *builder) pkill(pattern string) string {
 }
 
 func verifyWhy(pl *Plan) string {
-	w := fmt.Sprintf("Checks that %s answers at %s with %s, that the context window is %d tokens and compares real speed with cyrlm's prediction.", pl.RuntimeName, pl.Endpoint, pl.LocalModelName, pl.ContextTokens)
+	w := fmt.Sprintf("Checks that %s answers at %s with %s, that the context window is %d tokens and compares real speed with triaLM's prediction.", pl.RuntimeName, pl.Endpoint, pl.LocalModelName, pl.ContextTokens)
 	if pl.Harness != "" {
 		w += " It then sends requests in " + pl.Harness + "'s own format (a greeting, a tool call and the tool result) and reports \"Ready\" only if all three work: a fast runtime can still reject a coding tool's requests. The setup is not done until this says Ready."
 	}

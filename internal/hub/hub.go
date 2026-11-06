@@ -48,7 +48,7 @@ func BaseModels(ctx context.Context, repo string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "cyrlm")
+	req.Header.Set("User-Agent", "trialm")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

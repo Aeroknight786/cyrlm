@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 var model = api.ModelInfo{
@@ -66,7 +66,7 @@ func TestWriteShow(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := decode(t, rec.Body.Bytes())
-	want := `{"license":"","modelfile":"# simulated by cyrlm","parameters":"num_ctx 131072","template":"",` +
+	want := `{"license":"","modelfile":"# simulated by triaLM","parameters":"num_ctx 131072","template":"",` +
 		`"details":{"parent_model":"","format":"gguf","family":"gptoss","families":["gptoss"],"parameter_size":"20.9B","quantization_level":"MXFP4"},` +
 		`"model_info":{"general.architecture":"gptoss","general.parameter_count":20900000000,"gptoss.context_length":131072},` +
 		`"capabilities":["completion","tools","thinking"],"modified_at":"2026-08-05T10:00:00Z"}`

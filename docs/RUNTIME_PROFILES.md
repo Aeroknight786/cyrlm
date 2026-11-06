@@ -11,7 +11,7 @@ Runtime behaviour lives in [`internal/runtime/profiles.json`](../internal/runtim
 | `formats` | model formats it loads (`gguf`, `mlx`) |
 | `platforms` | `darwin/arm64`, `darwin/amd64`, `linux`, `windows` → supported backends |
 | `backend_preference` | order used to pick a backend the hardware supports |
-| `apis` | protocols the **real** runtime exposes (cyrlm itself serves all) |
+| `apis` | protocols the **real** runtime exposes (triaLM itself serves all) |
 | `defaults.context` | how the default context is chosen: `vram_tiers` + `otherwise_tokens`, `fixed_tokens`, `fit_to_memory`, or `native` |
 | `defaults.honors_request_num_ctx` | per-request `options.num_ctx` changes the context (and reloads the model) |
 | `defaults.keep_alive_s` | idle seconds before unloading (`-1` = never) |

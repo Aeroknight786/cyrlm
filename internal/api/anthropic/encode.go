@@ -9,13 +9,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/api"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 // SimulatedSignature is the placeholder signature attached to thinking
 // blocks. Clients echo it back in history; DecodeRequest ignores it.
-const SimulatedSignature = "cyrlm-simulated"
+const SimulatedSignature = "trialm-simulated"
 
 // ---- wire types ----
 

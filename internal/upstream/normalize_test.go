@@ -3,7 +3,7 @@ package upstream
 import (
 	"testing"
 
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 func TestNormalizeForTemplates(t *testing.T) {

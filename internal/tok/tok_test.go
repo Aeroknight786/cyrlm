@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroknight786/cyrlm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/llm"
 )
 
 func TestPiecesRoundTrip(t *testing.T) {

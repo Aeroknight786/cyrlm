@@ -1,0 +1,17 @@
+
+Best local models for Claude Code on what-if: 8-core x86 CPU (CPU only), 32 GB RAM
+
+#  MODEL                 RUNTIME                   FILE            FIRST REPLY  FOLLOW-UP   TASK*       FEEL
+1  qwen3.6:35b-a3b       llama.cpp (llama-server)  IQ4_XS 17.7 GB  6 min 07 s   72 s        1 h 01 min  slow
+2  qwen3-coder:30b       llama.cpp (llama-server)  IQ4_XS 16.4 GB  13 min 23 s  3 min 03 s  2 h 40 min  slow
+3  glm-4.7-flash         llama.cpp (llama-server)  MXFP4 17.0 GB   29 min 59 s  6 min 25 s  5 h 12 min  slow
+4  gemma4:26b-a4b        llama.cpp (llama-server)  Q4_K_M 16.9 GB  7 min 55 s   1 min 32 s  1 h 16 min  slow
+5  devstral-small-2:24b  llama.cpp (llama-server)  Q4_K_M 14.3 GB  39 min 31 s  6 min 36 s  5 h 09 min  slow
+
+⚠ None of these will feel usable in a coding agent on this machine: every first reply takes minutes. A machine with a GPU or Apple Silicon makes a large difference.
+
+* TASK = a 40-call agent task (cloud: ~2 min 00 s). Tuned settings. ● = runtime installed. More options: --top 20
+Ranked by speed tier, then model size (a rough capability proxy — triaLM does not score coding quality; try the top picks).
+Each model shows the file that runs best here: its usual 4-bit file when that is fast, else a smaller 3-bit file (more mistakes; see the quality caveat in `trialm predict`).
+Try #1: trialm try qwen3.6:35b-a3b --runtime llamacpp --quant IQ4_XS --harness claude-code
+

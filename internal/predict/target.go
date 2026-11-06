@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aeroknight786/cyrlm/internal/hw"
-	"github.com/aeroknight786/cyrlm/internal/specs"
+	"github.com/aeroknight786/trialm/internal/hw"
+	"github.com/aeroknight786/trialm/internal/specs"
 )
 
 const gib = 1 << 30
@@ -142,7 +142,7 @@ func TargetFromSystem(sys *hw.System, measuredCPUGBs float64) Target {
 		t.GPUMemBytes = ram*0.75 - 2*gib
 		t.Name = fmt.Sprintf("%s (CPU only), %.0f GB RAM", sys.CPUName, ram/gib)
 		if measuredCPUGBs <= 0 {
-			t.Notes = append(t.Notes, "CPU-only: memory bandwidth assumed; run `cyrlm detect --probe` to measure it")
+			t.Notes = append(t.Notes, "CPU-only: memory bandwidth assumed; run `trialm detect --probe` to measure it")
 		}
 	}
 	if t.Device.Note != "" {

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aeroknight786/cyrlm/internal/catalog"
-	"github.com/aeroknight786/cyrlm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/runtime"
 )
 
 // Reference measurements from public llama.cpp benchmarks (research/

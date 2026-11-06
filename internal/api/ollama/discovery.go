@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeroknight786/cyrlm/internal/api"
+	"github.com/aeroknight786/trialm/internal/api"
 )
 
 // defaultFamily is reported when a ModelInfo has no Family, so clients that
@@ -118,7 +118,7 @@ func WriteShow(w http.ResponseWriter, m api.ModelInfo) error {
 		caps = []string{"completion"}
 	}
 	return api.WriteJSON(w, http.StatusOK, showResponse{
-		Modelfile:    "# simulated by cyrlm",
+		Modelfile:    "# simulated by triaLM",
 		Parameters:   fmt.Sprintf("num_ctx %d", m.ContextLength),
 		Details:      details(m),
 		ModelInfo:    info,
