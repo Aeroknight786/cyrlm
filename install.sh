@@ -63,7 +63,15 @@ fi
 echo "installed $installed ($("$installed" version))"
 case ":$PATH:" in
   *":$dir:"*) ;;
-  *) echo "note: add $dir to your PATH (e.g. echo 'export PATH=\"$dir:\$PATH\"' >> ~/.profile)" ;;
+  *)
+    rc="$HOME/.profile"
+    case "${SHELL:-}" in
+      */zsh) rc="$HOME/.zprofile" ;;
+      */bash) [ "$os" = darwin ] && rc="$HOME/.bash_profile" ;;
+    esac
+    echo "note: $dir is not on your PATH. Add it with:"
+    echo "  echo 'export PATH=\"$dir:\$PATH\"' >> $rc && export PATH=\"$dir:\$PATH\""
+    ;;
 esac
 
 if [ "${CYRLM_NO_PROMPT:-}" != "1" ]; then

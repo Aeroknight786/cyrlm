@@ -1,4 +1,4 @@
-# cyrlm account server API (v1)
+# cyrlm account server API (v1) — roadmap, not deployed yet
 
 The CLI works without an account: everything except the hosted trial and result sharing runs locally. This document is the contract the account server (website + API) must implement. The CLI side is built (`internal/account`, `cyrlm login/share/config`, `--upstream cyrlm`).
 
@@ -21,7 +21,7 @@ Uploads one verification report (opt-in only: the CLI shows the full payload and
 
 ```json
 {
-  "schema": 1, "id": "9c3081beda7ffb0a", "cyrlm_version": "0.2.0", "created_at": "2026-11-06T09:53:54Z",
+  "schema": 1, "id": "9c3081beda7ffb0a", "cyrlm_version": "0.1.0", "created_at": "2026-11-06T09:53:54Z",
   "machine": {"os": "darwin", "arch": "arm64", "cpu": "Apple M4 Pro", "cpu_cores": 14, "ram_gb": 48,
               "gpu": "Apple M4 Pro", "gpu_cores": 20, "unified_memory": true,
               "device_spec": "Apple M4 Pro 20c", "segment": "apple_pro"},

@@ -273,12 +273,8 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 			rec.Error = err.Error()
 			n := dev.Stats().Add(rec)
 			s.logf("#%d %s  ✗ upstream error: %v\n", n, fe.Name(), err)
-			status := http.StatusBadGateway
-			var he *upstream.HTTPError
-			if errors.As(err, &he) && (he.Status == 401 || he.Status == 402 || he.Status == 429) {
-				status = he.Status
-			}
-			fe.WriteError(w, status, "api_error", "cyrlm upstream: "+err.Error())
+			status, kind := upstreamErrorStatus(err)
+			fe.WriteError(w, status, kind, "cyrlm upstream: "+err.Error())
 			return
 		}
 		timed := sim.Buffer(upCtx, events, clock)
@@ -358,6 +354,28 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 		n := dev.Stats().Add(rec)
 		s.logRecord(n, rec, plan, prep, res)
 	}
+}
+
+// upstreamErrorStatus maps an upstream failure to the status and error
+// type the harness should see. Client errors (bad request, auth, billing,
+// rate limit) keep their 4xx status so harnesses don't retry them; only
+// server and transport failures become 502.
+func upstreamErrorStatus(err error) (int, string) {
+	var he *upstream.HTTPError
+	if !errors.As(err, &he) {
+		return http.StatusBadGateway, "api_error"
+	}
+	switch {
+	case he.Status == 401 || he.Status == 403:
+		return he.Status, "authentication_error"
+	case he.Status == 402:
+		return he.Status, "billing_error"
+	case he.Status == 429:
+		return he.Status, "rate_limit_error"
+	case he.Status >= 400 && he.Status < 500:
+		return he.Status, "invalid_request_error"
+	}
+	return http.StatusBadGateway, "api_error"
 }
 
 // usage reports token counts as the local runtime would: the upstream's real

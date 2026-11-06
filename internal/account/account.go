@@ -38,7 +38,7 @@ type Config struct {
 	Key    string `json:"key,omitempty"`
 	Share  string `json:"share,omitempty"`
 	// OpenRouterKey is the user's own OpenRouter key for trials, stored
-	// here by `cyrlm login --openrouter` so it never passes through a chat.
+	// here by `cyrlm login` so it never passes through a chat.
 	OpenRouterKey string `json:"openrouter_key,omitempty"`
 }
 

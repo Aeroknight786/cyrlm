@@ -3,6 +3,7 @@ package sim
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -373,5 +374,56 @@ func TestBufferPreservesOrder(t *testing.T) {
 	}
 	if n != 100 {
 		t.Fatalf("got %d events", n)
+	}
+}
+
+func TestTruncationKeepsConversationValid(t *testing.T) {
+	d, _ := testDevice(t, "ollama", false, func(s *runtime.Settings) { s.ContextTokens = 8192 })
+	tools := []llm.Tool{{Name: "bash", Description: "run", Parameters: []byte(`{"type":"object"}`)}}
+	msgs := []llm.Message{{Role: llm.RoleSystem, Content: strings.Repeat("Follow the rules of this repository carefully. ", 600)},
+		{Role: llm.RoleUser, Content: "fix the failing test"}}
+	for i := 0; i < 6; i++ {
+		id := fmt.Sprintf("c%d", i)
+		msgs = append(msgs,
+			llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: id, Name: "bash", Arguments: `{"cmd":"ls"}`}}},
+			llm.Message{Role: llm.RoleTool, ToolCallID: id, Content: strings.Repeat("output line ", 400)})
+	}
+	p, err := d.Prepare(&llm.Request{Messages: msgs, Tools: tools, MaxTokens: 32000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.Truncated {
+		t.Fatal("expected truncation")
+	}
+	out := p.Req.Messages
+	if out[0].Role != llm.RoleSystem || out[1].Role != llm.RoleUser || out[1].Content != "fix the failing test" {
+		t.Fatalf("system prompt and task must be kept: %v %v", out[0].Role, out[1].Role)
+	}
+	// Every tool result must directly follow an assistant message (or
+	// another tool result) whose tool calls include its id.
+	open := map[string]bool{}
+	for i, m := range out {
+		switch m.Role {
+		case llm.RoleAssistant:
+			open = map[string]bool{}
+			for _, c := range m.ToolCalls {
+				open[c.ID] = true
+			}
+		case llm.RoleTool:
+			if !open[m.ToolCallID] {
+				t.Fatalf("message %d: tool result %s without its tool call", i, m.ToolCallID)
+			}
+		default:
+			open = map[string]bool{}
+		}
+	}
+	if out[len(out)-1].ToolCallID != "c5" {
+		t.Fatal("the latest turn must be kept")
+	}
+	if len(p.Req.Tools) == 0 {
+		t.Fatal("tool definitions must be kept when the conversation can be shortened instead")
+	}
+	if p.Req.MaxTokens >= 32000 || p.Req.MaxTokens < 256 {
+		t.Fatalf("max_tokens should be clamped to the remaining context, got %d", p.Req.MaxTokens)
 	}
 }

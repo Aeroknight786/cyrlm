@@ -6,7 +6,7 @@
 // Prefill is compute-bound: seconds/token = matmul FLOPs / (eff × spec
 // FLOPS) + attention FLOPs at depth / (eff_attn × spec FLOPS). Efficiencies
 // are fitted per backend on 565 public llama.cpp results (held out by device:
-// decode median error ≈10%, prefill ≈14–18%; see research/ACCURACY.md).
+// decode median error ≈10%, prefill ≈14–18%; see docs/RESEARCH.md).
 package predict
 
 import (

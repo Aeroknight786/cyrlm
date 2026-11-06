@@ -33,3 +33,16 @@ func TestHarnessSetup(t *testing.T) {
 		t.Error("unknown harness should error")
 	}
 }
+
+func TestRenderPowerShell(t *testing.T) {
+	cc, _ := Get("claude-code")
+	out := cc.SetupFor(Options{Port: 11434, Model: "m"}).RenderFor("windows")
+	for _, want := range []string{"$env:ANTHROPIC_BASE_URL='http://127.0.0.1:11434';", "Remove-Item Env:ANTHROPIC_API_KEY", "claude --model m"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("PowerShell rendering lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "ANTHROPIC_BASE_URL=http") {
+		t.Error("POSIX env syntax in PowerShell output")
+	}
+}

@@ -219,7 +219,7 @@ func SyntheticSystem(device string, ramGB, vramGB float64) (*hw.System, error) {
 	if ramGB <= 0 {
 		ramGB = 32
 	}
-	sys := &hw.System{OS: "linux", Arch: "amd64", RAMBytes: uint64(ramGB * gib), CPUName: "what-if CPU", CPUCores: 8, CPUThreads: 16, CPUFlags: []string{"avx2"}}
+	sys := &hw.System{OS: "linux", Arch: "amd64", RAMBytes: uint64(ramGB * gib), CPUName: "8-core x86 CPU", CPUCores: 8, CPUThreads: 16, CPUFlags: []string{"avx2"}}
 	low := strings.ToLower(strings.TrimSpace(device))
 	if low == "cpu" || low == "" {
 		return sys, nil

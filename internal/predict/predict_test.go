@@ -13,7 +13,7 @@ import (
 // bench_data.csv; source URLs there). The efficiency constants were fitted
 // on this dataset, so this is a regression guard against accidental formula
 // changes, not an accuracy proof — the held-out (leave-one-device-out)
-// errors are in research/ACCURACY.md.
+// errors are in docs/RESEARCH.md.
 var refs = []struct {
 	device string
 	ramGB  float64

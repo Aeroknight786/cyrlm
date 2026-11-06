@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	goruntime "runtime"
+
 	"github.com/aeroknight786/cyrlm/internal/account"
 	"github.com/aeroknight786/cyrlm/internal/api"
 	"github.com/aeroknight786/cyrlm/internal/catalog"
@@ -32,7 +34,25 @@ import (
 
 var version = "0.1.0-dev"
 
-const usage = `cyrlm — try a local model before you download it
+const usage = `cyrlm — try a local coding model before you download it
+
+Easiest: let your coding agent do everything.
+  cyrlm prompt --harness claude-code     prints a message; paste it into Claude Code (or codex, opencode, …)
+
+Commands:
+  cyrlm detect                           your machine and installed runtimes
+  cyrlm recommend [--harness h]          best models + runtimes for this machine
+  cyrlm try <model> --harness h          live trial: the real model, at this machine's speed
+  cyrlm plan <model> [--runtime r]       exact setup steps (nothing is run)
+  cyrlm verify --runtime r --model m     measure your real setup against the prediction
+  cyrlm login                            store your OpenRouter key (in your own terminal, never in a chat)
+  cyrlm version
+
+Flags: --harness claude-code|codex|opencode|aider|cline|continue|zed|qwen-code
+       --runtime ollama|llamacpp|lmstudio|lmstudio-mlx|mlx-lm   --quant Q4_K_M   --ctx N   --json
+More commands and flags: cyrlm help --all
+`
+const usageAll = `cyrlm — try a local model before you download it
 
 Usage:
   cyrlm detect   [--probe] [--json]           what's in this machine and which runtimes are installed
@@ -46,14 +66,15 @@ Usage:
   cyrlm plan     <model> --runtime r [flags]   exact setup steps (for you or your coding agent)
   cyrlm verify   --runtime r --model m         measure your real setup against the prediction
   cyrlm prompt   [--harness h]                 the message to paste into your coding agent
-  cyrlm login | logout | config | share        account key and opt-in sharing of results
+  cyrlm login [--account] | logout | config    keys (OpenRouter by default; cyrlm account later)
+  cyrlm share                                  opt-in sharing of results (needs an account server)
   cyrlm version
 
 Let your coding agent do it all:  cyrlm prompt --harness claude-code   (paste the output into it)
 
 Common flags:
   --runtime <id>     ollama | llamacpp | lmstudio | lmstudio-mlx | mlx-lm (predict: default all)
-  --tuned            use cyrlm's recommended settings instead of the runtime defaults
+  --defaults         simulate the runtime's out-of-the-box settings (default: cyrlm's tuned settings)
   --ctx <n>          context window override
   --quant <q>        quantization (e.g. Q4_K_M, Q8_0)
   --harness <h>      claude-code | codex | opencode | aider | cline | continue | zed | qwen-code
@@ -72,7 +93,7 @@ Examples:
   cyrlm predict gpt-oss:20b
   cyrlm predict qwen3-coder:30b --device "Apple M4 Pro 20c" --ram 48
   cyrlm try gpt-oss:20b --harness claude-code --runtime ollama
-  cyrlm serve qwen3-coder:30b --runtime llamacpp --tuned --upstream mock
+  cyrlm serve qwen3-coder:30b --runtime llamacpp --upstream mock
 `
 
 func main() {
@@ -116,7 +137,11 @@ func main() {
 	case "version", "--version", "-v":
 		fmt.Println("cyrlm", version)
 	case "help", "--help", "-h":
-		fmt.Print(usage)
+		if len(args) > 0 && (args[0] == "--all" || args[0] == "all") {
+			fmt.Print(usageAll)
+		} else {
+			fmt.Print(usage)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
 		os.Exit(2)
@@ -148,7 +173,8 @@ type common struct {
 	runtime, quant, harness, device, kv, backend string
 	ctx                                          int
 	ram, vram                                    float64
-	tuned, probe, jsonOut                        bool
+	tuned, defaults, probe, jsonOut, verbose     bool
+	tunedSet                                     bool
 }
 
 func (c *common) register(fs *flag.FlagSet, defaultRuntime string) {
@@ -161,9 +187,23 @@ func (c *common) register(fs *flag.FlagSet, defaultRuntime string) {
 	fs.IntVar(&c.ctx, "ctx", 0, "context window")
 	fs.Float64Var(&c.ram, "ram", 0, "RAM in GB for --device")
 	fs.Float64Var(&c.vram, "vram", 0, "VRAM in GB for --device")
-	fs.BoolVar(&c.tuned, "tuned", false, "use recommended settings")
+	fs.BoolVar(&c.tuned, "tuned", true, "use cyrlm's recommended settings (default)")
+	fs.BoolVar(&c.defaults, "defaults", false, "simulate the runtime's out-of-the-box settings instead")
 	fs.BoolVar(&c.probe, "probe", false, "measure memory bandwidth (CPU-only accuracy)")
 	fs.BoolVar(&c.jsonOut, "json", false, "JSON output")
+	fs.BoolVar(&c.verbose, "verbose", false, "show low-level details and assumptions")
+}
+
+// finish applies flag interactions after parsing.
+func (c *common) finish(fs *flag.FlagSet) {
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "tuned" || f.Name == "defaults" {
+			c.tunedSet = true
+		}
+	})
+	if c.defaults {
+		c.tuned = false
+	}
 }
 
 func (c *common) target() (predict.Target, *hw.System, error) {
@@ -225,6 +265,7 @@ func cmdDetect(args []string) error {
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
 	}
+	c.finish(fs)
 	t, sys, err := c.target()
 	if err != nil {
 		return err
@@ -294,8 +335,8 @@ func predictAll(c common, m catalog.Model, t predict.Target, sc predict.Scenario
 				CtxOverride: c.ctx, KVCacheType: c.kv, Scenario: sc, Calibrated: c.probe && t.CPUOnly,
 				BackendOverride: c.backend,
 			})
-			if r.Unsupported != "" && (c.runtime == "" || c.runtime == "all") && strings.Contains(r.Unsupported, "does not run") {
-				continue
+			if r.Unsupported != "" && (c.runtime == "" || c.runtime == "all") {
+				continue // runtimes that can't run this model here are simply not listed
 			}
 			out = append(out, r)
 		}
@@ -311,6 +352,7 @@ func cmdPredict(args []string) error {
 	if err != nil {
 		return err
 	}
+	c.finish(fs)
 	if len(pos) != 1 {
 		return errors.New("usage: cyrlm predict <model> [flags]  (see `cyrlm models`)")
 	}
@@ -327,8 +369,8 @@ func cmdPredict(args []string) error {
 		return err
 	}
 	modes := []bool{false, true}
-	if c.tuned {
-		modes = []bool{true}
+	if c.tunedSet {
+		modes = []bool{c.tuned}
 	}
 	results, err := predictAll(c, m, t, sc, modes)
 	if err != nil {
@@ -368,6 +410,7 @@ func cmdServe(args []string, try bool) error {
 	if err != nil {
 		return err
 	}
+	c.finish(fs)
 	portSet := false
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "port" {
@@ -410,14 +453,13 @@ func cmdServe(args []string, try bool) error {
 		return fmt.Errorf("%s does not fit on %s with %s: needs %.1f GB, %.1f GB available%s\n(use --force to simulate anyway, a smaller --quant, or a smaller --ctx)",
 			m.Name, t.Name, prof.Name, res.Memory.TotalBytes/(1<<30), res.Memory.BudgetBytes/(1<<30), suffix("; ", res.Memory.Fix))
 	}
-	if try {
-		printPrediction(m, t, sc, []predict.Result{res}, installed{})
-	}
-
-	// Upstream.
+	// Upstream first, so a missing key is the first thing a user sees.
 	client, upDesc, err := buildUpstream(*up, *upModel, *keyEnv, *provider, m)
 	if err != nil {
 		return err
+	}
+	if try {
+		printPrediction(m, t, sc, []predict.Result{res}, installed{})
 	}
 
 	dev := sim.NewDevice(sim.Config{
@@ -453,7 +495,7 @@ func cmdServe(args []string, try bool) error {
 	if err != nil {
 		return fmt.Errorf("cannot listen on %s:%d: %w", *host, *port, err)
 	}
-	printServeBanner(m, t, prof, why, res, upDesc, bound, *port)
+	printServeBanner(m, t, prof, why, res, upDesc, bound, *port, c.verbose, !try)
 	if c.harness != "" {
 		setup := hh.SetupFor(harness.Options{Port: bound, Model: m.OllamaTag, Tuned: c.tuned, ContextTokens: res.Settings.ContextTokens})
 		fmt.Printf("── Connect %s ─────────────────────────────────────────\n\n%s\n", hh.Name, setup.Render())
@@ -467,7 +509,11 @@ func cmdServe(args []string, try bool) error {
 			return lerr
 		}
 	}
-	fmt.Println("Press Ctrl-C to stop and see the session summary.")
+	stop := fmt.Sprintf("kill %d", os.Getpid())
+	if goruntime.GOOS == "windows" {
+		stop = fmt.Sprintf("Stop-Process -Id %d", os.Getpid())
+	}
+	fmt.Printf("Running (pid %d). Stop with Ctrl-C, or from another terminal: %s — the session summary is printed on exit.\n", os.Getpid(), stop)
 	fmt.Println()
 
 	sigs := make(chan os.Signal, 1)
@@ -523,7 +569,7 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 		case os.Getenv(nonEmptyStr(keyEnv, "OPENROUTER_API_KEY")) != "" || acct.OpenRouterKey != "":
 			kind = "openrouter"
 		default:
-			return nil, "", errors.New("the trial needs the real model in the cloud: run `cyrlm login --openrouter` yourself (paste your OpenRouter key there, not into a chat), or `cyrlm login` with a cyrlm account key. For an offline timing demo use --upstream mock")
+			return nil, "", errors.New("the trial runs the real model in the cloud and needs your OpenRouter key: run `cyrlm login` yourself in a terminal (never paste the key into a chat). Get a key at https://openrouter.ai/keys. For an offline timing demo, use --upstream mock")
 		}
 	}
 	switch kind {
@@ -537,7 +583,7 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 		if model == "" {
 			model = nonEmptyStr(m.OpenRouterID, m.ID)
 		}
-		c := &upstream.OpenAICompat{BaseURL: strings.TrimRight(acct.APIURL, "/") + "/v1", APIKey: acct.Key, Model: model}
+		c := &upstream.OpenAICompat{BaseURL: strings.TrimRight(acct.APIURL, "/") + "/v1", APIKey: acct.Key, Model: model, Reasoning: m.Thinking}
 		return c, "your cyrlm account (" + model + ")", nil
 	}
 	base := kind
@@ -567,18 +613,13 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 		key = acct.OpenRouterKey
 	}
 	if key == "" && base == upstream.OpenRouterBaseURL {
-		return nil, "", fmt.Errorf("no OpenRouter key: run `cyrlm login --openrouter` (or set %s), or use --upstream mock for an offline timing demo", keyEnv)
+		return nil, "", fmt.Errorf("no OpenRouter key: run `cyrlm login` yourself in a terminal (or set %s), or use --upstream mock for an offline timing demo", keyEnv)
 	}
 	extra := map[string]any{}
-	if base == upstream.OpenRouterBaseURL {
-		p := map[string]any{"require_parameters": true}
-		if provider != "" {
-			p["only"] = strings.Split(provider, ",")
-			p["allow_fallbacks"] = false
-		}
-		extra["provider"] = p
+	if base == upstream.OpenRouterBaseURL && provider != "" {
+		extra["provider"] = map[string]any{"only": strings.Split(provider, ","), "allow_fallbacks": false}
 	}
-	c := &upstream.OpenAICompat{BaseURL: base, APIKey: key, Model: model, Extra: extra}
+	c := &upstream.OpenAICompat{BaseURL: base, APIKey: key, Model: model, Extra: extra, Reasoning: m.Thinking}
 	return c, c.Describe(), nil
 }
 

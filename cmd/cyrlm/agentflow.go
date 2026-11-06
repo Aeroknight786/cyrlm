@@ -80,6 +80,7 @@ func cmdRecommend(args []string) error {
 	if err != nil {
 		return err
 	}
+	c.finish(fs)
 	if len(pos) > 0 {
 		return errors.New("usage: cyrlm recommend [--harness h] [--top n] [--json]")
 	}
@@ -155,9 +156,18 @@ func cmdRecommend(args []string) error {
 		fmt.Println("No catalog model gives a working agent setup on this machine.")
 		return nil
 	}
-	fmt.Printf("\n* TASK = a %d-call agent task (cloud: ~%s). Tuned settings. ● = runtime installed.\n", sc.Turns, dur(rows[0].r.Scenario.CloudSession))
+	allSlow := true
+	for _, r := range rows {
+		if r.verdict != "slow" {
+			allSlow = false
+		}
+	}
+	if allSlow {
+		fmt.Println("\n⚠ None of these will feel usable in a coding agent on this machine: every first reply takes minutes. A machine with a GPU or Apple Silicon makes a large difference.")
+	}
+	fmt.Printf("\n* TASK = a %d-call agent task (cloud: ~%s). Tuned settings. ● = runtime installed. More options: --top 20\n", sc.Turns, dur(rows[0].r.Scenario.CloudSession))
 	fmt.Println("Ranked by speed tier, then model size (a rough capability proxy — cyrlm does not score coding quality; try the top picks).")
-	fmt.Printf("Details: cyrlm predict %s · Try it: cyrlm try %s --runtime %s --tuned --harness %s\n\n", rows[0].r.Model.OllamaTag, rows[0].r.Model.OllamaTag, rows[0].r.Runtime.ID, hh.ID)
+	fmt.Printf("Details: cyrlm predict %s · Try it: cyrlm try %s --runtime %s --harness %s\n\n", rows[0].r.Model.OllamaTag, rows[0].r.Model.OllamaTag, rows[0].r.Runtime.ID, hh.ID)
 	return nil
 }
 
@@ -178,6 +188,7 @@ func cmdVerify(args []string) error {
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
 	}
+	c.finish(fs)
 	if c.runtime == "" || c.runtime == "all" {
 		return errors.New("usage: cyrlm verify --runtime <ollama|llamacpp|lmstudio|lmstudio-mlx|mlx-lm> --model <name> [--catalog-model <id>] [--quant q] [--ctx n]")
 	}
@@ -244,7 +255,7 @@ func cmdVerify(args []string) error {
 	switch {
 	case *share || cfg.Share == account.ShareAlways:
 		return doShare(cfg, path, rep, true)
-	case cfg.Share == account.ShareAsk:
+	case cfg.Share == account.ShareAsk && cfg.CanShare():
 		fmt.Println("Help improve predictions for everyone: `cyrlm share --last` shows exactly what would be sent and asks first.")
 	}
 	return nil
@@ -352,12 +363,13 @@ func cmdLogin(args []string) error {
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
 	key := fs.String("key", "", "account key (default: read from stdin)")
 	apiURL := fs.String("api", "", "account server URL")
-	openrouter := fs.Bool("openrouter", false, "store your own OpenRouter key for trials instead of a cyrlm account key")
+	fs.Bool("openrouter", true, "store your OpenRouter key (default)")
+	acctKey := fs.Bool("account", false, "store a cyrlm account key instead (needs an account server)")
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
 	}
 	cfg := account.Load()
-	if *openrouter {
+	if !*acctKey {
 		k := strings.TrimSpace(*key)
 		if k == "" {
 			fmt.Print("Paste your OpenRouter key (https://openrouter.ai/keys; input is visible, it is stored only on this machine): ")
@@ -411,11 +423,11 @@ func cmdLogin(args []string) error {
 
 func cmdLogout(args []string) error {
 	cfg := account.Load()
-	cfg.Key = ""
+	cfg.Key, cfg.OpenRouterKey = "", ""
 	if err := cfg.Save(); err != nil {
 		return err
 	}
-	fmt.Println("Logged out (key removed from this machine).")
+	fmt.Println("Logged out: keys removed from this machine.")
 	return nil
 }
 
@@ -501,9 +513,9 @@ func doShare(cfg account.Config, path string, rep account.Report, confirmed bool
 	}
 	if !cfg.CanShare() {
 		if !cfg.LoggedIn() {
-			fmt.Println("Not shared: log in first with `cyrlm login` (key from your cyrlm account page).")
+			fmt.Println("Not shared: sharing is not available in this version yet (the result is saved on this machine).")
 		} else {
-			fmt.Println("Not shared: no account server configured yet.")
+			fmt.Println("Not shared: sharing is not available in this version yet (the result is saved on this machine).")
 		}
 		return nil
 	}

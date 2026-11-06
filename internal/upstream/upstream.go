@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/aeroknight786/cyrlm/internal/llm"
@@ -34,7 +35,14 @@ type OpenAICompat struct {
 	Model   string // upstream model id
 	// Extra is merged into every request body (e.g. OpenRouter "provider").
 	Extra map[string]any
-	HTTP  *http.Client
+	// Reasoning is true for reasoning models: ask for their reasoning text
+	// so its decode time can be simulated. Sending reasoning parameters to
+	// other models can make OpenRouter find no provider.
+	Reasoning bool
+	// IdleTimeout ends a stream that sends nothing for this long
+	// (default 120 s), so a stalled provider can't block the device.
+	IdleTimeout time.Duration
+	HTTP        *http.Client
 }
 
 // OpenRouterBaseURL is the default upstream.
@@ -115,22 +123,29 @@ func (c *OpenAICompat) BuildBody(req *llm.Request) map[string]any {
 	if len(req.Stop) > 0 {
 		body["stop"] = req.Stop
 	}
-	if req.ReasoningEffort != "" {
-		if c.isOpenRouter() {
+	if c.Reasoning {
+		switch {
+		case c.isOpenRouter() && req.ReasoningEffort != "":
 			body["reasoning"] = map[string]any{"effort": req.ReasoningEffort}
-		} else {
+		case c.isOpenRouter():
+			body["reasoning"] = map[string]any{"exclude": false}
+		case req.ReasoningEffort != "":
 			body["reasoning_effort"] = req.ReasoningEffort
 		}
 	}
-	if c.isOpenRouter() {
-		// Ask for reasoning text so its decode time can be simulated.
-		if _, ok := body["reasoning"]; !ok {
-			body["reasoning"] = map[string]any{"exclude": false}
-		}
-		body["usage"] = map[string]any{"include": true}
-	}
 	for k, v := range c.Extra {
 		body[k] = v
+	}
+	if c.isOpenRouter() && len(req.Tools) > 0 {
+		// Only route to providers that support tool calling.
+		p := map[string]any{}
+		if existing, ok := body["provider"].(map[string]any); ok {
+			for k, v := range existing {
+				p[k] = v
+			}
+		}
+		p["require_parameters"] = true
+		body["provider"] = p
 	}
 	return body
 }
@@ -189,11 +204,18 @@ func (c *OpenAICompat) Stream(ctx context.Context, req *llm.Request) (<-chan llm
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, &HTTPError{Status: resp.StatusCode, Body: strings.TrimSpace(string(msg))}
 	}
+	idle := c.IdleTimeout
+	if idle <= 0 {
+		idle = 120 * time.Second
+	}
 	out := make(chan llm.Event, 64)
 	go func() {
 		defer close(out)
+		var stalled atomic.Bool
+		timer := time.AfterFunc(idle, func() { stalled.Store(true); resp.Body.Close() })
+		defer timer.Stop()
 		defer resp.Body.Close()
-		parseSSE(ctx, resp.Body, out)
+		parseSSE(ctx, resp.Body, out, func() { timer.Reset(idle) }, stalled.Load, idle)
 	}()
 	return out, nil
 }
@@ -250,7 +272,7 @@ type chunk struct {
 }
 
 // parseSSE converts an OpenAI chat.completion.chunk stream into events.
-func parseSSE(ctx context.Context, r io.Reader, out chan<- llm.Event) {
+func parseSSE(ctx context.Context, r io.Reader, out chan<- llm.Event, onLine func(), stalled func() bool, idle time.Duration) {
 	send := func(ev llm.Event) bool {
 		select {
 		case out <- ev:
@@ -266,6 +288,9 @@ func parseSSE(ctx context.Context, r io.Reader, out chan<- llm.Event) {
 	var usage *llm.Usage
 	sawTool := false
 	for sc.Scan() {
+		if onLine != nil {
+			onLine()
+		}
 		line := sc.Text()
 		if !strings.HasPrefix(line, "data:") {
 			continue // comments (": OPENROUTER PROCESSING"), event names, blanks
@@ -330,6 +355,10 @@ func parseSSE(ctx context.Context, r io.Reader, out chan<- llm.Event) {
 			}
 			usage = &u
 		}
+	}
+	if stalled != nil && stalled() {
+		send(llm.Event{Type: llm.EventError, Err: fmt.Errorf("upstream sent nothing for %s; gave up", idle)})
+		return
 	}
 	if err := sc.Err(); err != nil && ctx.Err() == nil {
 		send(llm.Event{Type: llm.EventError, Err: fmt.Errorf("upstream stream: %w", err)})

@@ -246,7 +246,14 @@ func contains(a []string, s string) bool {
 	return false
 }
 
-func printServeBanner(m catalog.Model, t predict.Target, p runtime.Profile, why string, r predict.Result, upDesc string, port, requested int) {
+func cacheLabel(kv string) string {
+	if kv == "q8_0" {
+		return "8-bit context cache"
+	}
+	return "16-bit context cache"
+}
+
+func printServeBanner(m catalog.Model, t predict.Target, p runtime.Profile, why string, r predict.Result, upDesc string, port, requested int, verbose, warnings bool) {
 	s := r.Settings
 	fmt.Printf("\ncyrlm is simulating %s %s on %s\n", m.Name, r.Quant.Name, t.Name)
 	mode := "defaults"
@@ -254,12 +261,12 @@ func printServeBanner(m catalog.Model, t predict.Target, p runtime.Profile, why 
 		mode = "tuned settings"
 	}
 	fmt.Printf("  runtime      %s, %s (%s)\n", p.Name, mode, why)
-	fmt.Printf("  backend      %s · context %d tokens (%s) · KV cache %s", r.Backend, s.ContextTokens, s.ContextNote, s.KVCacheType)
+	fmt.Printf("  context      %d tokens (%s) · %s · %s", s.ContextTokens, s.ContextNote, cacheLabel(s.KVCacheType), r.Backend)
 	if s.KeepAlive > 0 {
 		fmt.Printf(" · unloads after %s idle", s.KeepAlive)
 	}
 	fmt.Println()
-	fmt.Printf("  speed        %.0f tok/s writing, %.0f tok/s reading the prompt (%s)\n", r.DecodeTPS0, r.PrefillTPS2k, readingRatio(r.DecodeTPS0))
+	fmt.Printf("  speed        writes %.0f tokens/s, reads prompts at %.0f tokens/s (%s)\n", r.DecodeTPS0, r.PrefillTPS2k, readingRatio(r.DecodeTPS0))
 	fmt.Printf("  model output %s\n", upDesc)
 	if port != requested {
 		fmt.Printf("  note         port %d was busy (is Ollama running?), using %d\n", requested, port)
@@ -269,14 +276,16 @@ func printServeBanner(m catalog.Model, t predict.Target, p runtime.Profile, why 
 		fmt.Println("  Privacy: prompts your harness sends (including code and command output) go to the upstream above.")
 		fmt.Println("           Files and tools stay on this machine; only model requests leave it.")
 	}
-	if len(s.Assumptions) > 0 {
+	if verbose && len(s.Assumptions) > 0 {
 		fmt.Println("  Assumptions (unverified runtime behaviour):")
 		for _, a := range s.Assumptions {
 			fmt.Printf("    - %s\n", a)
 		}
 	}
-	for _, wn := range r.Warnings {
-		fmt.Printf("  ⚠ %s\n", wn)
+	if warnings { // try already printed them with the prediction
+		for _, wn := range r.Warnings {
+			fmt.Printf("  ⚠ %s\n", wn)
+		}
 	}
 	fmt.Println()
 }

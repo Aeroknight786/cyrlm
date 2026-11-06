@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aeroknight786/cyrlm/internal/llm"
 )
@@ -33,7 +34,7 @@ data: [DONE]
 
 func TestParseSSE(t *testing.T) {
 	out := make(chan llm.Event, 64)
-	parseSSE(context.Background(), strings.NewReader(openRouterStream), out)
+	parseSSE(context.Background(), strings.NewReader(openRouterStream), out, nil, nil, 0)
 	close(out)
 	var r llm.Response
 	var types []string
@@ -103,4 +104,55 @@ func TestBuildBodyAndErrors(t *testing.T) {
 		t.Fatalf("expected HTTP error with message, got %v", err)
 	}
 	_ = he
+}
+
+func TestReasoningAndRequireParameters(t *testing.T) {
+	c := &OpenAICompat{BaseURL: OpenRouterBaseURL, Model: "m", Extra: map[string]any{"provider": map[string]any{"only": []string{"x"}}}}
+	plain := c.BuildBody(&llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
+	if _, ok := plain["reasoning"]; ok {
+		t.Error("non-reasoning models must not get a reasoning parameter")
+	}
+	if p := plain["provider"].(map[string]any); p["require_parameters"] != nil {
+		t.Error("require_parameters only when tools are sent")
+	}
+	withTools := c.BuildBody(&llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, Tools: []llm.Tool{{Name: "bash"}}})
+	p := withTools["provider"].(map[string]any)
+	if p["require_parameters"] != true || p["only"] == nil {
+		t.Errorf("tools must require tool-capable providers and keep pinning: %v", p)
+	}
+	c.Reasoning = true
+	if r := c.BuildBody(&llm.Request{ReasoningEffort: "high"})["reasoning"].(map[string]any); r["effort"] != "high" {
+		t.Errorf("reasoning effort not passed: %v", r)
+	}
+}
+
+func TestStalledStreamEnds(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n"))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done() // then stall forever
+	}))
+	defer srv.Close()
+	c := &OpenAICompat{BaseURL: srv.URL, Model: "m", IdleTimeout: 200 * time.Millisecond}
+	ch, err := c.Stream(context.Background(), &llm.Request{Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var last llm.Event
+	done := make(chan struct{})
+	go func() {
+		for ev := range ch {
+			last = ev
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stalled stream never ended")
+	}
+	if last.Type != llm.EventError || !strings.Contains(last.Err.Error(), "sent nothing") {
+		t.Fatalf("expected a stall error, got %+v", last)
+	}
 }

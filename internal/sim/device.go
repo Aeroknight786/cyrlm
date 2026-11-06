@@ -8,6 +8,7 @@ package sim
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -163,6 +164,7 @@ func (d *Device) Prepare(req *llm.Request) (*Prepared, error) {
 	seq := tok.Render(req, d.cfg.Render)
 	p := &Prepared{Req: req, Seq: seq, Ctx: ctxN, PromptTokens: int(float64(seq.Len()) * ratio)}
 	if p.PromptTokens < ctxN {
+		p.Req = clampMaxTokens(req, ctxN-p.PromptTokens)
 		return p, nil
 	}
 	s := d.cfg.Settings
@@ -174,14 +176,26 @@ func (d *Device) Prepare(req *llm.Request) (*Prepared, error) {
 		limit := int(float64(ctxN-reserve) / ratio)
 		nreq, note := truncate(req, d.cfg.Render, limit, s.Overflow == runtime.OverflowTruncateMiddle)
 		nseq := tok.Render(nreq, d.cfg.Render)
-		p.Req, p.Seq = nreq, nseq
 		p.PromptTokens = int(float64(nseq.Len()) * ratio)
+		p.Req, p.Seq = clampMaxTokens(nreq, ctxN-p.PromptTokens), nseq
 		p.Truncated = true
 		p.TruncNote = fmt.Sprintf("%s truncated the prompt from ~%d to ~%d tokens to fit its %d-token context (%s). The model never saw the removed text.",
 			d.cfg.RuntimeName, int(float64(seq.Len())*ratio), p.PromptTokens, ctxN, note)
 		return p, nil
 	}
 	return p, nil
+}
+
+// clampMaxTokens caps the output request to the room left in the context,
+// as local runtimes do (n_predict); cloud providers reject prompt +
+// max_tokens > context.
+func clampMaxTokens(req *llm.Request, room int) *llm.Request {
+	if req.MaxTokens <= 0 || req.MaxTokens <= room {
+		return req
+	}
+	r := *req
+	r.MaxTokens = max(256, room)
+	return &r
 }
 
 func (d *Device) contextErrorMessage(n, ctx int) string {
@@ -203,9 +217,13 @@ func (d *Device) contextFor(req *llm.Request) int {
 	return c
 }
 
-// truncate drops messages until the rendering fits limit (estimated
-// tokens). Leading system messages and the last message are kept; if they
-// alone are too long, the system text is cut from the end.
+// truncate drops conversation turns until the rendering fits limit
+// (estimated tokens), keeping the result a valid conversation: leading
+// system messages, the first user message (the task) and the latest turn
+// are kept; an assistant message is dropped together with its tool results
+// so no tool result is ever left without its tool call. If that is still
+// too long, the system text is cut from the end, and only as a last resort
+// the tool definitions.
 func truncate(req *llm.Request, opt tok.RenderOptions, limit int, middle bool) (*llm.Request, string) {
 	r := *req
 	msgs := append([]llm.Message(nil), req.Messages...)
@@ -213,39 +231,56 @@ func truncate(req *llm.Request, opt tok.RenderOptions, limit int, middle bool) (
 	for nsys < len(msgs) && msgs[nsys].Role == llm.RoleSystem {
 		nsys++
 	}
-	dropped := 0
-	keepFirst := 0
-	if middle && len(msgs)-nsys > 2 {
-		keepFirst = 1
+	keep := nsys
+	if keep < len(msgs)-1 && msgs[keep].Role == llm.RoleUser {
+		keep++ // the task statement
 	}
-	for {
+	_ = middle // both policies keep the head and drop from the middle
+	fits := func() bool {
 		r.Messages = msgs
-		if tok.Render(&r, opt).Len() <= limit || len(msgs)-nsys-keepFirst <= 1 {
+		return tok.Render(&r, opt).Len() <= limit
+	}
+	dropped := 0
+	for !fits() {
+		i := keep
+		if i >= len(msgs)-1 {
 			break
 		}
-		i := nsys + keepFirst
-		msgs = append(msgs[:i:i], msgs[i+1:]...)
-		dropped++
+		j := i + 1
+		if msgs[i].Role == llm.RoleAssistant && len(msgs[i].ToolCalls) > 0 {
+			for j < len(msgs) && msgs[j].Role == llm.RoleTool {
+				j++
+			}
+		}
+		if j >= len(msgs) {
+			break // never drop the latest turn
+		}
+		msgs = append(msgs[:i:i], msgs[j:]...)
+		dropped += j - i
+		// A tool result must follow its tool call.
+		for i < len(msgs)-1 && msgs[i].Role == llm.RoleTool {
+			msgs = append(msgs[:i:i], msgs[i+1:]...)
+			dropped++
+		}
 	}
 	note := fmt.Sprintf("dropped %d earlier messages", dropped)
-	if tok.Render(&r, opt).Len() > limit && nsys > 0 {
-		// Cut the system prompt.
+	if !fits() && nsys > 0 {
 		over := tok.Render(&r, opt).Len() - limit
 		sys := append([]llm.Message(nil), msgs[:nsys]...)
 		for i := len(sys) - 1; i >= 0 && over > 0; i-- {
 			pieces := tok.Pieces(sys[i].Content)
 			cut := min(over, len(pieces))
-			kept := ""
-			for _, p := range pieces[:len(pieces)-cut] {
-				kept += p
-			}
-			sys[i].Content = kept
+			sys[i].Content = strings.Join(pieces[:len(pieces)-cut], "")
 			over -= cut
 		}
-		r.Messages = append(sys, msgs[nsys:]...)
-		r.Tools = nil
-		note += " and cut the system prompt and tool definitions"
+		msgs = append(sys, msgs[nsys:]...)
+		note += " and cut the end of the system prompt"
+		if !fits() && len(r.Tools) > 0 {
+			r.Tools = nil
+			note += " and the tool definitions"
+		}
 	}
+	r.Messages = msgs
 	return &r, note
 }
 

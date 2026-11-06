@@ -193,7 +193,7 @@ func installedNames(in installed) string {
 func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scenario, h harness.Harness) (runtime.Profile, string, error) {
 	if c.runtime != "" && c.runtime != "all" {
 		p, err := runtime.Get(c.runtime)
-		return p, "chosen with --runtime", err
+		return p, "you chose it with --runtime", err
 	}
 	in := detectInstalled(t)
 	c.runtime = "all"
@@ -206,11 +206,11 @@ func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scena
 	case mine != nil:
 		return mine.Runtime, "best of your installed runtimes: " + in.describe(mine.Runtime.ID), nil
 	case best != nil:
-		return best.Runtime, "fastest working setup for this machine (not installed; pick another with --runtime)", nil
+		return best.Runtime, "the fastest working option here; not installed yet", nil
 	}
 	for _, r := range rs {
 		if r.Unsupported == "" {
-			return r.Runtime, "no runtime gives a working setup with these settings; simulating anyway (try --tuned)", nil
+			return r.Runtime, "no runtime gives a working setup with these settings; simulating anyway (try a smaller model or --ctx)", nil
 		}
 	}
 	return runtime.Profile{}, "", fmt.Errorf("no runtime profile supports this machine")

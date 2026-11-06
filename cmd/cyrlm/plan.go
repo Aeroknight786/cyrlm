@@ -22,8 +22,9 @@ func cmdPlan(args []string) error {
 	if err != nil {
 		return err
 	}
+	c.finish(fs)
 	if len(pos) != 1 {
-		return errors.New("usage: cyrlm plan <model> [--runtime r] [--tuned] [--harness h] [--quant q] [--ctx n] [--json]")
+		return errors.New("usage: cyrlm plan <model> [--runtime r] [--defaults] [--harness h] [--quant q] [--ctx n] [--json]")
 	}
 	m, err := lookupModel(pos[0])
 	if err != nil {
@@ -78,7 +79,7 @@ func printPlan(p setup.Plan, why string, res predict.Result) {
 	}
 	fmt.Printf("\nSetup plan: %s (%s, %s) with %s, %s\n", p.ModelName, p.Quant, gb(float64(p.DownloadBytes)), p.RuntimeName, mode)
 	fmt.Printf("  runtime chosen: %s\n", why)
-	fmt.Printf("  context %d tokens · KV cache %s · serves at %s as %q\n", p.ContextTokens, p.KVCacheType, p.Endpoint, p.LocalModelName)
+	fmt.Printf("  context %d tokens · %s · serves at %s as %q\n", p.ContextTokens, cacheLabel(p.KVCacheType), p.Endpoint, p.LocalModelName)
 	fmt.Printf("  expected: first reply %s, then ~%s per turn, writing at %.0f tok/s\n",
 		dur(res.Scenario.ColdFirstReply), dur(res.Scenario.FollowUpTurn), res.DecodeTPSDeep)
 	if p.Harness != "" {

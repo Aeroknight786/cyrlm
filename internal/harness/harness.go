@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	goruntime "runtime"
 	"sort"
 	"strings"
 
@@ -156,7 +157,7 @@ func (h Harness) SetupFor(o Options) Setup {
 			s.Env = append(s.Env, [2]string{"CLAUDE_CODE_ATTRIBUTION_HEADER", "0"})
 			s.Notes = append(s.Notes, "CLAUDE_CODE_ATTRIBUTION_HEADER=0 keeps the system prompt identical across requests so the local prompt cache can be reused (recommended by LM Studio's Claude Code guide).")
 		} else {
-			s.Notes = append(s.Notes, "Default Claude Code settings: if its system prompt changes per request, every turn re-processes the whole prompt — watch for \"cache miss\" lines. Use --tuned to apply the fix.")
+			s.Notes = append(s.Notes, "Default Claude Code settings: if its system prompt changes per request, every turn re-processes the whole prompt — watch for \"cache miss\" lines. cyrlm's tuned settings (the default) apply the fix.")
 		}
 		s.Command = []string{"claude", "--model", m}
 	case "codex":
@@ -240,18 +241,33 @@ model = "%s"
 	return s
 }
 
-// Render formats setup instructions for the terminal.
-func (s Setup) Render() string {
+// Render formats setup instructions for this OS's terminal.
+func (s Setup) Render() string { return s.RenderFor(goruntime.GOOS) }
+
+// RenderFor formats setup instructions for goos ("windows" uses PowerShell).
+func (s Setup) RenderFor(goos string) string {
 	var b strings.Builder
 	if s.Config != "" {
 		fmt.Fprintf(&b, "Add to %s:\n\n%s\n\n", s.ConfigPath, indent(s.Config, "    "))
 	}
 	if len(s.Env) > 0 || len(s.Command) > 0 {
-		b.WriteString("Run in another terminal:\n\n    ")
-		for _, kv := range s.Env {
-			fmt.Fprintf(&b, "%s=%s ", kv[0], shellQuote(kv[1]))
+		if goos == "windows" {
+			b.WriteString("Run in a new PowerShell window:\n\n    ")
+			for _, kv := range s.Env {
+				if kv[1] == "" {
+					fmt.Fprintf(&b, "Remove-Item Env:%s -ErrorAction SilentlyContinue; ", kv[0])
+				} else {
+					fmt.Fprintf(&b, "$env:%s='%s'; ", kv[0], strings.ReplaceAll(kv[1], "'", "''"))
+				}
+			}
+			b.WriteString(strings.Join(s.Command, " "))
+		} else {
+			b.WriteString("Run in a new terminal window:\n\n    ")
+			for _, kv := range s.Env {
+				fmt.Fprintf(&b, "%s=%s ", kv[0], shellQuote(kv[1]))
+			}
+			b.WriteString(strings.Join(quoteAll(s.Command), " "))
 		}
-		b.WriteString(strings.Join(quoteAll(s.Command), " "))
 		b.WriteString("\n\n")
 	}
 	for _, st := range s.Steps {
