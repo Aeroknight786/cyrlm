@@ -251,6 +251,24 @@ func TestSlidingWindowCheckpointRollback(t *testing.T) {
 	}
 }
 
+func TestSlidingWindowMissIsExplained(t *testing.T) {
+	// Same system prompt, different user message: on a sliding-window model
+	// the only checkpoint is after the divergence, so nothing is reusable.
+	d, clk := testDevice(t, "llamacpp", true, func(s *runtime.Settings) { s.Slots = 1 })
+	run(t, d, clk, baseReq("hi"), textReply("hello there"))
+	pl, _ := run(t, d, clk, baseReq("a different question"), textReply("ok"))
+	if pl.CachedTokens != 0 || pl.Miss == nil || !strings.Contains(pl.Miss.Reason, "sliding-window") {
+		t.Fatalf("expected an explained sliding-window miss, got cached=%d miss=%+v", pl.CachedTokens, pl.Miss)
+	}
+	// A full-attention model reuses the shared system prompt.
+	d2, clk2 := testDevice(t, "llamacpp", false, func(s *runtime.Settings) { s.Slots = 1 })
+	run(t, d2, clk2, baseReq("hi"), textReply("hello there"))
+	pl2, _ := run(t, d2, clk2, baseReq("a different question"), textReply("ok"))
+	if pl2.CachedTokens < 1000 {
+		t.Fatalf("full-attention model should reuse the system prompt, got %d", pl2.CachedTokens)
+	}
+}
+
 func TestSingleSlotEvictionByBackgroundRequest(t *testing.T) {
 	d, clk := testDevice(t, "ollama", false, nil) // 1 slot
 	main := baseReq("refactor the parser")

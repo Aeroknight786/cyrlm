@@ -441,16 +441,16 @@ func (d *Device) explain(sl *slot, seq *tok.Seq, lcp, reuse int) *CacheMiss {
 			break
 		}
 	}
-	sameDoc := resync(sl.seq, seq, lcp)
+	sameDoc := resync(sl.seq, seq, lcp) || float64(lcp) >= 0.9*float64(min(sl.seq.Len(), seq.Len()))
 	switch {
+	case reuse < lcp:
+		m.Reason = fmt.Sprintf("the first %d tokens matched, but this model's sliding-window layers can only roll back to a saved checkpoint, and none is at or before the divergence (%s keeps %d per slot) — the whole prompt is re-processed", lcp, d.cfg.RuntimeName, d.cfg.Settings.Checkpoints)
 	case !sameDoc && len(d.slots) == 1:
 		m.Reason = "a different conversation used the only cache slot (e.g. a background or subagent request) and evicted this one"
 	case !sameDoc:
 		m.Reason = "a different conversation replaced this one in the cache"
 	case lcp <= sysEnd:
 		m.Reason = "the system prompt or tool definitions changed (a per-request value such as a timestamp or attribution header breaks the cache)"
-	case reuse < lcp:
-		m.Reason = fmt.Sprintf("this model's sliding-window layers can only roll back to a saved checkpoint (%s keeps %d)", d.cfg.RuntimeName, d.cfg.Settings.Checkpoints)
 	default:
 		m.Reason = "earlier conversation history was rewritten (e.g. compaction or edited messages)"
 	}

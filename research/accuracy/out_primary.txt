@@ -1,0 +1,488 @@
+
+================ TG  (276 rows) ================
+spec ceiling (eff=1)             ALL  n=276 MAPE=  70.0 MdAPE= 49.1 <=15%:  3.3 <=25%: 19.2 <=40%: 37.7 med(pred/meas)=1.49
+global eff (LODO)                ALL  n=276 MAPE=  27.8 MdAPE= 15.9 <=15%: 46.7 <=25%: 76.8 <=40%: 84.4 med(pred/meas)=1.02
+per-backend eff (LODO)           ALL  n=276 MAPE=  28.4 MdAPE= 14.8 <=15%: 51.4 <=25%: 74.3 <=40%: 84.1 med(pred/meas)=1.00
+per-backend eff+t0 (LODO)        ALL  n=276 MAPE=  19.4 MdAPE= 10.1 <=15%: 63.0 <=25%: 77.9 <=40%: 89.5 med(pred/meas)=1.01
+pp: per-backend multi-term (LODO) ALL     -
+on-device calib (other model)    ALL  n=202 MAPE=  23.1 MdAPE= 15.2 <=15%: 50.0 <=25%: 69.3 <=40%: 85.6 med(pred/meas)=0.99
+on-device calib + pop. t0/terms  ALL  n=202 MAPE=  13.9 MdAPE=  8.7 <=15%: 69.8 <=25%: 85.6 <=40%: 94.6 med(pred/meas)=1.00
+llmfit formula                   ALL  n=276 MAPE=  35.6 MdAPE= 26.1 <=15%: 26.4 <=25%: 48.2 <=40%: 72.8 med(pred/meas)=0.87
+
+-- spec ceiling (eff=1)
+   AMD dGPU                   n= 20 MAPE=  46.8 MdAPE= 47.9 <=15%:  5.0 <=25%: 10.0 <=40%: 40.0 med(pred/meas)=1.48
+   AMD laptop dGPU            n=  2 MAPE=  64.8 MdAPE= 64.8 <=15%:  0.0 <=25%: 50.0 <=40%: 50.0 med(pred/meas)=1.59
+   Apple M5 (new arch)        n= 12 MAPE=  26.3 MdAPE= 21.2 <=15%: 33.3 <=25%: 66.7 <=40%: 83.3 med(pred/meas)=1.21
+   Apple Max                  n= 40 MAPE=  60.7 MdAPE= 46.5 <=15%:  0.0 <=25%: 17.5 <=40%: 37.5 med(pred/meas)=1.46
+   Apple Pro                  n= 25 MAPE=  31.2 MdAPE= 26.6 <=15%:  4.0 <=25%: 44.0 <=40%: 76.0 med(pred/meas)=1.27
+   Apple Ultra                n= 30 MAPE=  97.5 MdAPE= 84.9 <=15%:  0.0 <=25%:  3.3 <=40%:  6.7 med(pred/meas)=1.85
+   Apple base                 n= 14 MAPE=  21.7 MdAPE= 22.0 <=15%:  7.1 <=25%: 71.4 <=40%:100.0 med(pred/meas)=1.22
+   CPU-only                   n=  4 MAPE= 228.6 MdAPE=247.0 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=3.47
+   Hybrid-SSM (M4 Max)        n= 10 MAPE= 308.7 MdAPE=209.1 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=3.06
+   Intel Arc dGPU             n=  9 MAPE= 107.5 MdAPE= 98.9 <=15%:  0.0 <=25%:  0.0 <=40%: 22.2 med(pred/meas)=1.99
+   NV unified (Spark/Thor)    n= 20 MAPE=  70.4 MdAPE= 74.6 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=1.75
+   NVIDIA desktop             n= 47 MAPE=  50.2 MdAPE= 42.1 <=15%:  0.0 <=25%: 14.9 <=40%: 44.7 med(pred/meas)=1.42
+   NVIDIA laptop              n=  8 MAPE=  44.1 MdAPE= 41.3 <=15%: 12.5 <=25%: 37.5 <=40%: 50.0 med(pred/meas)=1.41
+   Strix Halo                 n= 26 MAPE=  66.0 MdAPE= 53.0 <=15%:  0.0 <=25%:  3.8 <=40%: 19.2 med(pred/meas)=1.53
+   iGPU (AMD/Intel)           n=  9 MAPE=  78.5 MdAPE= 43.6 <=15%: 11.1 <=25%: 22.2 <=40%: 33.3 med(pred/meas)=1.44
+
+-- global eff (LODO)
+   AMD dGPU                   n= 20 MAPE=  11.4 MdAPE= 10.4 <=15%: 65.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.00
+   AMD laptop dGPU            n=  2 MAPE=  28.8 MdAPE= 28.8 <=15%:  0.0 <=25%: 50.0 <=40%: 50.0 med(pred/meas)=1.08
+   Apple M5 (new arch)        n= 12 MAPE=  18.4 MdAPE= 18.9 <=15%: 25.0 <=25%: 83.3 <=40%:100.0 med(pred/meas)=0.82
+   Apple Max                  n= 40 MAPE=  20.5 MdAPE= 15.2 <=15%: 47.5 <=25%: 77.5 <=40%: 85.0 med(pred/meas)=1.00
+   Apple Pro                  n= 25 MAPE=  13.6 MdAPE= 14.6 <=15%: 52.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.86
+   Apple Ultra                n= 30 MAPE=  37.1 MdAPE= 26.4 <=15%: 30.0 <=25%: 50.0 <=40%: 63.3 med(pred/meas)=1.26
+   Apple base                 n= 14 MAPE=  17.6 MdAPE= 17.4 <=15%: 21.4 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.83
+   CPU-only                   n=  4 MAPE= 124.5 MdAPE=137.2 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.37
+   Hybrid-SSM (M4 Max)        n= 10 MAPE= 180.4 MdAPE=112.1 <=15%: 10.0 <=25%: 10.0 <=40%: 10.0 med(pred/meas)=2.10
+   Intel Arc dGPU             n=  9 MAPE=  46.0 MdAPE= 35.4 <=15%: 44.4 <=25%: 44.4 <=40%: 55.6 med(pred/meas)=1.35
+   NV unified (Spark/Thor)    n= 20 MAPE=  16.2 MdAPE= 18.8 <=15%: 40.0 <=25%: 75.0 <=40%:100.0 med(pred/meas)=1.19
+   NVIDIA desktop             n= 47 MAPE=  14.3 MdAPE= 10.8 <=15%: 61.7 <=25%: 89.4 <=40%: 95.7 med(pred/meas)=0.96
+   NVIDIA laptop              n=  8 MAPE=  16.2 MdAPE= 19.7 <=15%: 37.5 <=25%: 87.5 <=40%:100.0 med(pred/meas)=0.96
+   Strix Halo                 n= 26 MAPE=  18.4 MdAPE=  8.0 <=15%: 76.9 <=25%: 80.8 <=40%: 84.6 med(pred/meas)=1.07
+   iGPU (AMD/Intel)           n=  9 MAPE=  34.9 MdAPE= 20.1 <=15%: 44.4 <=25%: 66.7 <=40%: 77.8 med(pred/meas)=0.97
+
+-- per-backend eff (LODO)
+   AMD dGPU                   n= 20 MAPE=   9.1 MdAPE=  7.6 <=15%: 75.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.97
+   AMD laptop dGPU            n=  2 MAPE=  29.4 MdAPE= 29.4 <=15%:  0.0 <=25%: 50.0 <=40%: 50.0 med(pred/meas)=1.11
+   Apple M5 (new arch)        n= 12 MAPE=  16.2 MdAPE= 15.4 <=15%: 41.7 <=25%: 91.7 <=40%:100.0 med(pred/meas)=0.85
+   Apple Max                  n= 40 MAPE=  22.4 MdAPE= 13.3 <=15%: 60.0 <=25%: 72.5 <=40%: 85.0 med(pred/meas)=1.05
+   Apple Pro                  n= 25 MAPE=  11.4 MdAPE= 12.1 <=15%: 68.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.89
+   Apple Ultra                n= 30 MAPE=  43.4 MdAPE= 30.1 <=15%: 26.7 <=25%: 33.3 <=40%: 56.7 med(pred/meas)=1.30
+   Apple base                 n= 14 MAPE=  14.2 MdAPE= 14.0 <=15%: 64.3 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.86
+   CPU-only                   n=  4 MAPE= 124.5 MdAPE=137.2 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.37
+   Hybrid-SSM (M4 Max)        n= 10 MAPE= 191.6 MdAPE=119.1 <=15%: 10.0 <=25%: 10.0 <=40%: 10.0 med(pred/meas)=2.16
+   Intel Arc dGPU             n=  9 MAPE=  47.4 MdAPE= 38.2 <=15%: 33.3 <=25%: 44.4 <=40%: 55.6 med(pred/meas)=1.38
+   NV unified (Spark/Thor)    n= 20 MAPE=  18.0 MdAPE= 19.8 <=15%: 35.0 <=25%: 65.0 <=40%:100.0 med(pred/meas)=1.20
+   NVIDIA desktop             n= 47 MAPE=  14.6 MdAPE= 13.3 <=15%: 55.3 <=25%: 91.5 <=40%: 95.7 med(pred/meas)=0.94
+   NVIDIA laptop              n=  8 MAPE=  16.5 MdAPE= 19.1 <=15%: 37.5 <=25%: 75.0 <=40%:100.0 med(pred/meas)=0.95
+   Strix Halo                 n= 26 MAPE=  15.3 MdAPE=  7.7 <=15%: 80.8 <=25%: 84.6 <=40%: 88.5 med(pred/meas)=0.98
+   iGPU (AMD/Intel)           n=  9 MAPE=  34.2 MdAPE= 18.6 <=15%: 33.3 <=25%: 66.7 <=40%: 77.8 med(pred/meas)=1.00
+
+-- per-backend eff+t0 (LODO)
+   AMD dGPU                   n= 20 MAPE=   9.7 MdAPE=  9.9 <=15%: 75.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.96
+   AMD laptop dGPU            n=  2 MAPE=  29.2 MdAPE= 29.2 <=15%: 50.0 <=25%: 50.0 <=40%: 50.0 med(pred/meas)=1.14
+   Apple M5 (new arch)        n= 12 MAPE=  20.6 MdAPE= 20.3 <=15%:  8.3 <=25%: 75.0 <=40%:100.0 med(pred/meas)=0.80
+   Apple Max                  n= 40 MAPE=  16.9 MdAPE=  6.8 <=15%: 75.0 <=25%: 77.5 <=40%: 90.0 med(pred/meas)=1.02
+   Apple Pro                  n= 25 MAPE=   4.2 MdAPE=  4.1 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.97
+   Apple Ultra                n= 30 MAPE=  17.1 MdAPE= 13.9 <=15%: 53.3 <=25%: 83.3 <=40%: 93.3 med(pred/meas)=1.14
+   Apple base                 n= 14 MAPE=   3.5 MdAPE=  2.9 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.99
+   CPU-only                   n=  4 MAPE= 124.5 MdAPE=137.2 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.37
+   Hybrid-SSM (M4 Max)        n= 10 MAPE=  60.5 MdAPE= 31.8 <=15%: 20.0 <=25%: 40.0 <=40%: 60.0 med(pred/meas)=1.27
+   Intel Arc dGPU             n=  9 MAPE=  49.4 MdAPE= 41.2 <=15%: 33.3 <=25%: 44.4 <=40%: 44.4 med(pred/meas)=1.41
+   NV unified (Spark/Thor)    n= 20 MAPE=  27.8 MdAPE= 31.2 <=15%: 25.0 <=25%: 30.0 <=40%: 80.0 med(pred/meas)=1.31
+   NVIDIA desktop             n= 47 MAPE=  11.6 MdAPE= 10.7 <=15%: 76.6 <=25%: 91.5 <=40%:100.0 med(pred/meas)=0.93
+   NVIDIA laptop              n=  8 MAPE=  14.9 MdAPE= 15.2 <=15%: 50.0 <=25%: 75.0 <=40%:100.0 med(pred/meas)=0.95
+   Strix Halo                 n= 26 MAPE=  15.6 MdAPE=  7.9 <=15%: 73.1 <=25%: 80.8 <=40%: 88.5 med(pred/meas)=1.00
+   iGPU (AMD/Intel)           n=  9 MAPE=  38.0 MdAPE= 20.0 <=15%: 33.3 <=25%: 66.7 <=40%: 77.8 med(pred/meas)=1.06
+
+-- pp: per-backend multi-term (LODO)
+   AMD dGPU                      -
+   AMD laptop dGPU               -
+   Apple M5 (new arch)           -
+   Apple Max                     -
+   Apple Pro                     -
+   Apple Ultra                   -
+   Apple base                    -
+   CPU-only                      -
+   Hybrid-SSM (M4 Max)           -
+   Intel Arc dGPU                -
+   NV unified (Spark/Thor)       -
+   NVIDIA desktop                -
+   NVIDIA laptop                 -
+   Strix Halo                    -
+   iGPU (AMD/Intel)              -
+
+-- on-device calib (other model)
+   AMD dGPU                      -
+   AMD laptop dGPU               -
+   Apple M5 (new arch)        n= 12 MAPE=  10.0 MdAPE=  7.8 <=15%: 83.3 <=25%: 91.7 <=40%:100.0 med(pred/meas)=0.98
+   Apple Max                  n= 39 MAPE=  26.7 MdAPE= 22.3 <=15%: 20.5 <=25%: 59.0 <=40%: 79.5 med(pred/meas)=0.93
+   Apple Pro                  n= 25 MAPE=  12.3 MdAPE= 11.7 <=15%: 76.0 <=25%: 92.0 <=40%:100.0 med(pred/meas)=0.97
+   Apple Ultra                n= 29 MAPE=  30.1 MdAPE= 29.4 <=15%: 24.1 <=25%: 34.5 <=40%: 72.4 med(pred/meas)=0.96
+   Apple base                 n= 14 MAPE=   4.5 MdAPE=  4.6 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.99
+   CPU-only                   n=  3 MAPE=   6.9 MdAPE=  8.9 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.99
+   Hybrid-SSM (M4 Max)        n= 10 MAPE=  88.6 MdAPE= 45.0 <=15%:  0.0 <=25%: 40.0 <=40%: 40.0 med(pred/meas)=1.34
+   Intel Arc dGPU                -
+   NV unified (Spark/Thor)    n= 15 MAPE=   4.8 MdAPE=  4.3 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.01
+   NVIDIA desktop             n= 29 MAPE=  22.1 MdAPE= 23.2 <=15%: 34.5 <=25%: 62.1 <=40%: 89.7 med(pred/meas)=1.04
+   NVIDIA laptop                 -
+   Strix Halo                 n= 26 MAPE=  24.8 MdAPE= 13.3 <=15%: 57.7 <=25%: 73.1 <=40%: 84.6 med(pred/meas)=1.12
+   iGPU (AMD/Intel)              -
+
+-- on-device calib + pop. t0/terms
+   AMD dGPU                      -
+   AMD laptop dGPU               -
+   Apple M5 (new arch)        n= 12 MAPE=  13.1 MdAPE=  8.5 <=15%: 66.7 <=25%: 83.3 <=40%: 91.7 med(pred/meas)=1.01
+   Apple Max                  n= 39 MAPE=  15.5 MdAPE=  9.3 <=15%: 64.1 <=25%: 82.1 <=40%: 92.3 med(pred/meas)=0.98
+   Apple Pro                  n= 25 MAPE=   3.4 MdAPE=  2.2 <=15%: 96.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.00
+   Apple Ultra                n= 29 MAPE=   9.7 MdAPE=  8.2 <=15%: 82.8 <=25%: 93.1 <=40%:100.0 med(pred/meas)=0.99
+   Apple base                 n= 14 MAPE=   0.9 MdAPE=  0.6 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.00
+   CPU-only                   n=  3 MAPE=   6.9 MdAPE=  8.9 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.99
+   Hybrid-SSM (M4 Max)        n= 10 MAPE=  38.1 MdAPE= 24.3 <=15%: 30.0 <=25%: 50.0 <=40%: 80.0 med(pred/meas)=1.10
+   Intel Arc dGPU                -
+   NV unified (Spark/Thor)    n= 15 MAPE=   4.8 MdAPE=  4.3 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.99
+   NVIDIA desktop             n= 29 MAPE=  18.6 MdAPE= 18.4 <=15%: 34.5 <=25%: 79.3 <=40%: 96.6 med(pred/meas)=1.06
+   NVIDIA laptop                 -
+   Strix Halo                 n= 26 MAPE=  24.8 MdAPE= 13.3 <=15%: 57.7 <=25%: 73.1 <=40%: 84.6 med(pred/meas)=1.12
+   iGPU (AMD/Intel)              -
+
+-- llmfit formula
+   AMD dGPU                   n= 20 MAPE=  20.3 MdAPE= 17.1 <=15%: 45.0 <=25%: 70.0 <=40%: 85.0 med(pred/meas)=0.83
+   AMD laptop dGPU            n=  2 MAPE=  42.1 MdAPE= 42.1 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=0.58
+   Apple M5 (new arch)        n= 12 MAPE=  46.0 MdAPE= 35.6 <=15%:  0.0 <=25%: 16.7 <=40%: 58.3 med(pred/meas)=0.64
+   Apple Max                  n= 40 MAPE=  26.3 MdAPE= 20.8 <=15%: 30.0 <=25%: 55.0 <=40%: 82.5 med(pred/meas)=0.97
+   Apple Pro                  n= 25 MAPE=  24.5 MdAPE= 27.1 <=15%: 28.0 <=25%: 40.0 <=40%:100.0 med(pred/meas)=0.73
+   Apple Ultra                n= 30 MAPE=  32.7 MdAPE= 24.2 <=15%: 33.3 <=25%: 50.0 <=40%: 70.0 med(pred/meas)=1.07
+   Apple base                 n= 14 MAPE=  28.3 MdAPE= 28.8 <=15%:  0.0 <=25%: 35.7 <=40%:100.0 med(pred/meas)=0.71
+   CPU-only                   n=  4 MAPE=  79.8 MdAPE= 80.6 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=0.19
+   Hybrid-SSM (M4 Max)        n= 10 MAPE= 143.8 MdAPE= 98.1 <=15%: 10.0 <=25%: 10.0 <=40%: 20.0 med(pred/meas)=1.96
+   Intel Arc dGPU             n=  9 MAPE=  59.2 MdAPE= 60.9 <=15%:  0.0 <=25%:  0.0 <=40%: 11.1 med(pred/meas)=0.39
+   NV unified (Spark/Thor)    n= 20 MAPE=  42.7 MdAPE= 39.9 <=15%:  5.0 <=25%: 25.0 <=40%: 50.0 med(pred/meas)=1.07
+   NVIDIA desktop             n= 47 MAPE=  18.3 MdAPE= 15.7 <=15%: 46.8 <=25%: 78.7 <=40%: 91.5 med(pred/meas)=0.91
+   NVIDIA laptop              n=  8 MAPE=  49.5 MdAPE= 52.0 <=15%: 12.5 <=25%: 12.5 <=40%: 25.0 med(pred/meas)=0.48
+   Strix Halo                 n= 26 MAPE=  32.4 MdAPE= 20.5 <=15%: 30.8 <=25%: 65.4 <=40%: 76.9 med(pred/meas)=1.16
+   iGPU (AMD/Intel)           n=  9 MAPE=  55.2 MdAPE= 25.7 <=15%: 22.2 <=25%: 44.4 <=40%: 66.7 med(pred/meas)=1.18
+
+-- by backend (per-backend eff+t0 LODO / llmfit)
+   CPU      t0: n=  4 MAPE= 124.5 MdAPE=137.2 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.37
+            lf: n=  4 MAPE=  79.8 MdAPE= 80.6 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=0.19
+   CUDA     t0: n= 65 MAPE=  16.7 MdAPE= 13.5 <=15%: 60.0 <=25%: 72.3 <=40%: 93.8 med(pred/meas)=1.03
+            lf: n= 65 MAPE=  26.7 MdAPE= 20.9 <=15%: 32.3 <=25%: 61.5 <=40%: 76.9 med(pred/meas)=0.92
+   MLX      t0: n=  4 MAPE= 114.7 MdAPE= 65.6 <=15%: 25.0 <=25%: 25.0 <=40%: 25.0 med(pred/meas)=1.65
+            lf: n=  4 MAPE=  81.8 MdAPE= 37.2 <=15%: 25.0 <=25%: 25.0 <=40%: 50.0 med(pred/meas)=1.37
+   Metal    t0: n=125 MAPE=  13.4 MdAPE=  6.8 <=15%: 69.6 <=25%: 84.8 <=40%: 94.4 med(pred/meas)=1.01
+            lf: n=125 MAPE=  37.3 MdAPE= 27.4 <=15%: 22.4 <=25%: 41.6 <=40%: 78.4 med(pred/meas)=0.82
+   ROCm     t0: n= 31 MAPE=  13.8 MdAPE=  4.7 <=15%: 74.2 <=25%: 83.9 <=40%: 90.3 med(pred/meas)=0.99
+            lf: n= 31 MAPE=  31.0 MdAPE= 16.5 <=15%: 45.2 <=25%: 64.5 <=40%: 74.2 med(pred/meas)=1.08
+   SYCL     t0: n=  6 MAPE=  24.0 MdAPE= 10.5 <=15%: 66.7 <=25%: 66.7 <=40%: 66.7 med(pred/meas)=0.96
+            lf: n=  6 MAPE=  55.3 MdAPE= 73.8 <=15%: 16.7 <=25%: 16.7 <=40%: 33.3 med(pred/meas)=0.26
+   Vulkan   t0: n= 41 MAPE=  25.9 MdAPE= 15.3 <=15%: 48.8 <=25%: 75.6 <=40%: 85.4 med(pred/meas)=0.99
+            lf: n= 41 MAPE=  36.0 MdAPE= 28.3 <=15%: 19.5 <=25%: 46.3 <=40%: 63.4 med(pred/meas)=0.81
+
+-- conditions (per-backend eff+t0 LODO | calib | llmfit)
+   depth>=4096 (decode at depth)  t0     n= 51 MAPE=  24.5 MdAPE= 18.6 <=15%: 43.1 <=25%: 54.9 <=40%: 82.4 med(pred/meas)=1.19
+   depth>=4096 (decode at depth)  multi     -
+   depth>=4096 (decode at depth)  calib  n= 44 MAPE=  21.6 MdAPE= 13.1 <=15%: 54.5 <=25%: 72.7 <=40%: 84.1 med(pred/meas)=1.10
+   depth>=4096 (decode at depth)  calt0  n= 44 MAPE=  20.7 MdAPE= 10.5 <=15%: 59.1 <=25%: 70.5 <=40%: 88.6 med(pred/meas)=1.10
+   depth>=4096 (decode at depth)  llmfit n= 51 MAPE=  40.5 MdAPE= 32.8 <=15%: 17.6 <=25%: 41.2 <=40%: 58.8 med(pred/meas)=1.25
+   MoE                            t0     n= 56 MAPE=  20.2 MdAPE= 13.1 <=15%: 53.6 <=25%: 58.9 <=40%: 87.5 med(pred/meas)=1.13
+   MoE                            multi     -
+   MoE                            calib  n= 51 MAPE=  24.9 MdAPE= 13.3 <=15%: 52.9 <=25%: 62.7 <=40%: 78.4 med(pred/meas)=1.13
+   MoE                            calt0  n= 51 MAPE=  17.9 MdAPE= 10.3 <=15%: 64.7 <=25%: 78.4 <=40%: 90.2 med(pred/meas)=1.10
+   MoE                            llmfit n= 56 MAPE=  39.3 MdAPE= 32.7 <=15%: 23.2 <=25%: 42.9 <=40%: 58.9 med(pred/meas)=1.22
+   dense                          t0     n=220 MAPE=  19.2 MdAPE=  9.3 <=15%: 65.5 <=25%: 82.7 <=40%: 90.0 med(pred/meas)=0.98
+   dense                          multi     -
+   dense                          calib  n=151 MAPE=  22.5 MdAPE= 15.7 <=15%: 49.0 <=25%: 71.5 <=40%: 88.1 med(pred/meas)=0.96
+   dense                          calt0  n=151 MAPE=  12.5 MdAPE=  8.1 <=15%: 71.5 <=25%: 88.1 <=40%: 96.0 med(pred/meas)=0.99
+   dense                          llmfit n=220 MAPE=  34.6 MdAPE= 25.6 <=15%: 27.3 <=25%: 49.5 <=40%: 76.4 med(pred/meas)=0.82
+   model >=30GB                   t0     n= 44 MAPE=  23.6 MdAPE= 14.9 <=15%: 50.0 <=25%: 59.1 <=40%: 79.5 med(pred/meas)=1.15
+   model >=30GB                   multi     -
+   model >=30GB                   calib  n= 39 MAPE=  21.0 MdAPE= 12.4 <=15%: 66.7 <=25%: 71.8 <=40%: 87.2 med(pred/meas)=1.10
+   model >=30GB                   calt0  n= 39 MAPE=  20.7 MdAPE= 10.6 <=15%: 64.1 <=25%: 74.4 <=40%: 87.2 med(pred/meas)=1.10
+   model >=30GB                   llmfit n= 44 MAPE=  38.3 MdAPE= 30.7 <=15%: 20.5 <=25%: 43.2 <=40%: 65.9 med(pred/meas)=1.16
+   spec_conf=low                  t0     n= 41 MAPE=  27.9 MdAPE= 24.0 <=15%: 22.0 <=25%: 51.2 <=40%: 85.4 med(pred/meas)=1.06
+   spec_conf=low                  multi     -
+   spec_conf=low                  calib  n= 27 MAPE=   7.1 MdAPE=  5.7 <=15%: 92.6 <=25%: 96.3 <=40%:100.0 med(pred/meas)=0.98
+   spec_conf=low                  calt0  n= 27 MAPE=   8.5 MdAPE=  6.3 <=15%: 85.2 <=25%: 92.6 <=40%: 96.3 med(pred/meas)=1.00
+   spec_conf=low                  llmfit n= 41 MAPE=  46.4 MdAPE= 35.6 <=15%:  7.3 <=25%: 26.8 <=40%: 56.1 med(pred/meas)=0.79
+
+================ PP  (285 rows) ================
+spec ceiling (eff=1)             ALL  n=285 MAPE= 205.5 MdAPE= 99.9 <=15%:  1.1 <=25%:  1.8 <=40%: 17.5 med(pred/meas)=2.00
+global eff (LODO)                ALL  n=285 MAPE=  92.3 MdAPE= 27.3 <=15%: 16.8 <=25%: 40.4 <=40%: 61.4 med(pred/meas)=1.12
+per-backend eff (LODO)           ALL  n=285 MAPE=  43.8 MdAPE= 17.2 <=15%: 48.8 <=25%: 59.6 <=40%: 71.2 med(pred/meas)=1.01
+per-backend eff+t0 (LODO)        ALL  n=285 MAPE=  53.4 MdAPE= 17.8 <=15%: 46.3 <=25%: 56.5 <=40%: 69.1 med(pred/meas)=1.03
+pp: per-backend multi-term (LODO) ALL  n=285 MAPE=  44.9 MdAPE= 13.5 <=15%: 51.9 <=25%: 68.1 <=40%: 76.5 med(pred/meas)=1.04
+on-device calib (other model)    ALL  n=211 MAPE=  32.2 MdAPE= 11.3 <=15%: 56.9 <=25%: 64.0 <=40%: 73.5 med(pred/meas)=1.01
+on-device calib + pop. t0/terms  ALL  n=211 MAPE=  23.7 MdAPE=  7.9 <=15%: 65.4 <=25%: 73.0 <=40%: 82.9 med(pred/meas)=1.01
+llmfit formula                   ALL  n=278 MAPE=  61.9 MdAPE= 47.6 <=15%: 10.4 <=25%: 19.8 <=40%: 34.9 med(pred/meas)=0.69
+
+-- spec ceiling (eff=1)
+   AMD dGPU                   n= 20 MAPE= 191.4 MdAPE=161.4 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.61
+   AMD laptop dGPU            n=  2 MAPE= 111.9 MdAPE=111.9 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.12
+   Apple M5 (new arch)        n= 12 MAPE=  63.4 MdAPE= 54.9 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=1.55
+   Apple Max                  n= 43 MAPE=  54.3 MdAPE= 43.4 <=15%:  0.0 <=25%:  2.3 <=40%: 44.2 med(pred/meas)=1.43
+   Apple Pro                  n= 27 MAPE=  42.2 MdAPE= 38.2 <=15%:  0.0 <=25%:  0.0 <=40%: 59.3 med(pred/meas)=1.38
+   Apple Ultra                n= 33 MAPE=  59.9 MdAPE= 52.9 <=15%:  0.0 <=25%:  0.0 <=40%: 18.2 med(pred/meas)=1.53
+   Apple base                 n= 14 MAPE=  47.1 MdAPE= 46.1 <=15%:  0.0 <=25%:  0.0 <=40%: 28.6 med(pred/meas)=1.46
+   CPU-only                   n=  7 MAPE=  47.1 MdAPE= 15.1 <=15%: 42.9 <=25%: 57.1 <=40%: 57.1 med(pred/meas)=1.14
+   Intel Arc dGPU             n=  9 MAPE= 716.2 MdAPE=731.6 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=8.32
+   NV unified (Spark/Thor)    n= 20 MAPE= 304.6 MdAPE=300.7 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=4.01
+   NVIDIA desktop             n= 54 MAPE= 190.6 MdAPE=162.6 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.63
+   NVIDIA laptop              n=  8 MAPE= 147.4 MdAPE=142.5 <=15%:  0.0 <=25%:  0.0 <=40%: 12.5 med(pred/meas)=2.42
+   Strix Halo                 n= 27 MAPE= 751.8 MdAPE=619.4 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=7.19
+   iGPU (AMD/Intel)           n=  9 MAPE= 332.4 MdAPE=297.3 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=3.97
+
+-- global eff (LODO)
+   AMD dGPU                   n= 20 MAPE=  64.1 MdAPE= 47.2 <=15%:  5.0 <=25%: 10.0 <=40%: 40.0 med(pred/meas)=1.47
+   AMD laptop dGPU            n=  2 MAPE=  19.3 MdAPE= 19.3 <=15%:  0.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.19
+   Apple M5 (new arch)        n= 12 MAPE=  14.8 MdAPE= 15.0 <=15%: 50.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.85
+   Apple Max                  n= 43 MAPE=  21.9 MdAPE= 23.7 <=15%: 14.0 <=25%: 51.2 <=40%:100.0 med(pred/meas)=0.77
+   Apple Pro                  n= 27 MAPE=  22.2 MdAPE= 24.2 <=15%:  7.4 <=25%: 63.0 <=40%:100.0 med(pred/meas)=0.76
+   Apple Ultra                n= 33 MAPE=  17.5 MdAPE= 16.5 <=15%: 39.4 <=25%: 81.8 <=40%:100.0 med(pred/meas)=0.84
+   Apple base                 n= 14 MAPE=  18.9 MdAPE= 19.3 <=15%: 28.6 <=25%: 71.4 <=40%:100.0 med(pred/meas)=0.81
+   CPU-only                   n=  7 MAPE=  36.8 MdAPE= 36.2 <=15%:  0.0 <=25%: 28.6 <=40%: 85.7 med(pred/meas)=0.64
+   Intel Arc dGPU             n=  9 MAPE= 359.4 MdAPE=368.1 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=4.68
+   NV unified (Spark/Thor)    n= 20 MAPE= 127.7 MdAPE=125.5 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.25
+   NVIDIA desktop             n= 54 MAPE=  67.3 MdAPE= 48.0 <=15%: 27.8 <=25%: 35.2 <=40%: 48.1 med(pred/meas)=1.48
+   NVIDIA laptop              n=  8 MAPE=  45.7 MdAPE= 36.7 <=15%: 12.5 <=25%: 25.0 <=40%: 50.0 med(pred/meas)=1.36
+   Strix Halo                 n= 27 MAPE= 410.6 MdAPE=331.2 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=4.31
+   iGPU (AMD/Intel)           n=  9 MAPE= 143.4 MdAPE=123.6 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=2.24
+
+-- per-backend eff (LODO)
+   AMD dGPU                   n= 20 MAPE=  32.8 MdAPE= 22.8 <=15%: 25.0 <=25%: 55.0 <=40%: 60.0 med(pred/meas)=0.77
+   AMD laptop dGPU            n=  2 MAPE=  30.4 MdAPE= 30.4 <=15%:  0.0 <=25%:  0.0 <=40%:100.0 med(pred/meas)=0.70
+   Apple M5 (new arch)        n= 12 MAPE=  11.4 MdAPE=  5.5 <=15%: 75.0 <=25%: 75.0 <=40%:100.0 med(pred/meas)=1.06
+   Apple Max                  n= 43 MAPE=  14.0 MdAPE=  8.2 <=15%: 76.7 <=25%: 83.7 <=40%: 88.4 med(pred/meas)=0.95
+   Apple Pro                  n= 27 MAPE=   7.1 MdAPE=  6.9 <=15%: 96.3 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.94
+   Apple Ultra                n= 33 MAPE=  13.2 MdAPE=  7.9 <=15%: 78.8 <=25%: 84.8 <=40%: 90.9 med(pred/meas)=1.04
+   Apple base                 n= 14 MAPE=   6.6 MdAPE=  7.7 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.99
+   CPU-only                   n=  7 MAPE=  36.8 MdAPE= 36.2 <=15%:  0.0 <=25%: 28.6 <=40%: 85.7 med(pred/meas)=0.64
+   Intel Arc dGPU             n=  9 MAPE= 153.0 MdAPE=179.0 <=15%:  0.0 <=25%: 22.2 <=40%: 33.3 med(pred/meas)=2.79
+   NV unified (Spark/Thor)    n= 20 MAPE=  51.0 MdAPE= 48.8 <=15%: 25.0 <=25%: 35.0 <=40%: 40.0 med(pred/meas)=1.49
+   NVIDIA desktop             n= 54 MAPE=  32.7 MdAPE= 29.2 <=15%: 24.1 <=25%: 44.4 <=40%: 64.8 med(pred/meas)=0.85
+   NVIDIA laptop              n=  8 MAPE=  26.3 MdAPE= 27.0 <=15%: 37.5 <=25%: 37.5 <=40%: 87.5 med(pred/meas)=0.79
+   Strix Halo                 n= 27 MAPE= 202.7 MdAPE=152.4 <=15%:  3.7 <=25%:  3.7 <=40%:  3.7 med(pred/meas)=2.52
+   iGPU (AMD/Intel)           n=  9 MAPE=  22.6 MdAPE= 16.4 <=15%: 44.4 <=25%: 66.7 <=40%: 88.9 med(pred/meas)=1.15
+
+-- per-backend eff+t0 (LODO)
+   AMD dGPU                   n= 20 MAPE=  31.3 MdAPE= 29.2 <=15%: 35.0 <=25%: 45.0 <=40%: 60.0 med(pred/meas)=0.83
+   AMD laptop dGPU            n=  2 MAPE=  11.9 MdAPE= 11.9 <=15%: 50.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.88
+   Apple M5 (new arch)        n= 12 MAPE=   5.0 MdAPE=  4.2 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.99
+   Apple Max                  n= 43 MAPE=  14.3 MdAPE=  8.0 <=15%: 76.7 <=25%: 83.7 <=40%: 86.0 med(pred/meas)=0.96
+   Apple Pro                  n= 27 MAPE=   6.7 MdAPE=  5.0 <=15%: 96.3 <=25%: 96.3 <=40%:100.0 med(pred/meas)=0.96
+   Apple Ultra                n= 33 MAPE=  12.2 MdAPE=  7.1 <=15%: 69.7 <=25%: 87.9 <=40%: 93.9 med(pred/meas)=1.03
+   Apple base                 n= 14 MAPE=   7.0 MdAPE=  5.4 <=15%: 85.7 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.02
+   CPU-only                   n=  7 MAPE=  36.8 MdAPE= 36.2 <=15%:  0.0 <=25%: 28.6 <=40%: 85.7 med(pred/meas)=0.64
+   Intel Arc dGPU             n=  9 MAPE= 181.3 MdAPE=222.8 <=15%:  0.0 <=25%: 22.2 <=40%: 33.3 med(pred/meas)=3.23
+   NV unified (Spark/Thor)    n= 20 MAPE=  94.4 MdAPE= 91.1 <=15%:  5.0 <=25%: 10.0 <=40%: 20.0 med(pred/meas)=1.91
+   NVIDIA desktop             n= 54 MAPE=  38.9 MdAPE= 31.0 <=15%: 20.4 <=25%: 35.2 <=40%: 70.4 med(pred/meas)=1.07
+   NVIDIA laptop              n=  8 MAPE=  23.4 MdAPE= 17.7 <=15%: 50.0 <=25%: 50.0 <=40%: 75.0 med(pred/meas)=0.98
+   Strix Halo                 n= 27 MAPE= 250.6 MdAPE=205.7 <=15%:  3.7 <=25%:  3.7 <=40%:  3.7 med(pred/meas)=3.06
+   iGPU (AMD/Intel)           n=  9 MAPE=  41.5 MdAPE= 41.2 <=15%: 11.1 <=25%: 33.3 <=40%: 44.4 med(pred/meas)=1.41
+
+-- pp: per-backend multi-term (LODO)
+   AMD dGPU                   n= 20 MAPE=  23.2 MdAPE= 15.4 <=15%: 50.0 <=25%: 65.0 <=40%: 75.0 med(pred/meas)=1.04
+   AMD laptop dGPU            n=  2 MAPE=  12.9 MdAPE= 12.9 <=15%: 50.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.87
+   Apple M5 (new arch)        n= 12 MAPE=  13.8 MdAPE=  7.7 <=15%: 75.0 <=25%: 75.0 <=40%:100.0 med(pred/meas)=1.08
+   Apple Max                  n= 43 MAPE=   9.2 MdAPE=  5.4 <=15%: 83.7 <=25%: 93.0 <=40%: 95.3 med(pred/meas)=0.96
+   Apple Pro                  n= 27 MAPE=   6.1 MdAPE=  5.6 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=0.95
+   Apple Ultra                n= 33 MAPE=   9.5 MdAPE=  6.6 <=15%: 78.8 <=25%: 93.9 <=40%: 97.0 med(pred/meas)=1.03
+   Apple base                 n= 14 MAPE=   6.7 MdAPE=  5.8 <=15%: 85.7 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.01
+   CPU-only                   n=  7 MAPE=  35.9 MdAPE= 29.7 <=15%:  0.0 <=25%:  0.0 <=40%: 85.7 med(pred/meas)=0.72
+   Intel Arc dGPU             n=  9 MAPE= 191.0 MdAPE=238.9 <=15%:  0.0 <=25%: 22.2 <=40%: 33.3 med(pred/meas)=3.39
+   NV unified (Spark/Thor)    n= 20 MAPE=  30.1 MdAPE= 24.7 <=15%: 20.0 <=25%: 55.0 <=40%: 75.0 med(pred/meas)=1.15
+   NVIDIA desktop             n= 54 MAPE=  29.1 MdAPE= 18.1 <=15%: 33.3 <=25%: 68.5 <=40%: 74.1 med(pred/meas)=1.05
+   NVIDIA laptop              n=  8 MAPE=  24.7 MdAPE= 21.2 <=15%: 37.5 <=25%: 62.5 <=40%: 75.0 med(pred/meas)=1.10
+   Strix Halo                 n= 27 MAPE= 236.1 MdAPE=176.2 <=15%:  3.7 <=25%:  3.7 <=40%:  3.7 med(pred/meas)=2.76
+   iGPU (AMD/Intel)           n=  9 MAPE=  51.2 MdAPE= 45.7 <=15%: 11.1 <=25%: 22.2 <=40%: 44.4 med(pred/meas)=1.46
+
+-- on-device calib (other model)
+   AMD dGPU                      -
+   AMD laptop dGPU               -
+   Apple M5 (new arch)        n= 12 MAPE=   2.2 MdAPE=  2.2 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.01
+   Apple Max                  n= 42 MAPE=  13.3 MdAPE=  6.3 <=15%: 76.2 <=25%: 88.1 <=40%: 90.5 med(pred/meas)=1.02
+   Apple Pro                  n= 27 MAPE=   7.0 MdAPE=  5.1 <=15%: 92.6 <=25%: 96.3 <=40%:100.0 med(pred/meas)=1.01
+   Apple Ultra                n= 32 MAPE=  10.3 MdAPE=  6.3 <=15%: 81.2 <=25%: 87.5 <=40%: 93.8 med(pred/meas)=1.01
+   Apple base                 n= 14 MAPE=   2.4 MdAPE=  0.9 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.00
+   CPU-only                   n=  6 MAPE=  65.2 MdAPE= 47.6 <=15%: 16.7 <=25%: 16.7 <=40%: 50.0 med(pred/meas)=0.89
+   Intel Arc dGPU                -
+   NV unified (Spark/Thor)    n= 15 MAPE=  22.8 MdAPE= 20.2 <=15%: 40.0 <=25%: 60.0 <=40%: 86.7 med(pred/meas)=0.88
+   NVIDIA desktop             n= 36 MAPE=  69.7 MdAPE= 58.1 <=15%:  8.3 <=25%: 13.9 <=40%: 30.6 med(pred/meas)=1.24
+   NVIDIA laptop                 -
+   Strix Halo                 n= 27 MAPE=  89.4 MdAPE= 52.7 <=15%:  3.7 <=25%: 11.1 <=40%: 25.9 med(pred/meas)=0.62
+   iGPU (AMD/Intel)              -
+
+-- on-device calib + pop. t0/terms
+   AMD dGPU                      -
+   AMD laptop dGPU               -
+   Apple M5 (new arch)        n= 12 MAPE=   2.2 MdAPE=  2.2 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.01
+   Apple Max                  n= 42 MAPE=   7.7 MdAPE=  4.4 <=15%: 88.1 <=25%: 92.9 <=40%: 95.2 med(pred/meas)=1.01
+   Apple Pro                  n= 27 MAPE=   5.8 MdAPE=  5.1 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.01
+   Apple Ultra                n= 32 MAPE=   9.1 MdAPE=  7.1 <=15%: 84.4 <=25%: 90.6 <=40%:100.0 med(pred/meas)=1.02
+   Apple base                 n= 14 MAPE=   2.4 MdAPE=  0.9 <=15%:100.0 <=25%:100.0 <=40%:100.0 med(pred/meas)=1.00
+   CPU-only                   n=  6 MAPE=  65.2 MdAPE= 47.6 <=15%: 16.7 <=25%: 16.7 <=40%: 50.0 med(pred/meas)=0.89
+   Intel Arc dGPU                -
+   NV unified (Spark/Thor)    n= 15 MAPE=  23.0 MdAPE= 20.5 <=15%: 40.0 <=25%: 60.0 <=40%: 86.7 med(pred/meas)=0.91
+   NVIDIA desktop             n= 36 MAPE=  28.0 MdAPE= 23.2 <=15%: 36.1 <=25%: 55.6 <=40%: 75.0 med(pred/meas)=1.04
+   NVIDIA laptop                 -
+   Strix Halo                 n= 27 MAPE=  89.4 MdAPE= 52.7 <=15%:  3.7 <=25%: 11.1 <=40%: 25.9 med(pred/meas)=0.62
+   iGPU (AMD/Intel)              -
+
+-- llmfit formula
+   AMD dGPU                   n= 20 MAPE=  21.1 MdAPE= 17.0 <=15%: 40.0 <=25%: 75.0 <=40%: 85.0 med(pred/meas)=0.91
+   AMD laptop dGPU            n=  2 MAPE=  26.5 MdAPE= 26.5 <=15%:  0.0 <=25%: 50.0 <=40%:100.0 med(pred/meas)=0.73
+   Apple M5 (new arch)        n= 12 MAPE=  43.3 MdAPE= 46.3 <=15%:  0.0 <=25%:  0.0 <=40%: 25.0 med(pred/meas)=0.54
+   Apple Max                  n= 43 MAPE=  45.5 MdAPE= 49.1 <=15%:  7.0 <=25%: 11.6 <=40%: 18.6 med(pred/meas)=0.51
+   Apple Pro                  n= 27 MAPE=  48.7 MdAPE= 52.1 <=15%:  3.7 <=25%:  3.7 <=40%:  7.4 med(pred/meas)=0.48
+   Apple Ultra                n= 33 MAPE=  44.1 MdAPE= 47.1 <=15%:  6.1 <=25%:  6.1 <=40%: 21.2 med(pred/meas)=0.53
+   Apple base                 n= 14 MAPE=  49.0 MdAPE= 49.3 <=15%:  0.0 <=25%:  0.0 <=40%:  0.0 med(pred/meas)=0.51
+   CPU-only                      -
+   Intel Arc dGPU             n=  9 MAPE= 183.0 MdAPE=188.4 <=15%:  0.0 <=25%:  0.0 <=40%: 11.1 med(pred/meas)=2.88
+   NV unified (Spark/Thor)    n= 20 MAPE=  90.6 MdAPE= 60.4 <=15%:  5.0 <=25%: 15.0 <=40%: 40.0 med(pred/meas)=1.60
+   NVIDIA desktop             n= 54 MAPE=  46.5 MdAPE= 38.0 <=15%:  9.3 <=25%: 31.5 <=40%: 55.6 med(pred/meas)=0.89
+   NVIDIA laptop              n=  8 MAPE=  23.3 MdAPE= 24.8 <=15%: 37.5 <=25%: 50.0 <=40%: 87.5 med(pred/meas)=0.84
+   Strix Halo                 n= 27 MAPE= 155.4 MdAPE= 84.9 <=15%: 14.8 <=25%: 14.8 <=40%: 22.2 med(pred/meas)=1.85
+   iGPU (AMD/Intel)           n=  9 MAPE=  49.9 MdAPE= 37.8 <=15%: 22.2 <=25%: 33.3 <=40%: 66.7 med(pred/meas)=1.38
+
+-- by backend (per-backend eff+t0 LODO / llmfit)
+   CPU      t0: n=  7 MAPE=  36.8 MdAPE= 36.2 <=15%:  0.0 <=25%: 28.6 <=40%: 85.7 med(pred/meas)=0.64
+            lf:    -
+   CUDA     t0: n= 72 MAPE=  54.4 MdAPE= 35.5 <=15%: 19.4 <=25%: 27.8 <=40%: 55.6 med(pred/meas)=1.32
+            lf: n= 72 MAPE=  59.5 MdAPE= 39.9 <=15%:  6.9 <=25%: 26.4 <=40%: 50.0 med(pred/meas)=1.19
+   Metal    t0: n=127 MAPE=  10.3 MdAPE=  6.8 <=15%: 83.5 <=25%: 91.3 <=40%: 93.7 med(pred/meas)=0.99
+            lf: n=127 MAPE=  46.1 MdAPE= 48.8 <=15%:  4.7 <=25%:  6.3 <=40%: 15.0 med(pred/meas)=0.51
+   ROCm     t0: n= 32 MAPE= 153.7 MdAPE=124.7 <=15%:  6.2 <=25%:  9.4 <=40%: 12.5 med(pred/meas)=2.25
+            lf: n= 32 MAPE=  98.6 MdAPE= 51.6 <=15%: 18.8 <=25%: 28.1 <=40%: 40.6 med(pred/meas)=1.52
+   SYCL     t0: n=  6 MAPE=  45.4 MdAPE= 25.6 <=15%:  0.0 <=25%: 50.0 <=40%: 66.7 med(pred/meas)=0.99
+            lf: n=  6 MAPE= 110.0 MdAPE= 78.4 <=15%:  0.0 <=25%:  0.0 <=40%: 16.7 med(pred/meas)=1.78
+   Vulkan   t0: n= 41 MAPE= 110.8 MdAPE= 32.2 <=15%: 24.4 <=25%: 41.5 <=40%: 58.5 med(pred/meas)=1.21
+            lf: n= 41 MAPE=  79.4 MdAPE= 27.4 <=15%: 29.3 <=25%: 46.3 <=40%: 68.3 med(pred/meas)=1.02
+
+-- conditions (per-backend eff+t0 LODO | calib | llmfit)
+   prompt>=8192 or depth>0        t0     n= 66 MAPE= 113.6 MdAPE= 62.9 <=15%: 10.6 <=25%: 19.7 <=40%: 30.3 med(pred/meas)=1.63
+   prompt>=8192 or depth>0        multi  n= 66 MAPE=  87.1 MdAPE= 30.9 <=15%: 30.3 <=25%: 47.0 <=40%: 53.0 med(pred/meas)=1.24
+   prompt>=8192 or depth>0        calib  n= 59 MAPE=  58.1 MdAPE= 36.3 <=15%: 27.1 <=25%: 40.7 <=40%: 55.9 med(pred/meas)=1.13
+   prompt>=8192 or depth>0        calt0  n= 59 MAPE=  44.2 MdAPE= 24.6 <=15%: 39.0 <=25%: 50.8 <=40%: 67.8 med(pred/meas)=0.98
+   prompt>=8192 or depth>0        llmfit n= 66 MAPE=  92.4 MdAPE= 48.7 <=15%: 10.6 <=25%: 21.2 <=40%: 40.9 med(pred/meas)=1.45
+   MoE                            t0     n= 71 MAPE= 125.3 MdAPE= 89.6 <=15%: 11.3 <=25%: 16.9 <=40%: 26.8 med(pred/meas)=1.90
+   MoE                            multi  n= 71 MAPE=  90.9 MdAPE= 24.8 <=15%: 33.8 <=25%: 50.7 <=40%: 56.3 med(pred/meas)=1.20
+   MoE                            calib  n= 66 MAPE=  65.9 MdAPE= 43.9 <=15%: 19.7 <=25%: 30.3 <=40%: 45.5 med(pred/meas)=1.17
+   MoE                            calt0  n= 66 MAPE=  43.1 MdAPE= 21.8 <=15%: 42.4 <=25%: 53.0 <=40%: 69.7 med(pred/meas)=0.96
+   MoE                            llmfit n= 71 MAPE=  96.9 MdAPE= 50.2 <=15%: 12.7 <=25%: 16.9 <=40%: 36.6 med(pred/meas)=1.49
+   dense                          t0     n=214 MAPE=  29.5 MdAPE=  9.9 <=15%: 57.9 <=25%: 69.6 <=40%: 83.2 med(pred/meas)=0.98
+   dense                          multi  n=214 MAPE=  29.6 MdAPE=  9.8 <=15%: 57.9 <=25%: 73.8 <=40%: 83.2 med(pred/meas)=1.03
+   dense                          calib  n=145 MAPE=  16.9 MdAPE=  5.6 <=15%: 73.8 <=25%: 79.3 <=40%: 86.2 med(pred/meas)=1.00
+   dense                          calt0  n=145 MAPE=  14.8 MdAPE=  5.1 <=15%: 75.9 <=25%: 82.1 <=40%: 89.0 med(pred/meas)=1.01
+   dense                          llmfit n=207 MAPE=  49.9 MdAPE= 47.1 <=15%:  9.7 <=25%: 20.8 <=40%: 34.3 med(pred/meas)=0.57
+   model >=30GB                   t0     n= 45 MAPE= 152.4 MdAPE=130.3 <=15%: 11.1 <=25%: 17.8 <=40%: 24.4 med(pred/meas)=2.30
+   model >=30GB                   multi  n= 45 MAPE= 123.4 MdAPE= 58.9 <=15%: 15.6 <=25%: 28.9 <=40%: 37.8 med(pred/meas)=1.59
+   model >=30GB                   calib  n= 40 MAPE=  59.8 MdAPE= 39.6 <=15%: 20.0 <=25%: 30.0 <=40%: 50.0 med(pred/meas)=1.00
+   model >=30GB                   calt0  n= 40 MAPE=  59.3 MdAPE= 39.1 <=15%: 22.5 <=25%: 30.0 <=40%: 52.5 med(pred/meas)=0.99
+   model >=30GB                   llmfit n= 45 MAPE= 103.0 MdAPE= 50.1 <=15%: 11.1 <=25%: 17.8 <=40%: 37.8 med(pred/meas)=1.35
+   spec_conf=low                  t0     n= 44 MAPE=  54.9 MdAPE= 37.4 <=15%: 31.8 <=25%: 40.9 <=40%: 52.3 med(pred/meas)=1.34
+   spec_conf=low                  multi  n= 44 MAPE=  30.1 MdAPE= 25.9 <=15%: 31.8 <=25%: 50.0 <=40%: 77.3 med(pred/meas)=1.15
+   spec_conf=low                  calib  n= 30 MAPE=  17.2 MdAPE= 13.1 <=15%: 60.0 <=25%: 70.0 <=40%: 90.0 med(pred/meas)=1.00
+   spec_conf=low                  calt0  n= 30 MAPE=  17.3 MdAPE= 12.2 <=15%: 60.0 <=25%: 70.0 <=40%: 90.0 med(pred/meas)=1.00
+   spec_conf=low                  llmfit n= 41 MAPE=  67.8 MdAPE= 46.1 <=15%:  7.3 <=25%: 14.6 <=40%: 41.5 med(pred/meas)=1.21
+
+================ fitted efficiencies (all eligible llama.cpp rows) ================
+  tg CPU     n=  4 eff(meas/roof) p10=0.26 med=0.28 p90=0.30  | LS eff=0.29 t0=0.00ms
+  tg CUDA    n= 65 eff(meas/roof) p10=0.53 med=0.67 p90=0.79  | LS eff=0.74 t0=0.87ms
+  tg Metal   n=125 eff(meas/roof) p10=0.41 med=0.71 p90=0.83  | LS eff=0.85 t0=4.25ms
+  tg ROCm    n= 31 eff(meas/roof) p10=0.49 med=0.64 p90=0.72  | LS eff=0.64 t0=0.24ms
+  tg SYCL    n=  6 eff(meas/roof) p10=0.45 med=0.70 p90=0.73  | LS eff=0.70 t0=0.00ms
+  tg Vulkan  n= 41 eff(meas/roof) p10=0.48 med=0.69 p90=0.85  | LS eff=0.75 t0=0.88ms
+  pp CPU     n=  7 eff(meas/roof) p10=0.46 med=0.87 p90=0.91  | LS eff=1.48 t0=1.94ms
+  pp CUDA    n= 72 eff(meas/roof) p10=0.19 med=0.32 p90=0.58  | LS eff=0.44 t0=0.01ms
+  pp Metal   n=127 eff(meas/roof) p10=0.53 med=0.68 p90=0.75  | LS eff=0.70 t0=0.05ms
+  pp ROCm    n= 32 eff(meas/roof) p10=0.08 med=0.17 p90=0.41  | LS eff=0.17 t0=0.00ms
+  pp SYCL    n=  6 eff(meas/roof) p10=0.09 med=0.18 p90=0.24  | LS eff=0.21 t0=0.03ms
+  pp Vulkan  n= 41 eff(meas/roof) p10=0.11 med=0.34 p90=0.53  | LS eff=0.42 t0=0.02ms
+
+================ context-depth: decode slowdown tg(d)/tg(0) ================
+  Ryzen AI Max+ 395 (8060S)  ROCm   gpt-oss-120b   GMKtec Evo X2               tg d32k/d0 meas=0.75 kv-model=0.74 | pp2048@d32k/d0 meas=0.35 attn-model=0.52
+  Ryzen AI Max+ 395 (8060S)  Vulkan gpt-oss-120b   AMDVLK                      tg d32k/d0 meas=0.63 kv-model=0.74 | pp2048@d32k/d0 meas=0.19 attn-model=0.52
+  Ryzen AI Max+ 395 (8060S)  ROCm   gpt-oss-120b   ROCm rocWMMA (stock)        tg d32k/d0 meas=0.38 kv-model=0.74 | pp2048@d32k/d0 meas=0.22 attn-model=0.52
+  Ryzen AI Max+ 395 (8060S)  ROCm   gpt-oss-120b   ROCm rocWMMA (author-tuned) tg d32k/d0 meas=0.74 kv-model=0.74 | pp2048@d32k/d0 meas=0.42 attn-model=0.52
+  DGX Spark (GB10)           CUDA   gpt-oss-120b                               tg d32k/d0 meas=0.73 kv-model=0.74 | pp2048@d32k/d0 meas=0.72 attn-model=0.52
+  Jetson Thor                CUDA   gpt-oss-20b                                tg d32k/d0 meas=0.79 kv-model=0.76 | pp2048@d32k/d0 meas=0.59 attn-model=0.54
+  Jetson Thor                CUDA   gpt-oss-120b                               tg d32k/d0 meas=0.81 kv-model=0.74 | pp2048@d32k/d0 meas=0.70 attn-model=0.52
+  Jetson Thor                CUDA   qwen3-30b-a3b  Qwen3-Coder-30B-A3B         tg d32k/d0 meas=0.61 kv-model=0.50 | pp2048@d32k/d0 meas=0.41 attn-model=0.21
+
+  long-prompt prefill ratio pp(N_long)/pp(2048) (gpt-oss, #15396) and XD pp8192/pp512, tg8192/tg512
+  RTX 3070               llama3-8b/Q4_K_M     pp8192/pp512 meas=0.59 attn-model=0.88 | tg8192/tg512 meas=0.85 kv-model=0.82
+  RTX 3080               llama3-8b/Q4_K_M     pp8192/pp512 meas=0.60 attn-model=0.88 | tg8192/tg512 meas=0.82 kv-model=0.82
+  RTX 3080 Ti            llama3-8b/Q4_K_M     pp8192/pp512 meas=0.65 attn-model=0.88 | tg8192/tg512 meas=0.80 kv-model=0.82
+  RTX 4070 Ti            llama3-8b/Q4_K_M     pp8192/pp512 meas=0.51 attn-model=0.88 | tg8192/tg512 meas=0.88 kv-model=0.82
+  RTX 4080               llama3-8b/Q4_K_M     pp8192/pp512 meas=0.53 attn-model=0.88 | tg8192/tg512 meas=0.87 kv-model=0.82
+  RTX 3090               llama3-8b/Q4_K_M     pp8192/pp512 meas=0.63 attn-model=0.88 | tg8192/tg512 meas=0.76 kv-model=0.82
+  RTX 3090               llama3-8b/F16        pp8192/pp512 meas=0.60 attn-model=0.88 | tg8192/tg512 meas=0.90 kv-model=0.94
+  RTX 4090               llama3-8b/Q4_K_M     pp8192/pp512 meas=0.57 attn-model=0.88 | tg8192/tg512 meas=0.85 kv-model=0.82
+  RTX 4090               llama3-8b/F16        pp8192/pp512 meas=0.51 attn-model=0.88 | tg8192/tg512 meas=0.93 kv-model=0.94
+  Apple M1 Max 32c       llama3-8b/Q4_K_M     pp8192/pp512 meas=0.74 attn-model=0.88 | tg8192/tg512 meas=0.75 kv-model=0.82
+  Apple M1 Max 32c       llama3-8b/F16        pp8192/pp512 meas=0.68 attn-model=0.88 | tg8192/tg512 meas=0.80 kv-model=0.94
+  Apple M1 Max 32c       llama3-70b/Q4_K_M    pp8192/pp512 meas=0.89 attn-model=0.93 | tg8192/tg512 meas=0.85 kv-model=0.94
+  Apple M2 Ultra 76c     llama3-8b/Q4_K_M     pp8192/pp512 meas=0.92 attn-model=0.88 | tg8192/tg512 meas=0.69 kv-model=0.82
+  Apple M2 Ultra 76c     llama3-8b/F16        pp8192/pp512 meas=0.94 attn-model=0.88 | tg8192/tg512 meas=0.83 kv-model=0.94
+  Apple M2 Ultra 76c     llama3-70b/Q4_K_M    pp8192/pp512 meas=0.91 attn-model=0.93 | tg8192/tg512 meas=0.75 kv-model=0.94
+  Apple M2 Ultra 76c     llama3-70b/F16       pp8192/pp512 meas=0.92 attn-model=0.93 | tg8192/tg512 meas=0.89 kv-model=0.98
+  Apple M3 Max 40c       llama3-8b/Q4_K_M     pp8192/pp512 meas=0.73 attn-model=0.88 | tg8192/tg512 meas=0.74 kv-model=0.82
+  Apple M3 Max 40c       llama3-8b/F16        pp8192/pp512 meas=0.67 attn-model=0.88 | tg8192/tg512 meas=0.85 kv-model=0.94
+  Apple M3 Max 40c       llama3-70b/Q4_K_M    pp8192/pp512 meas=0.88 attn-model=0.93 | tg8192/tg512 meas=0.73 kv-model=0.94
+  Apple M3 Ultra 80c     gpt-oss-20b    pp32768/pp2048 meas=0.48 attn-model=0.71
+  Apple M2 Ultra 76c     gpt-oss-20b    pp32768/pp2048 meas=0.56 attn-model=0.71
+  Apple M2 Ultra 76c     gpt-oss-120b   pp32768/pp2048 meas=0.60 attn-model=0.70
+  Apple M4 Max 32c       gpt-oss-20b    pp32768/pp2048 meas=0.44 attn-model=0.71
+  Apple M1 Max 32c       gpt-oss-20b    pp32768/pp2048 meas=0.50 attn-model=0.71
+  Apple M1 Pro 16c       gpt-oss-20b    pp16384/pp2048 meas=0.70 attn-model=0.84
+  Apple M3 Max 40c       gpt-oss-20b    pp32768/pp2048 meas=0.39 attn-model=0.71
+  Apple M4 Pro 20c       gpt-oss-20b    pp32768/pp2048 meas=0.60 attn-model=0.71
+  RTX 3090               gpt-oss-20b    pp32768/pp2048 meas=0.69 attn-model=0.71
+  RTX 4090               gpt-oss-20b    pp32768/pp2048 meas=0.64 attn-model=0.71
+  RTX 4080 Super         gpt-oss-20b    pp32768/pp2048 meas=0.82 attn-model=0.71
+  RTX 5060 Ti            gpt-oss-20b    pp32768/pp2048 meas=0.80 attn-model=0.71
+  RTX 5070 Ti            gpt-oss-20b    pp32768/pp2048 meas=0.72 attn-model=0.71
+  RTX 5080               gpt-oss-20b    pp32768/pp2048 meas=0.74 attn-model=0.71
+  RTX 5090               gpt-oss-20b    pp32768/pp2048 meas=0.64 attn-model=0.71
+
+================ worst rows for p_backend_t0 ================
+  tg Apple M4 Max 40c             MLX    granite-4.0-h-350m MLX-4bit tg256        meas=   521.7 pred=  2203.6 llmfit=  1766.5  mlx_lm generate 256 tok; hybrid SSM
+  tg Arc iGPU (Meteor Lake)       Vulkan llama2-7b      Q4_0     tg128        meas=     8.2 pred=    23.6 llmfit=    28.2  scoreboard; best of -fa 0/1; row 'Intel Core Ultra
+  tg CPU M2 Max (8P)              CPU    llama3-8b      Q4_0     tg128        meas=    23.9 pred=    62.8 llmfit=     4.3  mainline build 4384; TG 4 thr
+  tg CPU M2 Max (8P)              CPU    llama3-8b      Q8_0     tg128        meas=    14.0 pred=    34.2 llmfit=     3.0  mainline build 4384; TG 4 thr
+  tg CPU M2 Max (8P)              CPU    llama3-8b      F16      tg128        meas=     7.9 pred=    18.2 llmfit=     2.2  mainline build 4384; TG 4 thr
+  tg Arc A750                     Vulkan llama2-7b      Q4_0     tg128        meas=    44.0 pred=    94.1 llmfit=    28.2  scoreboard; best of -fa 0/1
+  tg Apple M1 Max 32c             Metal  llama3-70b     Q4_K_M   tg8192@d4096 meas=     3.7 pred=     7.6 llmfit=     6.2  May 2024 snapshot; tgN = N tokens from empty ctx (
+  tg Arc A770M Laptop             Vulkan llama2-7b      Q4_0     tg128        meas=    47.7 pred=    94.1 llmfit=    28.2  scoreboard; best of -fa 0/1
+  tg Ryzen AI Max+ 395 (8060S)    ROCm   gpt-oss-120b   MXFP4    tg32@d32768  meas=    17.8 pred=    34.9 llmfit=    51.1  depth sweep; ROCm rocWMMA (stock)
+  tg Arc A770                     Vulkan llama2-7b      Q4_0     tg128        meas=    53.1 pred=   102.2 llmfit=    28.2  scoreboard; best of -fa 0/1
+  tg Apple M1 Max 32c             Metal  llama3-70b     Q4_K_M   tg512@d256   meas=     4.3 pred=     8.0 llmfit=     6.2  May 2024 snapshot; tgN = N tokens from empty ctx (
+  tg Apple M4 Max 40c             MLX    granite-4.0-h-1b MLX-4bit tg256        meas=   275.8 pred=   501.5 llmfit=   400.4  mlx_lm generate 256 tok; hybrid SSM
+  pp Ryzen AI Max+ 395 (8060S)    Vulkan gpt-oss-120b   MXFP4    pp2048@d32768 meas=   137.1 pred=  1266.5 llmfit=  1116.5  depth sweep; AMDVLK
+  pp Ryzen AI Max+ 395 (8060S)    Vulkan gpt-oss-120b   MXFP4    pp2048@d16384 meas=   249.7 pred=  1647.8 llmfit=  1116.5  depth sweep; AMDVLK
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   qwen3-30b-a3b  Q4_K_M   pp512        meas=   590.4 pred=  3401.4 llmfit=  3150.0  hipBLASLt
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   gpt-oss-120b   MXFP4    pp2048@d32768 meas=   223.8 pred=  1246.8 llmfit=  1116.5  depth sweep; ROCm rocWMMA (stock)
+  pp Arc B580                     Vulkan llama2-7b      Q4_0     pp512        meas=   620.9 pred=  3451.5 llmfit=  3024.9  scoreboard; best of -fa 0/1; older Intel Vulkan pa
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   llama2-7b      Q4_0     pp512        meas=   348.6 pred=  1813.7 llmfit=  1542.3  HIP default rocBLAS
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   llama2-7b      Q4_0     pp512        meas=   366.1 pred=  1813.7 llmfit=  1542.3  row 'Radeon 8060S' (likely no hipBLASLt)
+  pp Ryzen AI Max+ 395 (8060S)    Vulkan gpt-oss-120b   MXFP4    pp2048@d8192 meas=   424.5 pred=  1939.8 llmfit=  1116.5  depth sweep; AMDVLK
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   gpt-oss-120b   MXFP4    pp2048@d16384 meas=   405.5 pred=  1596.9 llmfit=  1116.5  depth sweep; ROCm rocWMMA (stock)
+  pp Ryzen AI Max+ 395 (8060S)    Vulkan gpt-oss-120b   MXFP4    pp2048@d4096 meas=   562.1 pred=  2128.4 llmfit=  1116.5  depth sweep; AMDVLK
+  pp Arc A770                     Vulkan llama2-7b      Q4_0     pp512        meas=  1119.7 pred=  4035.5 llmfit=  3572.7  scoreboard; best of -fa 0/1
+  pp Arc A770M Laptop             Vulkan llama2-7b      Q4_0     pp512        meas=   875.9 pred=  3137.9 llmfit=  2726.3  scoreboard; best of -fa 0/1
+
+================ worst rows for llmfit ================
+  tg Apple M5 Ultra 80c           Metal  llama2-7b      F16      tg128        meas=    73.6 pred=     6.3 llmfit=     6.3  c1d0e7a (newer build)
+  tg Apple M5 Ultra 80c           Metal  llama2-7b      Q8_0     tg128        meas=   119.0 pred=    12.5 llmfit=    12.5  c1d0e7a (newer build)
+  tg CPU Ryzen AI Max+ 395        CPU    llama2-7b      Q4_0     tg128        meas=    28.6 pred=     3.9 llmfit=     3.9  CPU backend
+  tg Apple M5 Ultra 80c           Metal  llama2-7b      Q4_0     tg128        meas=   179.1 pred=    25.1 llmfit=    25.1  c1d0e7a (newer build)
+  tg Apple M4 Max 40c             Metal  granite-4.0-h-350m Q4_K_M   tg256        meas=   282.1 pred=  1766.5 llmfit=  1766.5  llama-bench tg256 b8680; hybrid SSM
+  tg CPU M2 Max (8P)              CPU    llama3-8b      Q4_0     tg128        meas=    23.9 pred=     4.3 llmfit=     4.3  mainline build 4384; TG 4 thr
+  tg RTX 5090 Laptop              Vulkan llama2-7b      Q4_0     tg128        meas=   154.3 pred=    28.2 llmfit=    28.2  scoreboard; best of -fa 0/1
+  tg CPU M2 Max (8P)              CPU    llama3-8b      Q8_0     tg128        meas=    14.0 pred=     3.0 llmfit=     3.0  mainline build 4384; TG 4 thr
+  tg Arc B580                     SYCL   llama2-7b      Q4_0     tg128        meas=    88.1 pred=    18.8 llmfit=    18.8  best of FA/precision variants
+  tg Arc Pro B60                  SYCL   llama2-7b      Q4_0     tg128        meas=    84.4 pred=    18.8 llmfit=    18.8  best of FA/precision variants
+  tg Arc B570                     SYCL   llama2-7b      Q4_0     tg128        meas=    76.7 pred=    18.8 llmfit=    18.8  best of FA/precision variants
+  tg RTX 5090 Laptop              CUDA   llama2-7b      Q4_0     tg128        meas=   158.1 pred=    41.3 llmfit=    41.3  scoreboard; best of -fa 0/1
+  pp Ryzen AI Max+ 395 (8060S)    Vulkan gpt-oss-120b   MXFP4    pp2048@d32768 meas=   137.1 pred=  1116.5 llmfit=  1116.5  depth sweep; AMDVLK
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   qwen3-30b-a3b  Q4_K_M   pp512        meas=   590.4 pred=  3150.0 llmfit=  3150.0  hipBLASLt
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   gpt-oss-120b   MXFP4    pp2048@d32768 meas=   223.8 pred=  1116.5 llmfit=  1116.5  depth sweep; ROCm rocWMMA (stock)
+  pp Arc B580                     Vulkan llama2-7b      Q4_0     pp512        meas=   620.9 pred=  3024.9 llmfit=  3024.9  scoreboard; best of -fa 0/1; older Intel Vulkan pa
+  pp Jetson Thor                  CUDA   qwen3-30b-a3b  Q8_0     pp2048@d32768 meas=   686.5 pred=  3314.4 llmfit=  3314.4  depth sweep; Qwen3-Coder-30B-A3B
+  pp Ryzen AI Max+ 395 (8060S)    Vulkan gpt-oss-120b   MXFP4    pp2048@d16384 meas=   249.7 pred=  1116.5 llmfit=  1116.5  depth sweep; AMDVLK
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   llama2-7b      Q4_0     pp512        meas=   348.6 pred=  1542.3 llmfit=  1542.3  HIP default rocBLAS
+  pp Ryzen AI Max+ 395 (8060S)    ROCm   llama2-7b      Q4_0     pp512        meas=   366.1 pred=  1542.3 llmfit=  1542.3  row 'Radeon 8060S' (likely no hipBLASLt)
+  pp Arc A770                     SYCL   llama2-7b      Q4_0     pp512        meas=   937.2 pred=  3572.7 llmfit=  3572.7  best of FA/precision variants
+  pp Jetson Thor                  CUDA   qwen3-30b-a3b  Q8_0     pp2048@d16384 meas=   985.4 pred=  3314.4 llmfit=  3314.4  depth sweep; Qwen3-Coder-30B-A3B
+  pp RTX 5090                     CUDA   gpt-oss-20b    MXFP4    pp32768      meas=  6290.8 pred= 20777.8 llmfit= 20777.8  
+  pp RTX 4090                     CUDA   gpt-oss-20b    MXFP4    pp32768      meas=  5112.4 pred= 16379.3 llmfit= 16379.3  
+
+================ partial / expert offload rows (not fitted) ================
+  RTX 3060 gpt-oss-20b tg128 meas=30.64 :: 12GB card, some expert tensors -ot to CPU; host RAM unknown
+  RTX 3060 gpt-oss-20b pp2048 meas=2229.95 :: 12GB card, some expert tensors -ot to CPU
+  RTX 4070 gpt-oss-120b tg128 meas=10.0 :: ~10 t/s; i5-12600K, 64GB DDR5, --n-cpu-moe 31, 24k ctx (approximate, user report)
+  RTX 4070 gpt-oss-120b pp512 meas=191.0 :: ~191 t/s prompt; same setup (approximate)
+  two-tier roofline RTX4070+DDR5-6000 (cpu eff 0.5): 25.6 tok/s vs ~10 measured
+  two-tier roofline RTX4070+DDR5-6000 (cpu eff 0.7): 34.0 tok/s vs ~10 measured

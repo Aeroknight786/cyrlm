@@ -1,0 +1,54 @@
+# Architecture
+
+```
+ harness (Claude Code, Codex, OpenCode, Cline, Aider, Zed…)
+        │  Anthropic / OpenAI Chat / OpenAI Responses / Ollama — localhost only
+        ▼
+ ┌──────────────── cyrlm serve ─────────────────────────────────────────────┐
+ │ api/*      decode request ──► llm.Request (protocol-neutral)              │
+ │ sim        Prepare: context policy (error | truncate) ─► request to cloud │
+ │ upstream   stream from OpenRouter / any OpenAI-compatible URL / mock ──┐  │
+ │ sim        Buffer (no backpressure, arrival timestamps)  ◄─────────────┘  │
+ │ sim        Acquire device (serial) ─► Plan: load? cache reuse? prefill    │
+ │ sim        Pace: read ahead for exact usage, re-time, release per token   │
+ │ api/*      encode events ──► SSE / NDJSON to the harness                  │
+ │ sim        Commit: slot cache, checkpoints, calibration; stats + log line │
+ └──────────────────────────────────────────────────────────────────────────┘
+        ▲
+ predict ◄── hw (detected machine) + specs (device specs) + catalog/gguf (model) + runtime (profile)
+```
+
+## Packages
+
+| Package | Role |
+|---|---|
+| `cmd/cyrlm` | CLI: `detect`, `models`, `runtimes`, `predict`, `serve`, `try`, `inspect` |
+| `internal/hw` | Detects OS, CPU, RAM, GPUs and installed runtimes by shelling out to standard tools (nvidia-smi, sysfs, system_profiler, PowerShell CIM + registry). Pure parsers, fixture-tested. Memory-bandwidth probe. |
+| `internal/specs` | Spec bandwidth / FP16 throughput for ~120 GPUs, Apple chips by GPU-core bin, APUs, iGPUs, CPUs; name matching. |
+| `internal/catalog` | Seed catalog of 13 models with exact geometry (attention layout, KV heads, sliding windows, active parameters). |
+| `internal/gguf` | Reads GGUF headers from a file or over HTTP Range without downloading weights; derives active bytes, KV bytes/token, layer kinds. Any GGUF becomes a predictable model. |
+| `internal/runtime` | Runtime profiles as versioned JSON (`profiles.json`) with per-setting confidence; resolves defaults vs tuned settings for a target. |
+| `internal/predict` | Memory fit (weights + KV + compute buffer + overhead vs GPU budget), timing functions of depth, accuracy bands, agent-session scenarios, what-if targets. |
+| `internal/tok` | Deterministic, prefix-stable token estimator and chat-template-like renderer used for cache-reuse simulation; EMA calibrator. |
+| `internal/sim` | The simulated runtime: residency/keep-alive, context policies, cache slots with LCP reuse, sliding-window checkpoint rollback, RAM prompt cache, serial device lock, pacing with cloud-lag detection, read-ahead for exact token counts, cache-miss explanations, session stats. |
+| `internal/api/{openai,anthropic,responses,ollama}` | Wire protocols: decode into `llm.Request`, encode `llm.Event` streams. Ollama discovery endpoints (`/api/tags`, `/api/show`, `/api/ps`, `/api/version`). |
+| `internal/upstream` | OpenAI-compatible streaming client (OpenRouter provider pinning, reasoning fields) and an offline mock. |
+| `internal/server` | One HTTP server for all protocols, localhost Host/Origin protection, logging, `/cyrlm/stats`. |
+| `internal/harness` | Per-harness protocol, prompt-size scenario and connection instructions; `--launch`. |
+
+## Key design decisions
+
+- **Impersonate Ollama on one port.** Every protocol is served everywhere, so any harness works with any simulated runtime profile, and every "use X with Ollama" guide applies. The profile records which APIs the *real* runtime exposes.
+- **Simulated time never comes from the cloud.** TTFT is computed from the simulated device state (load, cache reuse, prefill); cloud prompt caching only lowers cost. If the cloud is slower than the device would be, tokens are released on arrival and the lag is reported.
+- **The cloud sees what the local model would see.** Truncation policies are applied to the request before it is sent upstream, so a too-small context breaks the agent the same way it would locally.
+- **Exact token counts when possible.** The cloud almost always finishes before the simulated first token is due; the pacer reads ahead, takes the provider's real prompt/completion counts, and re-times the first token. The estimator is only a fallback and is calibrated by EMA.
+- **Cache reuse is computed, not assumed.** Requests are rendered like a chat template (system + tools first, past reasoning stripped) and compared token-by-token with each simulated slot; per-runtime rules (slot count, similarity threshold, sliding-window checkpoints, RAM cache) decide what survives. Large misses are explained with the text at the divergence point.
+- **Data, not code, for runtime behaviour.** Runtimes change monthly; `profiles.json` carries versions, sources and confidence so updates don't need code changes and low-confidence settings are shown to users.
+- **Standard library only.** One static binary per OS (darwin/linux/windows × amd64/arm64), no supply-chain surface.
+
+## Testing
+
+- Unit tests per package; parsers use captured-format fixtures.
+- `internal/predict` checks predictions against reference measurements (a regression guard — constants were fitted on the same data; held-out accuracy is in docs/RESEARCH.md).
+- `internal/sim` uses a virtual clock to test cold/warm reuse, keep-alive, truncation vs errors, checkpoint rollback, slot eviction, cloud lag, context-full stops and read-ahead re-timing.
+- `internal/server` runs end-to-end against a fake OpenAI-compatible upstream for all four protocols, including tool-call round trips, context errors, discovery and localhost protections.
