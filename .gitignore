@@ -1,0 +1,7 @@
+/dist/
+/bin/
+/cyrlm
+/cyrlm.exe
+*.test
+*.out
+.DS_Store
