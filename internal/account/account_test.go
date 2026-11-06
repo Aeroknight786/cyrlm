@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +30,8 @@ func TestConfigRoundTripAndPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi.Mode().Perm()&0o077 != 0 {
+	// Windows has no Unix mode bits; the user-profile ACL protects the file there.
+	if goruntime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("config must be owner-only, got %v", fi.Mode().Perm())
 	}
 	got := Load()
