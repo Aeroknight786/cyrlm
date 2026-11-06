@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	goruntime "runtime"
 	"sort"
 	"strings"
@@ -52,14 +53,20 @@ var harnesses = []Harness{
 
 // CompatibleWith reports whether a runtime serving apis can be used directly.
 func (h Harness) CompatibleWith(apis []string) bool {
-	for _, p := range h.Protocols {
-		for _, a := range apis {
-			if p == a {
-				return true
-			}
-		}
+	return h.ProtocolFor(apis) != "" || h.NeedsBridge(apis)
+}
+
+// NeedsBridge reports whether the harness should reach a runtime with
+// these APIs through `cyrlm bridge`: always for Codex (local runtimes'
+// Responses endpoints miss namespaced tools and reject Codex's message
+// layout), and for any harness whose protocol the runtime lacks, as long
+// as the runtime has Chat Completions for the bridge to call.
+func (h Harness) NeedsBridge(apis []string) bool {
+	hasChat := false
+	for _, a := range apis {
+		hasChat = hasChat || a == "openai-chat"
 	}
-	return false
+	return hasChat && (h.ID == "codex" || h.ProtocolFor(apis) == "")
 }
 
 // ProtocolFor returns the harness's preferred protocol among apis ("" if
@@ -102,6 +109,55 @@ func Get(id string) (Harness, error) {
 	}
 	sort.Strings(ids)
 	return Harness{}, fmt.Errorf("unknown harness %q (known: %s)", id, strings.Join(ids, ", "))
+}
+
+// CodexCommand is the codex command line that talks to a Responses
+// endpoint at baseURL (".../v1") with model, using -c overrides only.
+func CodexCommand(baseURL, model string, contextTokens int) []string {
+	c := []string{FindBinary("codex"),
+		"-c", "model_providers.cyrlm.name=cyrlm",
+		"-c", "model_providers.cyrlm.base_url=" + baseURL,
+		"-c", "model_providers.cyrlm.wire_api=responses",
+		"-c", "model_provider=cyrlm",
+		"-c", "web_search=disabled",
+	}
+	if contextTokens > 0 {
+		c = append(c, "-c", fmt.Sprintf("model_context_window=%d", contextTokens),
+			"-c", fmt.Sprintf("model_auto_compact_token_limit=%d", contextTokens*8/10))
+	}
+	return append(c, "-m", model)
+}
+
+// knownBinaries are install locations that are often missing from the
+// user's shell PATH (an app bundle, a per-user npm prefix).
+var knownBinaries = map[string][]string{
+	"codex": {
+		"/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+		"/Applications/Codex.app/Contents/Resources/codex",
+	},
+	"claude": {"~/.claude/local/claude", "~/.local/bin/claude"},
+}
+
+// FindBinary returns name when it is on PATH in a normal location, or an
+// absolute path when the harness lives somewhere the user's own terminal
+// may not look (inside an .app bundle, or only in a known install dir).
+func FindBinary(name string) string {
+	if p, err := exec.LookPath(name); err == nil {
+		if strings.Contains(p, ".app/") {
+			return p
+		}
+		return name
+	}
+	home, _ := os.UserHomeDir()
+	for _, p := range knownBinaries[name] {
+		if strings.HasPrefix(p, "~/") {
+			p = filepath.Join(home, p[2:])
+		}
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			return p
+		}
+	}
+	return name
 }
 
 // Setup is how to connect a harness.
@@ -161,20 +217,12 @@ func (h Harness) SetupFor(o Options) Setup {
 		}
 		s.Command = []string{"claude", "--model", m}
 	case "codex":
-		s.ConfigPath = "~/.codex/config.toml"
-		s.Config = fmt.Sprintf(`[model_providers.cyrlm]
-name = "cyrlm (simulated local model)"
-base_url = "%s/v1"
-wire_api = "responses"
-
-[profiles.cyrlm]
-model_provider = "cyrlm"
-model = "%s"
-`, base, m)
-		s.Command = []string{"codex", "--profile", "cyrlm"}
-		if o.Port == 11434 {
-			s.Notes = append(s.Notes, fmt.Sprintf("On port 11434 you can also run: codex --oss -m %s", m))
-		}
+		// Everything goes on the command line (-c overrides): no config file
+		// edit, and nothing that depends on Codex's config/profile layout,
+		// which changed in 0.134. Values without quotes are read as strings,
+		// so the command is the same in every shell.
+		s.Command = CodexCommand(base+"/v1", m, o.ContextTokens)
+		s.Notes = append(s.Notes, "Codex may warn \"Model metadata ... not found\" for local models; that is expected. Web search is turned off because a local model cannot run OpenAI's hosted search.")
 	case "opencode":
 		s.ConfigPath = "opencode.json (project) or ~/.config/opencode/opencode.json"
 		s.Config = fmt.Sprintf(`{
@@ -260,7 +308,7 @@ func (s Setup) RenderFor(goos string) string {
 					fmt.Fprintf(&b, "$env:%s='%s'; ", kv[0], strings.ReplaceAll(kv[1], "'", "''"))
 				}
 			}
-			b.WriteString(strings.Join(s.Command, " "))
+			b.WriteString(strings.Join(psCommand(s.Command), " "))
 		} else {
 			b.WriteString("Run in a new terminal window:\n\n    ")
 			for _, kv := range s.Env {
@@ -317,6 +365,23 @@ func shellQuote(v string) string {
 		return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"
 	}
 	return v
+}
+
+// psCommand quotes a command for PowerShell: arguments with spaces or
+// quotes in single quotes, and a call operator when the program path needs
+// quoting.
+func psCommand(a []string) []string {
+	out := make([]string, len(a))
+	for i, v := range a {
+		if strings.ContainsAny(v, " '\"$`;&|(){}") {
+			v = "'" + strings.ReplaceAll(v, "'", "''") + "'"
+			if i == 0 {
+				v = "& " + v
+			}
+		}
+		out[i] = v
+	}
+	return out
 }
 
 func quoteAll(a []string) []string {

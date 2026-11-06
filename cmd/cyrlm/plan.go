@@ -4,12 +4,26 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"strings"
+	"time"
 
 	"github.com/aeroknight786/cyrlm/internal/harness"
 	"github.com/aeroknight786/cyrlm/internal/predict"
 	"github.com/aeroknight786/cyrlm/internal/setup"
 )
+
+// freePort returns from, or the next port up to from+20 nothing listens on.
+func freePort(from int) int {
+	for p := from; p <= from+20; p++ {
+		c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", p), 300*time.Millisecond)
+		if err != nil {
+			return p
+		}
+		c.Close()
+	}
+	return from
+}
 
 // cmdPlan prints the exact steps to set up a model locally. It never runs
 // them: a person or their coding agent executes them, one at a time.
@@ -61,9 +75,22 @@ func cmdPlan(args []string) error {
 		input.Installed, input.InstalledVersion = true, ir.Version
 		input.Running = input.Running || ir.Running
 	}
+	// cyrlm starts llama-server / mlx_lm.server itself: if the usual port is
+	// taken by something that is not that runtime, plan on the next free one.
+	portNote := ""
+	if !t.Synthetic && !input.Running && (prof.ID == "llamacpp" || prof.ID == "mlx-lm") {
+		def := setup.DefaultPort(prof)
+		if p := freePort(def); p != def {
+			input.Port = p
+			portNote = fmt.Sprintf("Port %d is already used by another program on this machine, so this plan uses %d everywhere (server, health check, bridge, verify).", def, p)
+		}
+	}
 	plan, err := setup.Build(input)
 	if err != nil {
 		return err
+	}
+	if portNote != "" {
+		plan.Warnings = append(plan.Warnings, portNote)
 	}
 	if c.jsonOut {
 		return printJSON(plan)

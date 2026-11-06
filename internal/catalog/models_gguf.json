@@ -108,6 +108,30 @@
         "FileBytes": 36903140320,
         "ReadBytesPerToken": 3195832832,
         "Estimated": false
+      },
+      {
+        "Name": "IQ4_XS",
+        "Format": "gguf",
+        "FileBytes": 17730509792,
+        "ReadBytesPerToken": 2488560128,
+        "Estimated": false,
+        "FileTag": "UD-IQ4_XS"
+      },
+      {
+        "Name": "Q3_K_XL",
+        "Format": "gguf",
+        "FileBytes": 16845511648,
+        "ReadBytesPerToken": 2460903936,
+        "Estimated": false,
+        "FileTag": "UD-Q3_K_XL"
+      },
+      {
+        "Name": "IQ3_XXS",
+        "Format": "gguf",
+        "FileBytes": 13211155424,
+        "ReadBytesPerToken": 2021517824,
+        "Estimated": false,
+        "FileTag": "UD-IQ3_XXS"
       }
     ],
     "OpenRouterID": "qwen/qwen3.6-35b-a3b",
@@ -340,6 +364,30 @@
         "FileBytes": 26859861728,
         "ReadBytesPerToken": 4095247416,
         "Estimated": false
+      },
+      {
+        "Name": "IQ4_XS",
+        "Format": "gguf",
+        "FileBytes": 13597177568,
+        "ReadBytesPerToken": 3266329656,
+        "Estimated": false,
+        "FileTag": "UD-IQ4_XS"
+      },
+      {
+        "Name": "Q3_K_XL",
+        "Format": "gguf",
+        "FileBytes": 12907280096,
+        "ReadBytesPerToken": 3223211064,
+        "Estimated": false,
+        "FileTag": "UD-Q3_K_XL"
+      },
+      {
+        "Name": "IQ3_XXS",
+        "Format": "gguf",
+        "FileBytes": 11416548832,
+        "ReadBytesPerToken": 2643174200,
+        "Estimated": false,
+        "FileTag": "UD-IQ3_XXS"
       }
     ],
     "OpenRouterID": "google/gemma-4-26b-a4b-it",
@@ -395,6 +443,21 @@
         "FileBytes": 25055317152,
         "ReadBytesPerToken": 24333864960,
         "Estimated": false
+      },
+      {
+        "Name": "IQ4_XS",
+        "Format": "gguf",
+        "FileBytes": 12780424352,
+        "ReadBytesPerToken": 12394516480,
+        "Estimated": false
+      },
+      {
+        "Name": "Q3_K_XL",
+        "Format": "gguf",
+        "FileBytes": 11851410592,
+        "ReadBytesPerToken": 11465502720,
+        "Estimated": false,
+        "FileTag": "UD-Q3_K_XL"
       }
     ],
     "OpenRouterID": "mistralai/devstral-small-2512",
@@ -458,6 +521,29 @@
         "FileBytes": 31842799968,
         "ReadBytesPerToken": 3821763072,
         "Estimated": false
+      },
+      {
+        "Name": "IQ4_XS",
+        "Format": "gguf",
+        "FileBytes": 16271360352,
+        "ReadBytesPerToken": 2246191616,
+        "Estimated": false
+      },
+      {
+        "Name": "Q3_K_XL",
+        "Format": "gguf",
+        "FileBytes": 13782004064,
+        "ReadBytesPerToken": 2176588288,
+        "Estimated": false,
+        "FileTag": "UD-Q3_K_XL"
+      },
+      {
+        "Name": "IQ3_XXS",
+        "Format": "gguf",
+        "FileBytes": 12907368800,
+        "ReadBytesPerToken": 2107062784,
+        "Estimated": false,
+        "FileTag": "UD-IQ3_XXS"
       }
     ],
     "OpenRouterID": "z-ai/glm-4.7-flash",

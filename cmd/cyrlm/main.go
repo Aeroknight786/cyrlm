@@ -10,14 +10,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
-
-	goruntime "runtime"
 
 	"github.com/aeroknight786/cyrlm/internal/account"
 	"github.com/aeroknight786/cyrlm/internal/api"
@@ -44,7 +40,8 @@ Commands:
   cyrlm recommend [--harness h]          best models + runtimes for this machine
   cyrlm try <model> --harness h          live trial: the real model, at this machine's speed
   cyrlm plan <model> [--runtime r]       exact setup steps (nothing is run)
-  cyrlm verify --runtime r --model m     measure your real setup against the prediction
+  cyrlm verify --runtime r --model m     measure your real setup and check your coding tool works with it
+  cyrlm bridge --harness h               connect a coding tool to a local runtime it can't talk to directly (e.g. Codex)
   cyrlm login                            store your OpenRouter key (in your own terminal, never in a chat)
   cyrlm version
 
@@ -64,7 +61,9 @@ Usage:
   cyrlm inspect  <file.gguf | URL>             read a GGUF header (no full download)
   cyrlm recommend [--harness h]                best models + runtimes for this machine
   cyrlm plan     <model> --runtime r [flags]   exact setup steps (for you or your coding agent)
-  cyrlm verify   --runtime r --model m         measure your real setup against the prediction
+  cyrlm verify   --runtime r --model m         measure your real setup against the prediction (+ --harness: tool-call check)
+  cyrlm bridge   [--endpoint URL] --harness h  translate a coding tool's API to a local runtime's Chat Completions
+  cyrlm bg --log F --ready URL -- cmd …        start a server detached and wait until it answers
   cyrlm prompt   [--harness h]                 the message to paste into your coding agent
   cyrlm login [--account] | logout | config    keys (OpenRouter by default; cyrlm account later)
   cyrlm share                                  opt-in sharing of results (needs an account server)
@@ -88,6 +87,7 @@ Serve/try flags:
   --provider <slug>  OpenRouter: pin provider(s), comma-separated
   --port <n>         listen port (default 11434, falls back to 11435+ if busy)
   --launch           (try) start the harness in this terminal; logs go to a file
+  --background       (try/serve/bridge) run detached, return once it answers; log in ~/.cyrlm/logs
 
 Examples:
   cyrlm predict gpt-oss:20b
@@ -103,6 +103,16 @@ func main() {
 	}
 	var err error
 	args := os.Args[2:]
+	if backgroundable[os.Args[1]] && os.Getenv("CYRLM_DETACHED") == "" {
+		if rest, _, bg := takeFlag(args, "background", false); bg {
+			rest, logPath, _ := takeFlag(rest, "log", true)
+			if err := startBackground(os.Args[1], rest, logPath); err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
 	switch os.Args[1] {
 	case "detect":
 		err = cmdDetect(args)
@@ -116,6 +126,10 @@ func main() {
 		err = cmdServe(args, false)
 	case "try":
 		err = cmdServe(args, true)
+	case "bridge":
+		err = cmdBridge(args)
+	case "bg":
+		err = cmdBg(args)
 	case "inspect":
 		err = cmdInspect(args)
 	case "recommend":
@@ -509,30 +523,8 @@ func cmdServe(args []string, try bool) error {
 			return lerr
 		}
 	}
-	stop := fmt.Sprintf("kill %d", os.Getpid())
-	if goruntime.GOOS == "windows" {
-		stop = fmt.Sprintf("Stop-Process -Id %d", os.Getpid())
-	}
-	fmt.Printf("Running (pid %d). Stop with Ctrl-C, or from another terminal: %s — the session summary is printed on exit.\n", os.Getpid(), stop)
-	fmt.Println()
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
-	errc := make(chan error, 1)
-	go func() { errc <- srv.Serve() }()
-	select {
-	case <-sigs:
-	case err := <-errc:
-		if err != nil {
-			return err
-		}
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	_ = srv.Shutdown(ctx)
-	fmt.Println()
-	fmt.Print(srv.Summary())
-	return nil
+	printRunning(" — the session summary is printed on exit.")
+	return serveUntilSignal(srv)
 }
 
 func nonEmptyStr(a, b string) string {
@@ -649,9 +641,9 @@ type jsonResult struct {
 	FollowUpTurnS    float64  `json:"follow_up_turn_s"`
 	SessionS         float64  `json:"session_s"`
 	CloudSessionS    float64  `json:"cloud_session_s"`
-	DecodeAccuracy   int      `json:"decode_accuracy_pct"`
-	PrefillAccuracy  int      `json:"prefill_accuracy_pct"`
-	NoAccuracyClaim  bool     `json:"no_accuracy_claim"`
+	DecodeAccuracy   int      `json:"decode_error_range_pct"` // ± error covering ~3 in 4 predictions
+	PrefillAccuracy  int      `json:"prefill_error_range_pct"`
+	NoAccuracyClaim  bool     `json:"no_speed_claim"`
 	Warnings         []string `json:"warnings"`
 	Assumptions      []string `json:"assumptions"`
 	Unsupported      string   `json:"unsupported,omitempty"`

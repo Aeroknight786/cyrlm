@@ -149,7 +149,7 @@ func (s *stream) Send(ev llm.Event) error {
 		if t, ok := s.tools[ev.Index]; ok {
 			// Repeated start for a known call: fill in missing fields.
 			if ev.Name != "" && !t.custom && t.fc.Name == "" {
-				t.fc.Name = ev.Name
+				t.fc.Namespace, t.fc.Name = s.f.split(ev.Name)
 			}
 			return nil
 		}
@@ -220,12 +220,13 @@ func (s *stream) openTool(index int, callID, name string) error {
 		callID = newCallID()
 	}
 	t := &toolState{custom: name != "" && s.f.isCustom(name)}
+	ns, member := s.f.split(name)
 	var item any
 	if t.custom {
-		t.ctc = &customToolCallItem{Type: "custom_tool_call", ID: itemID("ctc", s.base, idx), CallID: callID, Name: name, Status: "in_progress"}
+		t.ctc = &customToolCallItem{Type: "custom_tool_call", ID: itemID("ctc", s.base, idx), CallID: callID, Name: member, Namespace: ns, Status: "in_progress"}
 		item = *t.ctc // snapshot: the added event shows the empty item
 	} else {
-		t.fc = &functionCallItem{Type: "function_call", ID: itemID("fc", s.base, idx), CallID: callID, Name: name, Status: "in_progress"}
+		t.fc = &functionCallItem{Type: "function_call", ID: itemID("fc", s.base, idx), CallID: callID, Name: member, Namespace: ns, Status: "in_progress"}
 		item = *t.fc
 	}
 	s.tools[index] = t

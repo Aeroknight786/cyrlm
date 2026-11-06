@@ -97,12 +97,9 @@ func (b *builder) mlxlm() error {
 	}
 	b.add(Step{
 		ID: "start-server", Kind: KindStart,
-		Title: "Start mlx_lm.server on port " + fmt.Sprint(b.port),
-		Why:   "Runs the launch script in the background (log: ~/" + logRel + ") and waits until /health answers. The model loads on start-up. Run the undo command to stop it; run the first command again after a reboot.",
-		Commands: []Command{
-			b.os("nohup sh " + b.home(rel) + " > " + b.home(logRel) + " 2>&1 &"),
-			b.os(shWaitHealth(pl.Endpoint + "/health")),
-		},
+		Title:      "Start mlx_lm.server on port " + fmt.Sprint(b.port),
+		Why:        "Starts the launch script detached (log: ~/" + logRel + ") and returns once /health answers, so the server keeps running after this command returns. Run the undo command to stop it; run the start command again after a reboot.",
+		Commands:   []Command{b.bgStart(rel, logRel, pl.Endpoint+"/health")},
 		Undo:       []Command{b.os("pkill -f " + shQuote("mlx_lm.server --model "+repo))},
 		Confidence: Medium,
 		Docs:       []string{docMLXServer},

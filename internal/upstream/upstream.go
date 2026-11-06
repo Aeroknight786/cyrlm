@@ -60,7 +60,7 @@ func (c *OpenAICompat) isOpenRouter() bool {
 // BuildBody builds the upstream request body.
 func (c *OpenAICompat) BuildBody(req *llm.Request) map[string]any {
 	msgs := make([]map[string]any, 0, len(req.Messages))
-	for _, m := range req.Messages {
+	for _, m := range NormalizeForTemplates(req.Messages) {
 		om := map[string]any{"role": m.Role}
 		switch m.Role {
 		case llm.RoleAssistant:
@@ -148,6 +148,40 @@ func (c *OpenAICompat) BuildBody(req *llm.Request) map[string]any {
 		body["provider"] = p
 	}
 	return body
+}
+
+// NormalizeForTemplates reshapes a conversation so strict chat templates
+// accept it. Harnesses such as Codex send several system/developer
+// messages, some mid-conversation, and consecutive user messages; many
+// GGUF templates (Qwen, Gemma, Mistral) raise on that ("System message
+// must be at the beginning", "roles must alternate"). Leading system
+// messages are joined into one; later ones become user messages marked as
+// system notes, so the prompt prefix (and the runtime's prompt cache) stays
+// stable; consecutive user messages are joined. Nothing is dropped.
+func NormalizeForTemplates(in []llm.Message) []llm.Message {
+	out := make([]llm.Message, 0, len(in))
+	i := 0
+	var sys []string
+	for ; i < len(in) && in[i].Role == llm.RoleSystem; i++ {
+		if strings.TrimSpace(in[i].Content) != "" {
+			sys = append(sys, in[i].Content)
+		}
+	}
+	if len(sys) > 0 {
+		out = append(out, llm.Message{Role: llm.RoleSystem, Content: strings.Join(sys, "\n\n")})
+	}
+	for ; i < len(in); i++ {
+		m := in[i]
+		if m.Role == llm.RoleSystem {
+			m = llm.Message{Role: llm.RoleUser, Content: "[System note]\n" + m.Content}
+		}
+		if n := len(out); n > 0 && m.Role == llm.RoleUser && out[n-1].Role == llm.RoleUser && m.Images == 0 && out[n-1].Images == 0 {
+			out[n-1].Content += "\n\n" + m.Content
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // stripCyrlmKeys removes cyrlm-internal schema markers (x-cyrlm-*) that

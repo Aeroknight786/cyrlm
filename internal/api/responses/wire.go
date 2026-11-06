@@ -31,6 +31,7 @@ type wireItem struct {
 	Content   json.RawMessage `json:"content"`
 	CallID    string          `json:"call_id"`
 	Name      string          `json:"name"`
+	Namespace string          `json:"namespace"`
 	Arguments json.RawMessage `json:"arguments"`
 	Input     string          `json:"input"`
 	Output    json.RawMessage `json:"output"`
@@ -51,6 +52,9 @@ type wireTool struct {
 	Description string          `json:"description"`
 	Parameters  json.RawMessage `json:"parameters"`
 	Format      *wireFormat     `json:"format"`
+	// Tools holds the members of a "namespace" tool (Codex groups tools
+	// such as multi_agent_v1.spawn_agent this way).
+	Tools []json.RawMessage `json:"tools"`
 	// Function is accepted for clients that send Chat-Completions-shaped
 	// tools ({"type":"function","function":{...}}) to /v1/responses.
 	Function *struct {
@@ -179,17 +183,19 @@ type functionCallItem struct {
 	ID        string `json:"id"`
 	CallID    string `json:"call_id"`
 	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
 	Arguments string `json:"arguments"`
 	Status    string `json:"status"`
 }
 
 type customToolCallItem struct {
-	Type   string `json:"type"`
-	ID     string `json:"id"`
-	CallID string `json:"call_id"`
-	Name   string `json:"name"`
-	Input  string `json:"input"`
-	Status string `json:"status"`
+	Type      string `json:"type"`
+	ID        string `json:"id"`
+	CallID    string `json:"call_id"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+	Input     string `json:"input"`
+	Status    string `json:"status"`
 }
 
 // event is the union of every streaming event payload. Pointer fields are

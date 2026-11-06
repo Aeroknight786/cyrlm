@@ -160,6 +160,14 @@ func gq(name string, gbytes float64) Quant {
 	return Quant{Name: name, Format: "gguf", FileBytes: int64(gbytes * gb)}
 }
 
+// gqt is a GGUF quant whose file tag differs from its display name (e.g.
+// unsloth's "UD-Q3_K_XL" files, shown as Q3_K_XL).
+func gqt(name, tag string, gbytes float64) Quant {
+	q := gq(name, gbytes)
+	q.FileTag = tag
+	return q
+}
+
 func est(name string, paramsB float64) Quant {
 	format := "gguf"
 	if strings.HasPrefix(name, "MLX") {
@@ -199,7 +207,9 @@ var models = []Model{
 		Family:  "qwen3moe", TotalParamsB: 30.53, ReadParamsB: 3.04, MatmulParamsB: 3.04, MoE: true, ExpertsTotal: 128, ExpertsActive: 8,
 		Layers: 48, FullAttnLayers: 48, KVHeads: 4, HeadDim: 128, QHeads: 32, DecodeEff: 0.72,
 		NativeCtx: 262144, Tools: true,
-		Quants:       []Quant{gq("Q4_K_M", 18.6), gq("Q6_K", 25.1), gq("Q8_0", 32.5), est("MLX-4bit", 30.53)},
+		// Low-bit sizes from the Hugging Face file listing of the repo below.
+		Quants: []Quant{gq("Q4_K_M", 18.6), gq("Q6_K", 25.1), gq("Q8_0", 32.5), est("MLX-4bit", 30.53),
+			gq("IQ4_XS", 16.38), gqt("Q3_K_XL", "UD-Q3_K_XL", 13.81), gqt("IQ3_XXS", "UD-IQ3_XXS", 12.85)},
 		OpenRouterID: "qwen/qwen3-coder-30b-a3b-instruct", CloudPrecision: "BF16/FP8 (provider-dependent)",
 		HFGGUFRepo: "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF", HFMLXRepo: "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit",
 	},

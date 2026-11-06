@@ -557,10 +557,18 @@ func Predict(in Input) Result {
 	}
 	if in.Model.TrialStandIn != "" {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("trial stand-in: no cloud provider hosts this exact model, so trials use its base model %s. Speed is simulated from this file exactly; behaviour (fine-tuning, abliteration, style) is the base model's", in.Model.TrialStandIn))
+	} else if lowBit(q.Name) {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("quality caveat: %s is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than the cloud's %s weights the trial uses (often a few points on coding benchmarks, more tool-call errors). A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed", q.Name, in.Model.CloudPrecision))
 	} else if !in.Model.QuantMatchesCloud {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("quality caveat: the trial uses the cloud's %s weights; local %s is typically 0–3 points worse on coding tasks and makes more tool-call mistakes", in.Model.CloudPrecision, q.Name))
 	}
 	return res
+}
+
+// lowBit reports quants below ~4 bits per weight (Q3_*, IQ3_*, Q2_*, IQ2_*).
+func lowBit(name string) bool {
+	n := strings.ToUpper(name)
+	return strings.HasPrefix(n, "Q3") || strings.HasPrefix(n, "IQ3") || strings.HasPrefix(n, "Q2") || strings.HasPrefix(n, "IQ2") || strings.Contains(n, "3BIT")
 }
 
 func nz(v float64) float64 {

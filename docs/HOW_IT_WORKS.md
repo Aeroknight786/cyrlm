@@ -38,15 +38,33 @@ Long contexts (≥16k) widen these by 10–15 points. Details, data and scripts:
 | Harness | Protocol cyrlm serves | Connect |
 |---|---|---|
 | Claude Code | Anthropic Messages | env vars (printed by `cyrlm try`) |
-| Codex CLI | OpenAI Responses | `~/.codex/config.toml` profile, or `codex --oss` on port 11434 |
+| Codex CLI | OpenAI Responses | one `codex -c …` command (no config file edits) |
 | OpenCode, Qwen Code, Cline | OpenAI Chat Completions | config snippet / settings |
 | Aider, Continue, Zed | Ollama native or OpenAI-compatible | point at the Ollama URL |
 
 Cursor sends requests from its own servers, so it needs a public tunnel to reach a local endpoint.
 
+### After setup: `cyrlm bridge`
+
+Coding tools and local runtimes disagree in small ways that break real sessions even when the runtime is fast. Examples seen on real machines:
+- Codex sends namespaced tools, which llama.cpp skips.
+- Codex sends several developer messages, which strict chat templates (Qwen, Gemma, Mistral) reject with "System message must be at the beginning".
+- When the runtime answers HTTP 500, Codex shows it as "high demand" and retries.
+
+`cyrlm bridge` puts the same protocol layer the trial uses in front of the runtime's plain Chat Completions API, its most mature one. It:
+- merges system messages for the chat template;
+- flattens namespaced tools and maps their calls back;
+- reports hosted tools that a local model cannot run;
+- returns deterministic runtime errors as errors the tool shows instead of retrying.
+
+Plans use it for Codex, and for any tool whose API the runtime lacks (for example Claude Code on mlx-lm). `cyrlm verify --harness <tool>` then sends a greeting, a tool call and a tool result in that tool's own request format, and reports **Ready** only when all three work.
+
+Servers cyrlm starts (`try`, `bridge`, and runtimes via `cyrlm bg`) detach properly and return only once they answer, so they survive the agent's command runner.
+
 ## Models and runtimes
 
 - **24 catalog models** (`cyrlm models`): Qwen3.8 27B, Qwen3.6 35B-A3B, Qwen3.5 4B/9B, Qwen3-Coder 30B, Gemma 4 12B/26B-A4B, gpt-oss 20B/120B, GLM-4.7-Flash, Devstral Small 2, Nemotron 3.5 Lightning, Granite 4.2, Llama 3.x and more. Newer entries are generated from the models' own GGUF headers (`tools/catalog-gen`).
+- **Files**: each model lists several quantizations (4-bit and 8-bit, plus 3-bit and IQ4 files for the large mixture-of-experts models). `recommend` tries every file and shows the one that runs best on your machine. That is the usual 4-bit file when it is fast enough, otherwise a smaller file that lets a stronger model fit (with a quality caveat below 4 bits).
 - **Any other model**: pass a GGUF file or Hugging Face URL to `predict`/`serve`/`inspect`; only the header is read.
 - **Runtimes**: `detect` finds Ollama, LM Studio, llama.cpp, mlx-lm, vLLM, Jan, Lemonade and Docker Model Runner. `predict` compares Ollama, llama.cpp, LM Studio (llama.cpp and MLX engines) and mlx-lm with default and tuned settings, marks the ones you have installed (●), and recommends the best setup — preferring what you already have when it is within 5% of the best. Jan, Lemonade and Docker Model Runner are simulated with the llama.cpp profile; vLLM is detected but not simulated yet.
 

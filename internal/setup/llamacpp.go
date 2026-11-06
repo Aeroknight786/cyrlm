@@ -36,8 +36,8 @@ func (b *builder) llamacpp() error {
 	b.add(Step{
 		ID: "download-model", Kind: KindDownload,
 		Title:         fmt.Sprintf("Download %s %s (%s) and test-load it", m.Name, q.Name, gbString(q.FileBytes)),
-		Why:           fmt.Sprintf("`-hf %s` downloads the exact %s GGUF from Hugging Face into llama.cpp's model cache (set LLAMA_CACHE to move it; HF_TOKEN for gated repos), the same cache `llama-server -hf` uses, then loads it and answers one short prompt. A multimodal projector is downloaded too when the repo has one.", hf, q.Name),
-		Commands:      []Command{b.llamaCmd(b.llamaBin("llama-cli") + " " + b.args("-hf", hf, "-c", "4096", "-n", "8", "-st", "-p", "Reply with OK"))},
+		Why:           fmt.Sprintf("`-hf %s` downloads exactly the %s GGUF (%s) from Hugging Face into llama.cpp's model cache (set LLAMA_CACHE to move it; HF_TOKEN for gated repos), the same cache `llama-server -hf` uses, then loads it and generates one token to prove the build and GPU backend work (the answer itself is checked later by `cyrlm verify`). --no-mmproj skips the optional vision projector (~1 GB more), which a text coding setup does not need. The download can take a while and may print little progress; the file grows under ~/.cache/llama.cpp or the Hugging Face cache.", hf, q.Name, gbString(q.FileBytes)),
+		Commands:      []Command{b.llamaCmd(b.llamaBin("llama-cli") + " " + b.args("-hf", hf, "--no-mmproj", "-c", "4096", "-n", "1", "-st", "-p", "Hi"))},
 		DownloadBytes: q.FileBytes,
 		Confidence:    Medium,
 		Docs:          []string{docLlamaCLI, docLlamaServer},
@@ -67,7 +67,7 @@ func (b *builder) llamacpp() error {
 	b.add(Step{
 		ID: "configure-launch-script", Kind: KindConfigure,
 		Title:      "Write the llama-server launch script",
-		Why:        "Keeps the tuned flags in one place so the server can be restarted the same way: " + b.llamaFlagsWhy() + " Recent builds listen on port 9931 by default, so the port is set explicitly.",
+		Why:        "Keeps the tuned flags in one place so the server can be restarted the same way: " + b.llamaFlagsWhy() + " Recent builds listen on port 9931 by default, so the port is set explicitly (" + fmt.Sprint(b.port) + ").",
 		Files:      []FileEdit{file},
 		Undo:       []Command{b.os(b.rm(rel))},
 		Confidence: High,
@@ -82,20 +82,12 @@ func (b *builder) llamacpp() error {
 		Confidence: Medium,
 		Docs:       []string{docLlamaServer},
 	}
+	st.Commands = []Command{b.bgStart(rel, logRel, pl.Endpoint+"/health")}
+	st.Why = "Starts the launch script detached (log: ~/" + logRel + ") and returns once /health reports the model is loaded, so the server keeps running after this command returns. Run the undo command to stop it; run the start command again after a reboot."
 	if b.win {
-		st.Commands = []Command{
-			b.os(`Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',` + b.home(rel) + ` -WindowStyle Minimized`),
-			b.os(psWaitHealth(pl.Endpoint + "/health")),
-		}
 		st.Undo = []Command{b.os("Get-Process -Name llama-server -ErrorAction SilentlyContinue | Stop-Process")}
-		st.Why = "Runs the launch script in a minimized PowerShell window and waits until /health reports the model is loaded. Close that window (or run the undo command) to stop the server."
 	} else {
-		st.Commands = []Command{
-			b.os("nohup sh " + b.home(rel) + " > " + b.home(logRel) + " 2>&1 &"),
-			b.os(shWaitHealth(pl.Endpoint + "/health")),
-		}
 		st.Undo = []Command{b.os("pkill -f " + shQuote("llama-server .*--alias "+pl.LocalModelName))}
-		st.Why = "Runs the launch script in the background (log: ~/" + logRel + ") and waits until /health reports the model is loaded. Run the undo command to stop it; run the first command again after a reboot."
 	}
 	if b.in.Running {
 		b.warn(fmt.Sprintf("A llama-server already answers on port %d; stop it before the start step, or the new server cannot bind the port.", b.port))
@@ -139,7 +131,7 @@ func (b *builder) llamaServerArgs(hf string) []string {
 	if pl.KVCacheType != "f16" {
 		a = append(a, "-ctk", pl.KVCacheType, "-ctv", pl.KVCacheType)
 	}
-	a = append(a, "--jinja")
+	a = append(a, "--jinja", "--no-mmproj", "-np", "1")
 	if pl.Backend == "cpu" {
 		a = append(a, "-ngl", "0")
 	} else {
@@ -160,7 +152,7 @@ func (b *builder) llamaFlagsWhy() string {
 	if pl.KVCacheType != "f16" {
 		parts = append(parts, fmt.Sprintf("-ctk/-ctv %s quantize the KV cache", pl.KVCacheType))
 	}
-	parts = append(parts, "--jinja uses the model's chat template (needed for tool calls)")
+	parts = append(parts, "--jinja uses the model's chat template (needed for tool calls)", "--no-mmproj skips the vision projector", "-np 1 keeps one slot, so one coding session gets the whole context and the prompt cache")
 	if pl.Backend == "cpu" {
 		parts = append(parts, "-ngl 0 keeps every layer on the CPU")
 	} else {

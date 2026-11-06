@@ -100,6 +100,9 @@ type Input struct {
 	Installed        bool
 	InstalledVersion string
 	Running          bool
+	// Port overrides the runtime's usual port (the caller picks a free
+	// one when something else already uses it). 0 = the usual port.
+	Port int
 }
 
 // Step kinds, in plan order.
@@ -197,7 +200,10 @@ func newBuilder(in Input) *builder {
 	if win {
 		shell = "powershell"
 	}
-	port := p.Port
+	port := in.Port
+	if port == 0 {
+		port = p.Port
+	}
 	if port == 0 {
 		port = defaultPorts[p.ID]
 	}
@@ -247,6 +253,25 @@ func newBuilder(in Input) *builder {
 	}
 	b.fileName = safeFile(localName(in.Model, in.Quant))
 	return b
+}
+
+// DefaultPort is the port a plan uses for runtime id unless told otherwise.
+func DefaultPort(p runtime.Profile) int {
+	if p.Port != 0 {
+		return p.Port
+	}
+	return defaultPorts[p.ID]
+}
+
+// bgStart is the command that starts a launch script detached, logged and
+// checked: `cyrlm bg` returns only once healthURL answers, so the server
+// survives the agent's command runner and a printed pid is not mistaken
+// for a running server.
+func (b *builder) bgStart(scriptRel, logRel, healthURL string) Command {
+	if b.win {
+		return b.os("cyrlm bg --log " + b.home(logRel) + " --ready " + healthURL + " -- powershell -NoProfile -ExecutionPolicy Bypass -File " + b.home(scriptRel))
+	}
+	return b.os("cyrlm bg --log " + b.home(logRel) + " --ready " + healthURL + " -- sh " + b.home(scriptRel))
 }
 
 var defaultPorts = map[string]int{"ollama": 11434, "llamacpp": 8080, "lmstudio": 1234, "lmstudio-mlx": 1234, "mlx-lm": 8080}
@@ -495,7 +520,7 @@ func (b *builder) verifyStep() {
 	b.add(Step{
 		ID: "verify", Kind: KindVerify,
 		Title:      "Verify the setup",
-		Why:        fmt.Sprintf("Checks that %s answers at %s with %s, that the context window is %d tokens and compares real speed with cyrlm's prediction.", pl.RuntimeName, pl.Endpoint, pl.LocalModelName, pl.ContextTokens),
+		Why:        verifyWhy(pl),
 		Commands:   []Command{b.any(run)},
 		Confidence: High,
 	})
@@ -555,4 +580,20 @@ func (p Plan) Ordered() bool {
 		last = r
 	}
 	return true
+}
+
+// pkill stops processes whose command line contains pattern.
+func (b *builder) pkill(pattern string) string {
+	if b.win {
+		return "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*" + pattern + "*' } | ForEach-Object { Stop-Process -Id $_.ProcessId }"
+	}
+	return "pkill -f " + shQuote(pattern)
+}
+
+func verifyWhy(pl *Plan) string {
+	w := fmt.Sprintf("Checks that %s answers at %s with %s, that the context window is %d tokens and compares real speed with cyrlm's prediction.", pl.RuntimeName, pl.Endpoint, pl.LocalModelName, pl.ContextTokens)
+	if pl.Harness != "" {
+		w += " It then sends requests in " + pl.Harness + "'s own format (a greeting, a tool call and the tool result) and reports \"Ready\" only if all three work: a fast runtime can still reject a coding tool's requests. The setup is not done until this says Ready."
+	}
+	return w
 }

@@ -58,6 +58,30 @@ type Frontend struct {
 	// custom maps tool name -> true for names last declared as custom
 	// (freeform) tools. See the package documentation.
 	custom sync.Map
+	// ns maps a flattened tool name (namespace + NamespaceSep + name) to
+	// its namespace and member name, so calls go back to the harness in
+	// their namespace. Chat Completions backends have no namespaces.
+	ns sync.Map
+}
+
+// NamespaceSep joins a namespace and a member tool name into the flat
+// function name the backend sees.
+const NamespaceSep = "__"
+
+// split returns the namespace and member name of a flattened tool name.
+func (f *Frontend) split(flat string) (namespace, name string) {
+	if v, ok := f.ns.Load(flat); ok {
+		p := v.([2]string)
+		return p[0], p[1]
+	}
+	return "", flat
+}
+
+func flatName(namespace, name string) string {
+	if namespace == "" {
+		return name
+	}
+	return namespace + NamespaceSep + name
 }
 
 // New returns the Responses API frontend.
@@ -221,12 +245,12 @@ func (d *decoder) item(i int, it *wireItem) error {
 		if err != nil {
 			return fmt.Errorf("function_call arguments: %v", err)
 		}
-		d.toolCall(llm.ToolCall{ID: it.CallID, Name: it.Name, Arguments: args})
+		d.toolCall(llm.ToolCall{ID: it.CallID, Name: flatName(it.Namespace, it.Name), Arguments: args})
 	case "custom_tool_call":
 		b, _ := json.Marshal(struct {
 			Input string `json:"input"`
 		}{it.Input})
-		d.toolCall(llm.ToolCall{ID: it.CallID, Name: it.Name, Arguments: string(b)})
+		d.toolCall(llm.ToolCall{ID: it.CallID, Name: flatName(it.Namespace, it.Name), Arguments: string(b)})
 	case "function_call_output", "custom_tool_call_output":
 		text, images, warns := toolOutputText(it.Output)
 		for _, w := range warns {
@@ -425,11 +449,35 @@ func (f *Frontend) decodeTool(req *llm.Request, raw json.RawMessage) error {
 	if err := json.Unmarshal(raw, &t); err != nil {
 		return err
 	}
+	return f.addTool(req, t, "")
+}
+
+func (f *Frontend) addTool(req *llm.Request, t wireTool, namespace string) error {
+	if t.Type == "namespace" {
+		if t.Name == "" {
+			return errors.New("namespace tool without a name")
+		}
+		for i, raw := range t.Tools {
+			var m wireTool
+			if err := json.Unmarshal(raw, &m); err != nil {
+				return fmt.Errorf("%s.tools[%d]: %v", t.Name, i, err)
+			}
+			if err := f.addTool(req, m, flatName(namespace, t.Name)); err != nil {
+				return fmt.Errorf("%s.tools[%d]: %v", t.Name, i, err)
+			}
+		}
+		return nil
+	}
+	if t.Type == "function" && t.Function != nil && t.Name == "" {
+		t.Name, t.Description, t.Parameters = t.Function.Name, t.Function.Description, t.Function.Parameters
+	}
+	if namespace != "" && t.Name != "" {
+		flat := flatName(namespace, t.Name)
+		f.ns.Store(flat, [2]string{namespace, t.Name})
+		t.Name = flat
+	}
 	switch t.Type {
 	case "function":
-		if t.Function != nil && t.Name == "" {
-			t.Name, t.Description, t.Parameters = t.Function.Name, t.Function.Description, t.Function.Parameters
-		}
 		if t.Name == "" {
 			return errors.New("function tool without a name")
 		}
@@ -455,7 +503,7 @@ func (f *Frontend) decodeTool(req *llm.Request, raw json.RawMessage) error {
 		})
 		req.Tools = append(req.Tools, llm.Tool{Name: t.Name, Description: t.Description, Parameters: schema})
 	default:
-		req.Warnings = append(req.Warnings, fmt.Sprintf("tool type %q is not supported and was dropped", t.Type))
+		req.Warnings = append(req.Warnings, fmt.Sprintf("tool type %q is a hosted tool a local model cannot run; it was not offered to the model", t.Type))
 	}
 	return nil
 }
@@ -610,10 +658,11 @@ func (f *Frontend) buildToolItem(tc llm.ToolCall, id, status string) any {
 	if callID == "" {
 		callID = newCallID()
 	}
+	ns, name := f.split(tc.Name)
 	if f.isCustom(tc.Name) {
-		return &customToolCallItem{Type: "custom_tool_call", ID: id, CallID: callID, Name: tc.Name, Input: customInput(tc.Arguments), Status: status}
+		return &customToolCallItem{Type: "custom_tool_call", ID: id, CallID: callID, Name: name, Namespace: ns, Input: customInput(tc.Arguments), Status: status}
 	}
-	return &functionCallItem{Type: "function_call", ID: id, CallID: callID, Name: tc.Name, Arguments: tc.Arguments, Status: status}
+	return &functionCallItem{Type: "function_call", ID: id, CallID: callID, Name: name, Namespace: ns, Arguments: tc.Arguments, Status: status}
 }
 
 // WriteResponse implements api.Frontend.

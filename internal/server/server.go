@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aeroknight786/cyrlm/internal/api"
@@ -48,6 +49,10 @@ type Config struct {
 	AllowOrigins []string
 	// MaxBodyBytes caps request bodies (default 32 MiB).
 	MaxBodyBytes int64
+	// Bridge relays requests to a real local runtime with no simulation:
+	// the harness speaks its own protocol (Responses, Anthropic, Ollama),
+	// the runtime gets plain Chat Completions. Device may be nil.
+	Bridge bool
 }
 
 // Server is the simulated runtime.
@@ -63,6 +68,7 @@ type Server struct {
 	listener  net.Listener
 	httpSrv   *http.Server
 	startedAt time.Time
+	bridgeN   atomic.Int64
 }
 
 // New creates a server.
@@ -120,7 +126,10 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/tags", func(w http.ResponseWriter, r *http.Request) { ollama.WriteTags(w, []api.ModelInfo{s.cfg.Model}) })
 	m.HandleFunc("POST /api/show", s.show)
 	m.HandleFunc("GET /api/ps", func(w http.ResponseWriter, r *http.Request) {
-		loaded, exp := s.cfg.Device.Loaded()
+		loaded, exp := true, time.Time{}
+		if s.cfg.Device != nil {
+			loaded, exp = s.cfg.Device.Loaded()
+		}
 		var models []api.ModelInfo
 		if loaded {
 			models = []api.ModelInfo{s.cfg.Model}
@@ -135,6 +144,10 @@ func (s *Server) routes() {
 	})
 	// Introspection.
 	m.HandleFunc("GET /cyrlm/stats", func(w http.ResponseWriter, r *http.Request) {
+		if s.cfg.Device == nil {
+			api.WriteJSON(w, 200, map[string]any{"bridge": s.cfg.Upstream.Describe(), "requests": s.bridgeN.Load()})
+			return
+		}
 		st := s.cfg.Device.Stats()
 		api.WriteJSON(w, 200, map[string]any{
 			"device": s.cfg.DeviceName, "runtime": s.cfg.RuntimeName, "model": s.cfg.Model.Name,
@@ -212,6 +225,10 @@ func (s *Server) countTokens(w http.ResponseWriter, r *http.Request) {
 		s.anth.WriteError(w, 400, "invalid_request_error", err.Error())
 		return
 	}
+	if s.cfg.Device == nil {
+		s.anth.WriteCountTokens(w, tok.Render(req, tok.RenderOptions{}).Len())
+		return
+	}
 	seq := tok.Render(req, s.cfg.Device.Config().Render)
 	s.anth.WriteCountTokens(w, int(float64(seq.Len())*s.cfg.Device.PromptRatio()))
 }
@@ -225,9 +242,6 @@ func newID() string {
 // gen handles a generation request for one protocol.
 func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		dev := s.cfg.Device
-		clock := dev.Config().Clock
-		arrival := clock.Now()
 		body, err := s.readBody(w, r)
 		if err != nil {
 			fe.WriteError(w, http.StatusRequestEntityTooLarge, "invalid_request_error", err.Error())
@@ -242,13 +256,19 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 		if meta.Model == "" {
 			meta.Model = s.cfg.Model.Name
 		}
-		rec := sim.Record{At: arrival, Protocol: fe.Name(), ClientModel: req.Model}
-
 		// Ollama load/unload probes carry no messages.
 		if len(req.Messages) == 0 {
 			fe.WriteResponse(w, meta, &llm.Response{FinishReason: "load"}, llm.Timings{})
 			return
 		}
+		if s.cfg.Bridge {
+			s.relay(w, r, fe, req, meta)
+			return
+		}
+		dev := s.cfg.Device
+		clock := dev.Config().Clock
+		arrival := clock.Now()
+		rec := sim.Record{At: arrival, Protocol: fe.Name(), ClientModel: req.Model}
 
 		prep, err := dev.Prepare(req)
 		var cerr *sim.ContextError
@@ -354,6 +374,113 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 		n := dev.Stats().Add(rec)
 		s.logRecord(n, rec, plan, prep, res)
 	}
+}
+
+// relay forwards one request to the local runtime and streams its answer
+// back in the harness's protocol, without simulated timing.
+func (s *Server) relay(w http.ResponseWriter, r *http.Request, fe api.Frontend, req *llm.Request, meta api.StreamMeta) {
+	n := s.bridgeN.Add(1)
+	start := time.Now()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	for _, wn := range req.Warnings {
+		s.logf("#%d %s  ! %s\n", n, fe.Name(), wn)
+	}
+	events, err := s.cfg.Upstream.Stream(ctx, req)
+	if err != nil {
+		s.logf("#%d %s  ✗ runtime error: %v\n", n, fe.Name(), err)
+		status, kind, msg := bridgeError(err, s.cfg.Upstream.Describe())
+		fe.WriteError(w, status, kind, msg)
+		return
+	}
+	var st api.Stream
+	var resp llm.Response
+	var first time.Time
+	for ev := range events {
+		switch ev.Type {
+		case llm.EventError:
+			s.logf("#%d %s  ✗ runtime error: %v\n", n, fe.Name(), ev.Err)
+			status, kind, msg := bridgeError(ev.Err, s.cfg.Upstream.Describe())
+			if st != nil {
+				st.Fail(kind, msg)
+			} else {
+				fe.WriteError(w, status, kind, msg)
+			}
+			return
+		case llm.EventDone:
+			resp.Apply(ev)
+		default:
+			if first.IsZero() {
+				first = time.Now()
+			}
+			resp.Apply(ev)
+			if req.Stream {
+				if st == nil {
+					st = fe.NewStream(w, meta)
+					if st.Start() != nil {
+						return
+					}
+				}
+				if st.Send(ev) != nil {
+					return
+				}
+			}
+		}
+	}
+	if resp.FinishReason == "" {
+		resp.FinishReason = llm.FinishStop
+	}
+	if len(resp.ToolCalls) > 0 && resp.FinishReason == llm.FinishStop {
+		resp.FinishReason = llm.FinishToolCalls
+	}
+	end := time.Now()
+	tm := llm.Timings{Total: end.Sub(start), EvalTokens: resp.Usage.CompletionTokens, PromptEvalTokens: resp.Usage.PromptTokens - resp.Usage.CachedPromptTokens}
+	if !first.IsZero() {
+		tm.PromptEval, tm.Eval = first.Sub(start), end.Sub(first)
+	}
+	if req.Stream {
+		if st == nil {
+			st = fe.NewStream(w, meta)
+			if st.Start() != nil {
+				return
+			}
+		}
+		st.Finish(resp.FinishReason, resp.Usage, tm)
+	} else {
+		fe.WriteResponse(w, meta, &resp, tm)
+	}
+	line := fmt.Sprintf("#%d %s  prompt %d · first token %s · %d tok · %s", n, fe.Name(), resp.Usage.PromptTokens, roundDur(tm.PromptEval), resp.Usage.CompletionTokens, roundDur(tm.Total))
+	if len(resp.ToolCalls) > 0 {
+		line += fmt.Sprintf(" · %d tool call(s)", len(resp.ToolCalls))
+	}
+	s.logf("%s\n", line)
+}
+
+// bridgeError maps a local runtime failure to what the harness should see.
+// Harnesses retry 5xx answers (Codex shows "high demand"), which only
+// repeats a deterministic failure such as a chat-template exception, so
+// those become 400s with the runtime's own message. A runtime that is still
+// loading (503) stays retryable.
+func bridgeError(err error, where string) (int, string, string) {
+	var he *upstream.HTTPError
+	if errors.As(err, &he) {
+		if he.Status == http.StatusServiceUnavailable {
+			return he.Status, "api_error", "local runtime is busy or still loading the model: " + err.Error()
+		}
+		if he.Status >= 500 {
+			return http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("local runtime (%s) failed on this request: %v", where, err)
+		}
+		status, kind := upstreamErrorStatus(err)
+		return status, kind, "local runtime: " + err.Error()
+	}
+	return http.StatusBadRequest, "invalid_request_error", fmt.Sprintf("cannot reach the local runtime (%s): %v — is it running?", where, err)
+}
+
+func roundDur(d time.Duration) time.Duration {
+	if d > time.Second {
+		return d.Round(100 * time.Millisecond)
+	}
+	return d.Round(time.Millisecond)
 }
 
 // upstreamErrorStatus maps an upstream failure to the status and error
@@ -466,7 +593,7 @@ func (s *Server) Listen(host string, port int, fallback bool) (int, error) {
 		l, err := net.Listen("tcp", net.JoinHostPort(host, fmt.Sprint(p)))
 		if err == nil {
 			s.listener = l
-			return p, nil
+			return l.Addr().(*net.TCPAddr).Port, nil
 		}
 		lastErr = err
 		if !fallback {
@@ -496,10 +623,16 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // Summary returns the session summary text.
 func (s *Server) Summary() string {
+	if s.cfg.Device == nil {
+		return fmt.Sprintf("cyrlm bridge relayed %d request(s) to %s\n", s.bridgeN.Load(), s.cfg.Upstream.Describe())
+	}
 	return s.cfg.Device.Stats().Summarize().Report(s.cfg.DeviceName, s.cfg.RuntimeName, s.cfg.Model.Name)
 }
 
 // StatsJSON returns the stats as JSON.
 func (s *Server) StatsJSON() ([]byte, error) {
+	if s.cfg.Device == nil {
+		return []byte("[]"), nil
+	}
 	return json.MarshalIndent(s.cfg.Device.Stats().Snapshot(), "", "  ")
 }

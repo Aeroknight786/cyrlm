@@ -35,6 +35,12 @@ func (b *builder) harnessSteps() {
 	}
 	pl.Harness = h.ID
 	proto := h.ProtocolFor(b.p.APIs)
+	if h.NeedsBridge(b.p.APIs) {
+		pl.HarnessCompatible = true
+		pl.HarnessNote = fmt.Sprintf("%s connects through `cyrlm bridge`, which passes its requests to %s's Chat Completions API at %s as model %s.", h.Name, b.p.Name, pl.Endpoint, pl.LocalModelName)
+		b.bridgeSteps(*h)
+		return
+	}
 	if proto == "" {
 		pl.HarnessCompatible = false
 		pl.HarnessNote = incompatibleNote(*h, b.p, b.in.Quant.Format, b.in.OS, b.in.Arch)
@@ -48,8 +54,6 @@ func (b *builder) harnessSteps() {
 	switch h.ID {
 	case "claude-code":
 		b.claudeCodeSteps(s)
-	case "codex":
-		b.codexStep()
 	case "opencode":
 		b.openCodeStep()
 	case "continue":
@@ -157,39 +161,38 @@ func (b *builder) claudeCodeSteps(s harness.Setup) {
 	})
 }
 
-func (b *builder) codexStep() {
+// bridgeSteps connect a harness through `cyrlm bridge`.
+func (b *builder) bridgeSteps(h harness.Harness) {
 	pl := b.plan
-	id := "cyrlm-" + pl.Runtime
-	content := fmt.Sprintf(`[model_providers.%s]
-name = "%s (local)"
-base_url = "%s/v1"
-wire_api = "responses"
-
-[profiles.%s]
-model_provider = "%s"
-model = "%s"
-`, id, shortName(b.p), pl.Endpoint, id, id, pl.LocalModelName)
-	launch := "codex --profile " + id
-	why := fmt.Sprintf("Adds a model provider for %s's Responses API at %s/v1 and a profile that selects %s, so `%s` uses the local model and plain `codex` keeps its current setup.", b.p.Name, pl.Endpoint, pl.LocalModelName, launch)
-	if pl.Runtime == "ollama" || pl.Runtime == "lmstudio" {
-		why += fmt.Sprintf(" (Codex's built-in --oss provider also works: `codex --oss -m %s`.)", pl.LocalModelName)
-	}
-	if pl.ContextTokens < 64000 {
+	if h.ID == "codex" && pl.ContextTokens < 64000 {
 		b.warn(fmt.Sprintf("Codex recommends a context window of at least 64k tokens; this plan uses %d.", pl.ContextTokens))
 	}
+	why := fmt.Sprintf("`cyrlm bridge` accepts %s's requests on port 11535 (or the next free port) and passes them to %s/v1/chat/completions, the runtime's most mature API, with system messages merged for the model's chat template and tool calls mapped back; runtime errors are shown in %s instead of being retried. It returns once it answers and prints the exact %s command.", h.Name, pl.Endpoint, h.Name, h.Name)
+	if h.ID == "codex" {
+		why = fmt.Sprintf("Codex sends requests that local runtimes' own Responses endpoints do not fully handle (namespaced tools, several developer messages, hosted web search; llama.cpp skips namespace tools and strict chat templates reject a second system message). ") + why
+	}
 	b.add(Step{
-		ID: "harness-codex", Kind: KindHarness,
-		Title: "Connect Codex to " + pl.LocalModelName,
-		Why:   why,
-		Files: []FileEdit{{
-			Path: "~/.codex/config.toml", Format: "toml", Content: content, Merge: "merge",
-			Note: "Add these tables (replace them if they exist); back the file up to ~/.codex/config.toml.bak-cyrlm first.",
-		}},
-		Restart:    "Codex: start it with `" + launch + "`",
-		Undo:       []Command{b.os(b.restoreBackup(".codex/config.toml"))},
+		ID: "start-bridge", Kind: KindStart,
+		Title:      "Start the " + h.Name + " bridge",
+		Why:        why,
+		Commands:   []Command{b.any(fmt.Sprintf("cyrlm bridge --endpoint %s --model %s --harness %s --ctx %d --background", pl.Endpoint, pl.LocalModelName, h.ID, pl.ContextTokens))},
+		Undo:       []Command{b.os(b.pkill("cyrlm bridge"))},
 		Confidence: High,
-		Docs:       []string{docCodexConfig},
 	})
+	st := Step{
+		ID: "harness-" + h.ID, Kind: KindHarness,
+		Title:      "Start " + h.Name + " with " + pl.LocalModelName,
+		Restart:    h.Name + ": start a new session in your own terminal",
+		Confidence: High,
+	}
+	if h.ID == "codex" {
+		st.Why = "Everything is passed with -c overrides, so no Codex config file is edited, plain `codex` keeps working as before, and nothing depends on Codex's config layout (profiles moved to separate files in 0.134). Use the command the bridge printed: it has the real port and, when codex is not on your terminal's PATH, its full path. Web search is off because a local model cannot run OpenAI's hosted search."
+		st.Commands = []Command{b.any(strings.Join(harness.CodexCommand("http://127.0.0.1:11535/v1", pl.LocalModelName, pl.ContextTokens), " "))}
+		st.Docs = []string{docCodexConfig}
+	} else {
+		st.Why = "Follow the connection steps the bridge printed (they point at the bridge's port)."
+	}
+	b.add(st)
 }
 
 func (b *builder) openCodeStep() {

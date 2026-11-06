@@ -423,11 +423,13 @@ func TestOllamaWindows(t *testing.T) {
 		"[Environment]::SetEnvironmentVariable('OLLAMA_KEEP_ALIVE', '-1', 'User')",
 		"Stop-Process", "Start-Process")
 	contains(t, "modelfile command", runs(mustStep(t, p, "configure-modelfile")), `"$HOME\.cyrlm\ollama\gpt-oss-20b-cyrlm.Modelfile"`)
-	codex := file(t, mustStep(t, p, "harness-codex"), "~/.codex/config.toml")
-	contains(t, "codex config", codex.Content, "[model_providers.cyrlm-ollama]", `base_url = "http://127.0.0.1:11434/v1"`,
-		`wire_api = "responses"`, "[profiles.cyrlm-ollama]", `model = "gpt-oss:20b-cyrlm"`)
-	if codex.Merge != "merge" {
-		t.Errorf("codex config must be merged: %s", codex.Merge)
+	// Codex goes through cyrlm bridge and is configured on the command
+	// line only: no config file edits.
+	contains(t, "codex bridge", runs(mustStep(t, p, "start-bridge")), "cyrlm bridge --endpoint http://127.0.0.1:11434 --model gpt-oss:20b-cyrlm --harness codex", "--background")
+	cx := mustStep(t, p, "harness-codex")
+	contains(t, "codex command", runs(cx), "model_providers.cyrlm.base_url=http://127.0.0.1:11535/v1", "model_providers.cyrlm.wire_api=responses", "web_search=disabled", "-m gpt-oss:20b-cyrlm")
+	if len(cx.Files) != 0 {
+		t.Errorf("codex step must not edit files: %+v", cx.Files)
 	}
 	found := false
 	for _, w := range p.Warnings {
@@ -438,47 +440,51 @@ func TestOllamaWindows(t *testing.T) {
 	}
 }
 
-func TestLlamaCppLinuxCUDACodexIncompatible(t *testing.T) {
+func TestLlamaCppLinuxCUDACodexBridge(t *testing.T) {
 	in := spec{model: "qwen3-coder-30b-a3b", quant: "Q4_K_M", runtime: "llamacpp", goos: "linux", goarch: "amd64",
 		backend: "cuda", tuned: true, harness: "codex"}.input(t)
-	// Pin the APIs this test is about (the profile data may gain the
-	// Responses API later; compatibility follows Profile.APIs).
+	// Without a Responses API, Codex still works through cyrlm bridge
+	// (Chat Completions on the runtime side).
 	in.Profile.APIs = []string{"openai-chat", "anthropic"}
 	p := build(t, in)
-	if p.HarnessCompatible {
-		t.Fatal("Codex (Responses API) must be incompatible with llama-server's Chat/Anthropic APIs")
+	if !p.HarnessCompatible {
+		t.Fatal("Codex must connect through the bridge")
 	}
-	contains(t, "harness note", p.HarnessNote, "Codex", "Responses API", "Ollama", "cyrlm serve")
-	if len(stepsOfKind(p, KindHarness)) != 0 {
-		t.Errorf("no harness step expected: %v", stepIDs(p))
+	contains(t, "harness note", p.HarnessNote, "Codex", "cyrlm bridge", "Chat Completions")
+	contains(t, "bridge", runs(mustStep(t, p, "start-bridge")), "--endpoint http://127.0.0.1:8080")
+	// Without any API the bridge can call, it is incompatible.
+	in.Profile.APIs = []string{"anthropic"}
+	if build(t, in).HarnessCompatible {
+		t.Fatal("no Chat Completions: Codex cannot connect")
 	}
-	if !strings.Contains(strings.Join(p.Warnings, "\n"), p.HarnessNote) {
-		t.Error("harness note should also be a warning")
-	}
-	assertKindSequence(t, p, KindCheck, KindInstall, KindDownload, KindConfigure, KindStart, KindVerify)
+	in.Profile.APIs = []string{"openai-chat", "anthropic"}
+	p = build(t, in)
+	assertKindSequence(t, p, KindCheck, KindInstall, KindDownload, KindConfigure, KindStart, KindHarness, KindVerify)
 	if p.Endpoint != "http://127.0.0.1:8080" {
 		t.Errorf("endpoint %s", p.Endpoint)
 	}
 
 	inst := runs(mustStep(t, p, "install-llamacpp"))
 	contains(t, "linux install", inst, "api.github.com/repos/ggml-org/llama.cpp/releases", "bin-ubuntu-cuda-", "cudart-", "-x64")
-	contains(t, "download", runs(mustStep(t, p, "download-model")), "llama-cli -hf unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M")
+	contains(t, "download", runs(mustStep(t, p, "download-model")), "llama-cli -hf unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M --no-mmproj")
 
 	script := file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/llamacpp/qwen3-coder-30b-cyrlm.sh").Content
 	contains(t, "launch script", script, "llama-server -hf unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q4_K_M", "-c 65536", "-fa on", "--jinja",
-		"-ngl 999", "--alias qwen3-coder:30b-cyrlm", "--port 8080")
+		"-ngl 999", "--alias qwen3-coder:30b-cyrlm", "--port 8080", "--no-mmproj", "-np 1")
 	lacks(t, "launch script (f16 cache)", script, "-ctk", "-ctv")
-	contains(t, "start", runs(mustStep(t, p, "start-server")), "nohup sh", "/health")
+	contains(t, "start", runs(mustStep(t, p, "start-server")), "cyrlm bg --log", "--ready http://127.0.0.1:8080/health", "-- sh ")
 
 	// q8_0 KV cache adds the cache-type flags.
 	in.Settings.KVCacheType = "q8_0"
 	p = build(t, in)
 	contains(t, "launch script (q8_0)", file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/llamacpp/qwen3-coder-30b-cyrlm.sh").Content, "-ctk q8_0 -ctv q8_0")
 
-	// With the Responses API the same plan gets a Codex step on :8080.
-	in.Profile.APIs = []string{"openai-chat", "anthropic", "responses"}
+	// A port override (something else on 8080) moves every artifact.
+	in.Port = 8081
 	p = build(t, in)
-	contains(t, "codex config", file(t, mustStep(t, p, "harness-codex"), "~/.codex/config.toml").Content, `base_url = "http://127.0.0.1:8080/v1"`)
+	contains(t, "moved port", file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/llamacpp/qwen3-coder-30b-cyrlm.sh").Content, "--port 8081")
+	contains(t, "moved port", runs(mustStep(t, p, "start-server")), "http://127.0.0.1:8081/health")
+	contains(t, "moved port", runs(mustStep(t, p, "start-bridge")), "--endpoint http://127.0.0.1:8081")
 }
 
 func TestLlamaCppInstallPerOS(t *testing.T) {
@@ -602,13 +608,14 @@ func TestMLXLM(t *testing.T) {
 	p = build(t, q8.input(t))
 	contains(t, "launch (q8)", file(t, mustStep(t, p, "configure-launch-script"), "~/.cyrlm/mlx-lm/qwen3-coder-30b-mlx-4bit-cyrlm.sh").Content, "--kv-bits 8")
 
-	// Claude Code needs the Anthropic API, which mlx-lm does not serve.
+	// mlx-lm has no Anthropic API: Claude Code connects through the bridge.
 	cc := base
 	cc.harness = "claude-code"
 	p = build(t, cc.input(t))
-	if p.HarnessCompatible || !strings.Contains(p.HarnessNote, "Anthropic Messages API") {
+	if !p.HarnessCompatible || !strings.Contains(p.HarnessNote, "cyrlm bridge") {
 		t.Errorf("claude-code on mlx-lm: %v %q", p.HarnessCompatible, p.HarnessNote)
 	}
+	mustStep(t, p, "start-bridge")
 }
 
 func TestBuildErrors(t *testing.T) {
@@ -747,10 +754,10 @@ func TestOtherHarnesses(t *testing.T) {
 		text += f.Content
 	}
 	contains(t, "harness-continue", text, "provider: openai", "apiBase: http://127.0.0.1:8080/v1")
-	// Claude Code needs the Anthropic API: mlx-lm only serves Chat Completions.
+	// mlx-lm only serves Chat Completions: Claude Code goes through the bridge.
 	mp := build(t, spec{model: "qwen3-coder-30b-a3b", quant: "MLX-4bit", runtime: "mlx-lm", goos: "darwin", goarch: "arm64", backend: "mlx", harness: "claude-code"}.input(t))
-	if mp.HarnessCompatible {
-		t.Error("claude-code must be incompatible with mlx-lm (no Anthropic API)")
+	if !mp.HarnessCompatible {
+		t.Error("claude-code must connect to mlx-lm through cyrlm bridge")
 	}
 }
 
