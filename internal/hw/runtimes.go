@@ -14,7 +14,8 @@ import (
 const (
 	ollamaURL      = "http://127.0.0.1:11434"
 	lmStudioURL    = "http://127.0.0.1:1234"
-	llamaCppURL    = "http://127.0.0.1:8080"
+	llamaCppURL    = "http://127.0.0.1:8080" // older default and cyrlm's setup port
+	llamaCppNewURL = "http://127.0.0.1:9931" // default of recent llama-server builds
 	vllmURL        = "http://127.0.0.1:8000"
 	lemonadeURL    = "http://127.0.0.1:8000"
 	janURL         = "http://127.0.0.1:1337"
@@ -166,7 +167,7 @@ func (f rtFinder) llamaCpp(ctx context.Context) *InstalledRuntime {
 	}
 	exe, src := f.find([]string{"llama-server", "llama-cli"}, cands...)
 	var ver, backend string
-	healthOK := false
+	healthOK, endpoint := false, ""
 	parallel(
 		func() {
 			if exe == "" {
@@ -179,13 +180,18 @@ func (f rtFinder) llamaCpp(ctx context.Context) *InstalledRuntime {
 			}
 		},
 		func() {
-			st, body, err := f.r.HTTPGet(ctx, llamaCppURL+"/health")
-			healthOK = err == nil && (st == 200 || st == 503) && (jsonHasKey(body, "status") || jsonHasKey(body, "error"))
+			for _, u := range []string{llamaCppURL, llamaCppNewURL} {
+				st, body, err := f.r.HTTPGet(ctx, u+"/health")
+				if err == nil && (st == 200 || st == 503) && (jsonHasKey(body, "status") || jsonHasKey(body, "error")) {
+					healthOK, endpoint = true, u
+					return
+				}
+			}
 		},
 	)
 	confirmed := false
 	if healthOK {
-		if st, body, err := f.r.HTTPGet(ctx, llamaCppURL+"/props"); err == nil && st == 200 {
+		if st, body, err := f.r.HTTPGet(ctx, endpoint+"/props"); err == nil && st == 200 {
 			confirmed = jsonHasKey(body, "default_generation_settings") || jsonHasKey(body, "build_info")
 			if ver == "" {
 				ver = llamaBuildInfoVersion(jsonStringField(body, "build_info"))
@@ -194,7 +200,7 @@ func (f rtFinder) llamaCpp(ctx context.Context) *InstalledRuntime {
 	}
 	rt := &InstalledRuntime{ID: RuntimeLlamaCpp, Path: exe, Source: src, Version: ver, Backend: backend}
 	if healthOK && (confirmed || exe != "") {
-		rt.Running, rt.Endpoint = true, llamaCppURL
+		rt.Running, rt.Endpoint = true, endpoint
 	}
 	return f.result(rt)
 }

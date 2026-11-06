@@ -108,7 +108,7 @@
     {
       "id": "llamacpp",
       "name": "llama.cpp (llama-server)",
-      "versions": "b6800+",
+      "versions": "b7000+",
       "engine": "llamacpp",
       "formats": [
         "gguf"
@@ -146,7 +146,8 @@
       ],
       "apis": [
         "openai-chat",
-        "anthropic"
+        "anthropic",
+        "responses"
       ],
       "port": 8080,
       "defaults": {
@@ -197,7 +198,8 @@
       "notes": [
         "Calibration baseline: the predictor's efficiencies were fitted on llama.cpp benchmarks.",
         "Requests larger than the context return an error instead of being truncated.",
-        "Four slots share one KV cache; evicted prompts can be restored from a RAM cache."
+        "Four slots share one KV cache; evicted prompts can be restored from a RAM cache.",
+        "Recent builds listen on port 9931 by default (older: 8080); cyrlm's setup starts it on 8080 explicitly."
       ]
     },
     {

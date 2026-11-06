@@ -32,9 +32,9 @@ var harnesses = []Harness{
 	{ID: "claude-code", Name: "Claude Code", Protocol: "anthropic", Protocols: []string{"anthropic"}, Binary: "claude",
 		Scenario: predict.Scenario{Harness: "claude-code", BasePromptTokens: 33000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 45000}},
 	{ID: "codex", Name: "Codex CLI", Protocol: "responses", Protocols: []string{"responses"}, Binary: "codex",
-		Scenario: predict.Scenario{Harness: "codex", BasePromptTokens: 9000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 25000}},
+		Scenario: predict.Scenario{Harness: "codex", BasePromptTokens: 9000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 25000, MinContext: 65536}},
 	{ID: "opencode", Name: "OpenCode", Protocol: "openai-chat", Protocols: []string{"openai-chat", "anthropic"}, Binary: "opencode",
-		Scenario: predict.Scenario{Harness: "opencode", BasePromptTokens: 7000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 22000}},
+		Scenario: predict.Scenario{Harness: "opencode", BasePromptTokens: 7000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 22000, MinContext: 65536}},
 	{ID: "aider", Name: "Aider", Protocol: "ollama", Protocols: []string{"ollama", "openai-chat", "anthropic"}, Binary: "aider",
 		Scenario: predict.Scenario{Harness: "aider", BasePromptTokens: 4000, NewTokensPerTurn: 1500, OutputTokensPerTurn: 600, Turns: 20, MidDepth: 12000}},
 	{ID: "cline", Name: "Cline", Protocol: "openai-chat", Protocols: []string{"openai-chat", "ollama", "anthropic"},
@@ -59,6 +59,19 @@ func (h Harness) CompatibleWith(apis []string) bool {
 		}
 	}
 	return false
+}
+
+// ProtocolFor returns the harness's preferred protocol among apis ("" if
+// none matches).
+func (h Harness) ProtocolFor(apis []string) string {
+	for _, p := range h.Protocols {
+		for _, a := range apis {
+			if p == a {
+				return p
+			}
+		}
+	}
+	return ""
 }
 
 // All returns the known harnesses.
@@ -112,6 +125,12 @@ type Options struct {
 	// Tuned adds harness-side settings that keep the local prompt cache
 	// working (e.g. Claude Code's attribution header).
 	Tuned bool
+	// Protocol to connect with ("" = the harness's default). Aider,
+	// Continue and Zed configs differ between Ollama and OpenAI-compatible.
+	Protocol string
+	// ContextTokens, when set with Tuned, tells harnesses that assume a
+	// large window (Claude Code: 200K) the real local context size.
+	ContextTokens int
 }
 
 // SetupFor returns connection instructions.
@@ -129,6 +148,9 @@ func (h Harness) SetupFor(o Options) Setup {
 			{"ANTHROPIC_DEFAULT_HAIKU_MODEL", m},
 			{"ANTHROPIC_DEFAULT_SONNET_MODEL", m},
 			{"ANTHROPIC_DEFAULT_OPUS_MODEL", m},
+		}
+		if o.Tuned && o.ContextTokens > 0 {
+			s.Env = append(s.Env, [2]string{"CLAUDE_CODE_MAX_CONTEXT_TOKENS", fmt.Sprint(o.ContextTokens)})
 		}
 		if o.Tuned {
 			s.Env = append(s.Env, [2]string{"CLAUDE_CODE_ATTRIBUTION_HEADER", "0"})
@@ -167,8 +189,13 @@ model = "%s"
 }`, base, m, m)
 		s.Command = []string{"opencode", "--model", "cyrlm/" + m}
 	case "aider":
-		s.Env = [][2]string{{"OLLAMA_API_BASE", base}}
-		s.Command = []string{"aider", "--model", "ollama_chat/" + m}
+		if o.Protocol == "openai-chat" {
+			s.Env = [][2]string{{"OPENAI_API_BASE", base + "/v1"}, {"OPENAI_API_KEY", "local"}}
+			s.Command = []string{"aider", "--model", "openai/" + m}
+		} else {
+			s.Env = [][2]string{{"OLLAMA_API_BASE", base}}
+			s.Command = []string{"aider", "--model", "ollama_chat/" + m}
+		}
 	case "cline":
 		s.Steps = []string{
 			"Cline settings → API Provider: Ollama",
@@ -177,16 +204,24 @@ model = "%s"
 			fmt.Sprintf("(or API Provider \"OpenAI Compatible\", Base URL %s/v1, any API key, Model ID %s)", base, m),
 		}
 	case "continue":
+		provider, api := "ollama", base
+		if o.Protocol == "openai-chat" {
+			provider, api = "openai", base+"/v1"
+		}
 		s.ConfigPath = "~/.continue/config.yaml"
 		s.Config = fmt.Sprintf(`models:
   - name: %s (cyrlm)
-    provider: ollama
+    provider: %s
     model: %s
     apiBase: %s
     roles: [chat, edit, apply]
     capabilities: [tool_use]
-`, m, m, base)
+`, m, provider, m, api)
 	case "zed":
+		if o.Protocol == "openai-chat" {
+			s.Steps = []string{"Zed → Agent panel settings → add an OpenAI-compatible provider: API URL " + base + "/v1, model " + m}
+			break
+		}
 		s.ConfigPath = "Zed settings.json"
 		s.Config = fmt.Sprintf(`"language_models": {
   "ollama": { "api_url": "%s" }

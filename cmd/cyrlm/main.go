@@ -455,7 +455,7 @@ func cmdServe(args []string, try bool) error {
 	}
 	printServeBanner(m, t, prof, why, res, upDesc, bound, *port)
 	if c.harness != "" {
-		setup := hh.SetupFor(harness.Options{Port: bound, Model: m.OllamaTag, Tuned: c.tuned})
+		setup := hh.SetupFor(harness.Options{Port: bound, Model: m.OllamaTag, Tuned: c.tuned, ContextTokens: res.Settings.ContextTokens})
 		fmt.Printf("── Connect %s ─────────────────────────────────────────\n\n%s\n", hh.Name, setup.Render())
 		if *launch {
 			go func() { _ = srv.Serve() }()

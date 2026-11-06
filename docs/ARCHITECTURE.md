@@ -22,7 +22,7 @@
 
 | Package | Role |
 |---|---|
-| `cmd/cyrlm` | CLI: `detect`, `models`, `runtimes`, `predict`, `serve`, `try`, `inspect`; ranks runtimes and recommends the best setup, preferring ones already installed |
+| `cmd/cyrlm` | CLI: `detect`, `models`, `runtimes`, `predict`, `recommend`, `serve`, `try`, `plan`, `verify`, `inspect`, `prompt`, `login`/`share`/`config`; `agent_prompt.md` is the paste-in message for coding agents; ranks runtimes and recommends the best setup, preferring ones already installed |
 | `tools/catalog-gen` | Regenerates the generated part of the catalog: `go run ./tools/catalog-gen > internal/catalog/models_gguf.json` |
 | `internal/hw` | Detects OS, CPU, RAM, GPUs and installed runtimes by shelling out to standard tools (nvidia-smi, sysfs, system_profiler, PowerShell CIM + registry). Pure parsers, fixture-tested. Memory-bandwidth probe. |
 | `internal/specs` | Spec bandwidth / FP16 throughput for ~120 GPUs, Apple chips by GPU-core bin, APUs, iGPUs, CPUs; name matching. |
@@ -35,6 +35,9 @@
 | `internal/api/{openai,anthropic,responses,ollama}` | Wire protocols: decode into `llm.Request`, encode `llm.Event` streams. Ollama discovery endpoints (`/api/tags`, `/api/show`, `/api/ps`, `/api/version`). |
 | `internal/upstream` | OpenAI-compatible streaming client (OpenRouter provider pinning, reasoning fields) and an offline mock. |
 | `internal/server` | One HTTP server for all protocols, localhost Host/Origin protection, logging, `/cyrlm/stats`. |
+| `internal/setup` | Builds exact setup plans (never runs them): per runtime and OS — install, download the exact GGUF/MLX file, apply tuned settings (Ollama Modelfile + server env, llama-server flags, `lms load`, mlx-lm flags), connect the harness (separate Claude Code settings file, Codex profile, OpenCode/Continue configs), verify. Each step carries a confidence and docs link. |
+| `internal/verify` | Measures a running runtime like a harness uses it: load probe, uncached long prompt, cached follow-up; compares with the prediction. |
+| `internal/account` | Account key (owner-only file), opt-in sharing modes, report storage and upload; see [CLOUD_API.md](CLOUD_API.md). |
 | `internal/harness` | Per-harness protocol, prompt-size scenario and connection instructions; `--launch`. |
 
 ## Key design decisions

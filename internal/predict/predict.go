@@ -274,6 +274,9 @@ type Scenario struct {
 	Turns int
 	// MidDepth is the context depth used for "typical follow-up".
 	MidDepth int
+	// MinContext is the smallest context the harness works in (0 = base
+	// prompt + 8k); e.g. Codex recommends 64k.
+	MinContext int
 }
 
 // DefaultScenario is a Claude Code-sized session.
@@ -571,6 +574,9 @@ func MinContext(sc Scenario) int {
 	if sc.BasePromptTokens == 0 {
 		sc = DefaultScenario()
 	}
+	if sc.MinContext > 0 {
+		return sc.MinContext
+	}
 	return sc.BasePromptTokens + 8192
 }
 
@@ -582,6 +588,9 @@ func RecommendedContext(sc Scenario, native, maxFit int) int {
 		sc = DefaultScenario()
 	}
 	want := sc.BasePromptTokens*2 + 16384
+	if m := MinContext(sc); m > want {
+		want = m
+	}
 	ctx := ((want + 8191) / 8192) * 8192
 	if ctx < 32768 {
 		ctx = 32768
