@@ -1,0 +1,5 @@
+sysctl.proc_translated: 0
+hw.optional.avx1_0: 1
+hw.optional.avx2_0: 1
+hw.optional.avx512f: 0
+hw.optional.fma: 1

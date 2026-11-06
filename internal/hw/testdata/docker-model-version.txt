@@ -1,0 +1,2 @@
+Docker Model Runner version v0.1.44
+Docker Engine Kind: Docker Desktop

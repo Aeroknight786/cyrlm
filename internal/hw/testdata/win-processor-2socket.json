@@ -1,0 +1,12 @@
+[
+    {
+        "Name":  "Intel(R) Xeon(R) Gold 6430",
+        "NumberOfCores":  32,
+        "NumberOfLogicalProcessors":  64
+    },
+    {
+        "Name":  "Intel(R) Xeon(R) Gold 6430",
+        "NumberOfCores":  32,
+        "NumberOfLogicalProcessors":  64
+    }
+]

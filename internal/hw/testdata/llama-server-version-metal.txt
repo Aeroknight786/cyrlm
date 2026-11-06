@@ -1,0 +1,2 @@
+version: 6765 (5cca2542)
+built with Apple clang version 17.0.0 (clang-1700.0.13.5) for arm64-apple-darwin24.6.0

@@ -1,0 +1,12 @@
+# List of AMDGPU IDs
+#
+# Syntax:
+# device_id,	revision_id,	product_name        <-- single tab after comma
+
+1.0.0
+1586,	C1,	AMD Radeon 8060S Graphics
+1586,	C2,	AMD Radeon 8050S Graphics
+15BF,	C1,	AMD Radeon 780M Graphics
+744C,	C8,	AMD Radeon RX 7900 XTX
+744C,	CC,	AMD Radeon RX 7900 XT
+744C,	CE,	AMD Radeon RX 7900 GRE

@@ -1,0 +1,7 @@
+hw.perflevel0.physicalcpu: 10
+iogpu.wired_limit_mb: 0
+sysctl.proc_translated: 0
+hw.optional.arm.FEAT_DotProd: 1
+hw.optional.arm.FEAT_I8MM: 1
+hw.optional.arm.FEAT_BF16: 1
+hw.optional.arm.FEAT_SME: 1

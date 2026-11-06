@@ -1,0 +1,19 @@
+[
+    {
+        "DriverDesc":  "NVIDIA GeForce RTX 4090",
+        "MatchingDeviceId":  "pci\\ven_10de&dev_2684",
+        "HardwareInformation.qwMemorySize":  25757220864,
+        "HardwareInformation.MemorySize":  null
+    },
+    {
+        "DriverDesc":  "Intel(R) UHD Graphics 770",
+        "MatchingDeviceId":  "pci\\ven_8086&dev_a780",
+        "HardwareInformation.qwMemorySize":  null,
+        "HardwareInformation.MemorySize":  [
+                                               0,
+                                               0,
+                                               0,
+                                               8
+                                           ]
+    }
+]

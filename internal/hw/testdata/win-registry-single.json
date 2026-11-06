@@ -1,0 +1,14 @@
+{
+    "DriverDesc":  "AMD Radeon 780M Graphics",
+    "MatchingDeviceId":  "pci\\ven_1002&dev_15bf&rev_c1",
+    "HardwareInformation.qwMemorySize":  536870912,
+    "HardwareInformation.MemorySize":  {
+                                           "value":  [
+                                                         0,
+                                                         0,
+                                                         0,
+                                                         32
+                                                     ],
+                                           "Count":  4
+                                       }
+}

@@ -1,0 +1,6 @@
+ggml_vulkan: Found 1 Vulkan devices:
+ggml_vulkan: 0 = AMD Radeon 8060S Graphics (RADV GFX1151) (radv) | uma: 1 | fp16: 1 | bf16: 0 | warp size: 64 | shared memory: 65536 | int dot: 1 | matrix cores: KHR_coopmat
+load_backend: loaded Vulkan backend from /home/dev/llama.cpp/build/bin/libggml-vulkan.so
+load_backend: loaded CPU backend from /home/dev/llama.cpp/build/bin/libggml-cpu.so
+version: 6710 (a1b2c3d4)
+built with cc (GCC) 15.2.1 20250813 for x86_64-pc-linux-gnu
