@@ -35,16 +35,23 @@ Single static binary for macOS, Linux and Windows (Go, no dependencies).
 go install github.com/aeroknight786/cyrlm/cmd/cyrlm@latest
 
 # or a release binary (once releases are published)
-curl -fsSL https://raw.githubusercontent.com/aeroknight786/cyrlm/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aeroknight786/cyrlm/ccr-db94bc6e-e47992/install.sh | sh   # prints the prompt to paste
 ```
 
 ## Let your coding agent do everything
 
-```sh
-cyrlm prompt --harness claude-code     # prints a message — paste it into Claude Code (or codex, opencode, …)
+Paste this into Claude Code, Codex, OpenCode or any coding agent:
+
+```text
+Help me find, try and set up the best local AI model for coding on this computer, using cyrlm (https://github.com/aeroknight786/cyrlm).
+
+1. If `cyrlm version` fails, install it — ask me first:
+   macOS/Linux: curl -fsSL https://raw.githubusercontent.com/aeroknight786/cyrlm/ccr-db94bc6e-e47992/install.sh | CYRLM_NO_PROMPT=1 sh
+   Windows (PowerShell): $env:CYRLM_NO_PROMPT=1; irm https://raw.githubusercontent.com/aeroknight786/cyrlm/ccr-db94bc6e-e47992/install.ps1 | iex
+2. Run `cyrlm prompt --harness <the coding tool you are running in>` and follow those instructions exactly.
 ```
 
-The message tells your agent to use the CLI step by step: detect your machine, show the best options (`cyrlm recommend`), offer a live trial at your machine's speed (`cyrlm try`), and — when you say go — set it up (`cyrlm plan`), asking before every download or change, then measure the real setup against the prediction (`cyrlm verify`). At the end it asks whether you want to share the anonymous result (`cyrlm share`) to improve predictions for everyone. Keys never go through the chat: you run `cyrlm login` yourself.
+The agent installs cyrlm, shows the best options for your machine, starts a live trial (you open one extra terminal for it), and — when you say go — downloads, configures and verifies the setup, asking before every change. The only thing you type yourself is your key: `cyrlm login --openrouter` (it never goes through the chat). Running the install command yourself prints the same instructions to paste.
 
 ## Quick start
 

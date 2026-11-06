@@ -520,10 +520,10 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 		switch {
 		case acct.CanShare():
 			kind = "cyrlm"
-		case os.Getenv(nonEmptyStr(keyEnv, "OPENROUTER_API_KEY")) != "":
+		case os.Getenv(nonEmptyStr(keyEnv, "OPENROUTER_API_KEY")) != "" || acct.OpenRouterKey != "":
 			kind = "openrouter"
 		default:
-			return nil, "", errors.New("the trial needs the real model in the cloud: log in with `cyrlm login` (key from your cyrlm account) or set OPENROUTER_API_KEY. For an offline timing demo use --upstream mock")
+			return nil, "", errors.New("the trial needs the real model in the cloud: run `cyrlm login --openrouter` yourself (paste your OpenRouter key there, not into a chat), or `cyrlm login` with a cyrlm account key. For an offline timing demo use --upstream mock")
 		}
 	}
 	switch kind {
@@ -564,7 +564,10 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 	}
 	key := os.Getenv(keyEnv)
 	if key == "" && base == upstream.OpenRouterBaseURL {
-		return nil, "", fmt.Errorf("set %s to your OpenRouter API key (the real model runs there), or use --upstream mock for an offline timing demo", keyEnv)
+		key = acct.OpenRouterKey
+	}
+	if key == "" && base == upstream.OpenRouterBaseURL {
+		return nil, "", fmt.Errorf("no OpenRouter key: run `cyrlm login --openrouter` (or set %s), or use --upstream mock for an offline timing demo", keyEnv)
 	}
 	extra := map[string]any{}
 	if base == upstream.OpenRouterBaseURL {

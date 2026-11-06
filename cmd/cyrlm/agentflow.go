@@ -42,6 +42,9 @@ func cmdPrompt(args []string) error {
 			return err
 		}
 		p = strings.ReplaceAll(p, "<HARNESS>", hh.ID)
+	} else {
+		p = strings.ReplaceAll(p, "You are running in <HARNESS> — use that as `--harness`", "Work out which coding tool you are running in and use it wherever <your-tool> appears as `--harness`")
+		p = strings.ReplaceAll(p, "<HARNESS>", "<your-tool>")
 	}
 	fmt.Print(p)
 	return nil
@@ -349,10 +352,29 @@ func cmdLogin(args []string) error {
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
 	key := fs.String("key", "", "account key (default: read from stdin)")
 	apiURL := fs.String("api", "", "account server URL")
+	openrouter := fs.Bool("openrouter", false, "store your own OpenRouter key for trials instead of a cyrlm account key")
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
 	}
 	cfg := account.Load()
+	if *openrouter {
+		k := strings.TrimSpace(*key)
+		if k == "" {
+			fmt.Print("Paste your OpenRouter key (https://openrouter.ai/keys; input is visible, it is stored only on this machine): ")
+			line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+			k = strings.TrimSpace(line)
+		}
+		if k == "" {
+			return errors.New("no key entered")
+		}
+		cfg.OpenRouterKey = k
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		dir, _ := account.Dir()
+		fmt.Printf("OpenRouter key saved (%s) in %s — trials will use it.\n", account.Mask(k), dir)
+		return nil
+	}
 	if *apiURL != "" {
 		cfg.APIURL = *apiURL
 	}
@@ -409,7 +431,11 @@ func cmdConfig(args []string) error {
 			api = "(not configured)"
 		}
 		dir, _ := account.Dir()
-		fmt.Printf("key       %s\napi-url   %s\nshare     %s   (ask | always | never)\nfiles     %s\n", key, api, cfg.Share, dir)
+		or := "(none)"
+		if cfg.OpenRouterKey != "" {
+			or = account.Mask(cfg.OpenRouterKey)
+		}
+		fmt.Printf("key         %s\nopenrouter  %s\napi-url     %s\nshare       %s   (ask | always | never)\nfiles       %s\n", key, or, api, cfg.Share, dir)
 		return nil
 	}
 	if args[0] != "set" || len(args) != 3 {

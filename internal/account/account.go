@@ -37,6 +37,9 @@ type Config struct {
 	APIURL string `json:"api_url,omitempty"`
 	Key    string `json:"key,omitempty"`
 	Share  string `json:"share,omitempty"`
+	// OpenRouterKey is the user's own OpenRouter key for trials, stored
+	// here by `cyrlm login --openrouter` so it never passes through a chat.
+	OpenRouterKey string `json:"openrouter_key,omitempty"`
 }
 
 // Dir returns cyrlm's config directory (CYRLM_HOME overrides).
@@ -105,8 +108,10 @@ func (c Config) LoggedIn() bool { return c.Key != "" }
 func (c Config) CanShare() bool { return c.Key != "" && c.APIURL != "" }
 
 // MaskedKey shows only the key's ends.
-func (c Config) MaskedKey() string {
-	k := c.Key
+func (c Config) MaskedKey() string { return Mask(c.Key) }
+
+// Mask shows only a secret's ends.
+func Mask(k string) string {
 	if len(k) <= 8 {
 		return strings.Repeat("•", len(k))
 	}

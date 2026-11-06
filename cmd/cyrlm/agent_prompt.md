@@ -1,18 +1,25 @@
-Help me find, try and set up the best local LLM for coding on this machine, using the `cyrlm` command-line tool. You are running in <HARNESS> (use that as `--harness`: claude-code, codex, opencode, aider, cline, continue, zed or qwen-code).
+You are helping me find, try and set up the best local AI model for coding on this computer with the `cyrlm` CLI. Do the work yourself, step by step. You are running in <HARNESS> — use that as `--harness` (claude-code, codex, opencode, aider, cline, continue, zed or qwen-code).
 
 Rules — follow them strictly:
-- Before every download, install, config change or service restart, show me the exact command, what it changes and the download size, and wait for my "yes".
-- Never install or update GPU drivers. Never use sudo/admin without asking first.
-- Prefer runtimes that are already installed. Back up any config file before editing it.
-- Never ask me to paste API keys into this chat. If a key is needed, ask me to run `cyrlm login` (or set the environment variable) myself in my own terminal.
-- Keep your answers short: tables over paragraphs.
+- Before every download, install, config change or service restart, show me the exact command, what it changes and the download size, and wait for my "yes". Read-only commands (detect, recommend, predict, plan) need no approval.
+- Never install or update GPU drivers. Never use sudo/admin without asking first. Prefer runtimes that are already installed. Back up any config file before editing it.
+- Never ask me to paste an API key into this chat and never print one. When a key is needed, tell me to run `cyrlm login --openrouter` myself in a separate terminal (it stores my OpenRouter key on this machine only).
+- Be brief: tables over paragraphs, no more than a few lines between steps.
 
-Steps:
-1. Run `cyrlm version`. If it's missing, install it (macOS/Linux: `curl -fsSL https://raw.githubusercontent.com/aeroknight786/cyrlm/main/install.sh | sh`; Windows: the .zip from https://github.com/aeroknight786/cyrlm/releases; or `go install github.com/aeroknight786/cyrlm/cmd/cyrlm@latest`).
-2. Run `cyrlm detect --json`. Summarise my machine and installed runtimes in two lines.
-3. Run `cyrlm recommend --harness <HARNESS> --json`. Show the top 3 options as a table: model, runtime, download size, first reply, follow-up turn, task time, feel. Mention the expected error and any warnings from the JSON. Ask which one I want (or whether to see `cyrlm predict <model>` details).
-4. Offer a live trial before anything is downloaded: it uses the real model in the cloud, paced to my machine's speed, inside my own coding tool. It needs my cyrlm account key (`cyrlm login`) or an `OPENROUTER_API_KEY`. If I agree, tell me to run this in a separate terminal (it keeps running): `cyrlm try <model> --runtime <runtime> --tuned --harness <HARNESS>`. It prints how to open a second session of my coding tool against it. Do not run the trial inside this session. Wait until I come back and tell you how it felt.
-5. When I say go, run `cyrlm plan <model> --runtime <runtime> --tuned --harness <HARNESS> --json`. Show me the steps (with total download size) as a numbered list. Then execute them in order, asking before each one. If a step fails, diagnose and fix it, but never work around the rules above.
-6. Run the plan's final `cyrlm verify …` step and show me measured vs predicted. If the prompt cache was not reused, help me fix the runtime setting.
-7. Ask if I want to share the anonymous result (timings and hardware class only) to improve predictions for everyone. If yes, run `cyrlm share --last --dry-run`, show me the payload, and after my "yes" run `cyrlm share --last --yes`. If I'm not logged in, tell me to run `cyrlm login` myself.
-8. Finish with: how to start my coding tool with the new local model, the exact settings that were changed, and how to undo them.
+1. Machine — run `cyrlm detect --json` and summarise my machine and installed runtimes in two lines.
+
+2. Options — run `cyrlm recommend --harness <HARNESS> --json`. Show the top 3 as a table: model, runtime, download size, first reply, follow-up turn, task time, feel. Add one line on the expected error and any warnings (e.g. a "trial stand-in"). Ask which one I want.
+
+3. Trial — offer to let me feel the model before anything is downloaded: the real model runs in the cloud, but answers arrive at my machine's predicted speed, in a second session of my own coding tool.
+   - Check `cyrlm config`: if "openrouter" shows "(none)" and I'm not logged in, ask me to run `cyrlm login --openrouter` in my own terminal and tell you when done.
+   - Start the trial server yourself in the background, logging to a file, e.g. `cyrlm try <model> --runtime <runtime> --tuned --harness <HARNESS> > "$HOME/.cyrlm-trial.log" 2>&1 &` (PowerShell: `Start-Process cyrlm -ArgumentList 'try','<model>','--runtime','<runtime>','--tuned','--harness','<HARNESS>' -RedirectStandardOutput "$HOME\.cyrlm-trial.log" -NoNewWindow`).
+   - Read the log's "Connect" section and give me the single command to start my coding tool against the trial in a NEW terminal window. Do not start that session yourself.
+   - While I try it, you can read the log to explain what happened (first-token times, cache misses, truncation). When I come back, stop the trial server and ask how it felt.
+
+4. Plan — when I say go, run `cyrlm plan <model> --runtime <runtime> --tuned --harness <HARNESS> --json`. Show the steps as a numbered list with the total download size. Execute them in order, asking before each one. If a step fails, diagnose and fix it within the rules above.
+
+5. Verify — run the plan's final `cyrlm verify …` step and show measured vs predicted. If the prompt cache was not reused, help me fix that setting.
+
+6. Share — ask if I want to share the anonymous result (timings and hardware class only) to improve predictions for everyone. If yes, run `cyrlm share --last --dry-run`, show me the payload, and after my "yes" run `cyrlm share --last --yes` (skip if it says I'm not logged in).
+
+7. Finish — tell me how to start my coding tool with the new local model, which settings were changed, and how to undo them.
