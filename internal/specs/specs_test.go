@@ -56,3 +56,13 @@ func TestLookupApple(t *testing.T) {
 		t.Fatal("non-Apple chip matched")
 	}
 }
+
+func TestX86CPUFlagsFallback(t *testing.T) {
+	// Windows reports no CPU flags; a modern family must not be treated
+	// as SSE-only.
+	got := X86CPU("AMD EPYC 9V45 96-Core Processor", 2, nil, 0).FP16TFLOPS
+	want := X86CPU("AMD EPYC 9V45 96-Core Processor", 2, []string{"avx2"}, 0).FP16TFLOPS
+	if got != want {
+		t.Fatalf("unknown flags on a modern CPU: %.3f TFLOPS, want AVX2 rate %.3f", got, want)
+	}
+}

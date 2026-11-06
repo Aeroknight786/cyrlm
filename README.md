@@ -65,6 +65,12 @@ While you work, each request prints one line, and Ctrl-C prints a session summar
        now:    changed⏎You are Claude Code. Follow the repository…
 ```
 
+## Models and runtimes
+
+- **24 catalog models** (`cyrlm models`): Qwen3.8 27B, Qwen3.6 35B-A3B, Qwen3.5 4B/9B, Qwen3-Coder 30B, Gemma 4 12B/26B-A4B, gpt-oss 20B/120B, GLM-4.7-Flash, Devstral Small 2, Nemotron 3.5 Lightning, Granite 4.2, Llama 3.x and more. Newer entries are generated from the models' own GGUF headers (`tools/catalog-gen`).
+- **Any other model**: pass a GGUF file or Hugging Face URL to `predict`/`serve`/`inspect`; only the header is read.
+- **Runtimes**: `detect` finds Ollama, LM Studio, llama.cpp, mlx-lm, vLLM, Jan, Lemonade and Docker Model Runner. `predict` compares Ollama, llama.cpp, LM Studio (llama.cpp and MLX engines) and mlx-lm with default and tuned settings, marks the ones you have installed (●), and recommends the best setup — preferring what you already have when it is within 5% of the best. Jan, Lemonade and Docker Model Runner are simulated with the llama.cpp profile; vLLM is detected but not simulated yet.
+
 ## What is simulated
 
 | Simulated | How |

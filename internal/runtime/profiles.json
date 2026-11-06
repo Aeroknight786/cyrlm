@@ -8,19 +8,59 @@
       "name": "Ollama",
       "versions": "0.12 - 0.13",
       "engine": "llamacpp",
-      "formats": ["gguf"],
+      "formats": [
+        "gguf"
+      ],
       "platforms": {
-        "darwin/arm64": ["metal"],
-        "darwin/amd64": ["cpu"],
-        "linux": ["cuda", "rocm", "vulkan", "cpu"],
-        "windows": ["cuda", "rocm", "vulkan", "cpu"]
+        "darwin/arm64": [
+          "metal"
+        ],
+        "darwin/amd64": [
+          "cpu"
+        ],
+        "linux": [
+          "cuda",
+          "rocm",
+          "vulkan",
+          "cpu"
+        ],
+        "windows": [
+          "cuda",
+          "rocm",
+          "vulkan",
+          "cpu"
+        ]
       },
-      "backend_preference": ["cuda", "metal", "rocm", "vulkan", "cpu"],
-      "apis": ["ollama", "openai-chat", "anthropic", "responses"],
+      "backend_preference": [
+        "cuda",
+        "metal",
+        "rocm",
+        "vulkan",
+        "cpu"
+      ],
+      "apis": [
+        "ollama",
+        "openai-chat",
+        "anthropic",
+        "responses"
+      ],
       "port": 11434,
       "defaults": {
-        "context": {"vram_tiers": [{"below_gib": 24, "tokens": 4096}, {"below_gib": 48, "tokens": 32768}], "otherwise_tokens": 262144, "confidence": "medium",
-                    "source": "https://docs.ollama.com/context-length"},
+        "context": {
+          "vram_tiers": [
+            {
+              "below_gib": 24,
+              "tokens": 4096
+            },
+            {
+              "below_gib": 48,
+              "tokens": 32768
+            }
+          ],
+          "otherwise_tokens": 262144,
+          "confidence": "medium",
+          "source": "https://docs.ollama.com/context-length"
+        },
         "honors_request_num_ctx": true,
         "keep_alive_s": 300,
         "slots": 1,
@@ -33,18 +73,32 @@
         "ram_cache_gib": 0
       },
       "confidence": {
-        "keep_alive_s": "high", "slots": "medium", "kv_cache_type": "high", "flash_attention": "low",
-        "overflow": "low", "on_context_full": "medium", "swa_rollback": "low", "otherwise_tokens": "low"
+        "keep_alive_s": "high",
+        "slots": "medium",
+        "kv_cache_type": "high",
+        "flash_attention": "low",
+        "overflow": "low",
+        "on_context_full": "medium",
+        "swa_rollback": "low",
+        "otherwise_tokens": "low"
       },
       "tuned": {
-        "context_tokens": 65536, "keep_alive_s": -1, "flash_attention": true,
+        "context_tokens": 65536,
+        "keep_alive_s": -1,
+        "flash_attention": true,
         "steps": [
           "Set the context length: OLLAMA_CONTEXT_LENGTH={{ctx}} (or num_ctx in a Modelfile)",
           "Keep the model loaded: OLLAMA_KEEP_ALIVE=-1",
           "Enable flash attention: OLLAMA_FLASH_ATTENTION=1"
-        ]
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: OLLAMA_KV_CACHE_TYPE=q8_0 (needs flash attention)"
       },
-      "perf": {"decode_mult": 0.95, "prefill_mult": 0.95, "load_overhead_s": 2.5, "confidence": "low"},
+      "perf": {
+        "decode_mult": 0.95,
+        "prefill_mult": 0.95,
+        "load_overhead_s": 2.5,
+        "confidence": "low"
+      },
       "notes": [
         "The default context window is small on machines with less GPU memory; coding agents' system prompts often do not fit and are silently truncated.",
         "Models unload after 5 idle minutes by default; the next request pays a reload and a full prefill.",
@@ -56,19 +110,51 @@
       "name": "llama.cpp (llama-server)",
       "versions": "b6800+",
       "engine": "llamacpp",
-      "formats": ["gguf"],
+      "formats": [
+        "gguf"
+      ],
       "platforms": {
-        "darwin/arm64": ["metal", "cpu"],
-        "darwin/amd64": ["cpu"],
-        "linux": ["cuda", "rocm", "vulkan", "sycl", "cpu"],
-        "windows": ["cuda", "rocm", "vulkan", "sycl", "cpu"]
+        "darwin/arm64": [
+          "metal",
+          "cpu"
+        ],
+        "darwin/amd64": [
+          "cpu"
+        ],
+        "linux": [
+          "cuda",
+          "rocm",
+          "vulkan",
+          "sycl",
+          "cpu"
+        ],
+        "windows": [
+          "cuda",
+          "rocm",
+          "vulkan",
+          "sycl",
+          "cpu"
+        ]
       },
-      "backend_preference": ["cuda", "metal", "vulkan", "sycl", "rocm", "cpu"],
-      "apis": ["openai-chat", "anthropic"],
+      "backend_preference": [
+        "cuda",
+        "metal",
+        "vulkan",
+        "sycl",
+        "rocm",
+        "cpu"
+      ],
+      "apis": [
+        "openai-chat",
+        "anthropic"
+      ],
       "port": 8080,
       "defaults": {
-        "context": {"fit_to_memory": true, "confidence": "low",
-                    "source": "recent builds size the context to free memory (--fit); older builds default to 4096"},
+        "context": {
+          "fit_to_memory": true,
+          "confidence": "low",
+          "source": "recent builds size the context to free memory (--fit); older builds default to 4096"
+        },
         "honors_request_num_ctx": false,
         "keep_alive_s": -1,
         "slots": 4,
@@ -82,18 +168,32 @@
         "ram_cache_gib": 8
       },
       "confidence": {
-        "keep_alive_s": "high", "slots": "medium", "slot_similarity": "medium", "kv_cache_type": "high",
-        "flash_attention": "medium", "overflow": "high", "on_context_full": "medium", "swa_rollback": "medium",
-        "checkpoints": "low", "ram_cache_gib": "medium"
+        "keep_alive_s": "high",
+        "slots": "medium",
+        "slot_similarity": "medium",
+        "kv_cache_type": "high",
+        "flash_attention": "medium",
+        "overflow": "high",
+        "on_context_full": "medium",
+        "swa_rollback": "medium",
+        "checkpoints": "low",
+        "ram_cache_gib": "medium"
       },
       "tuned": {
-        "context_tokens": 65536, "flash_attention": true,
+        "context_tokens": 65536,
+        "flash_attention": true,
         "steps": [
           "llama-server -m <model.gguf> -c {{ctx}} -fa on --jinja",
           "Optional: --slot-save-path to persist the harness prompt cache across restarts"
-        ]
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: add -ctk q8_0 -ctv q8_0"
       },
-      "perf": {"decode_mult": 0.97, "prefill_mult": 0.98, "load_overhead_s": 1.5, "confidence": "medium"},
+      "perf": {
+        "decode_mult": 0.97,
+        "prefill_mult": 0.98,
+        "load_overhead_s": 1.5,
+        "confidence": "medium"
+      },
       "notes": [
         "Calibration baseline: the predictor's efficiencies were fitted on llama.cpp benchmarks.",
         "Requests larger than the context return an error instead of being truncated.",
@@ -105,18 +205,42 @@
       "name": "LM Studio (llama.cpp engine)",
       "versions": "0.3.30 - 0.4.x",
       "engine": "llamacpp",
-      "formats": ["gguf"],
+      "formats": [
+        "gguf"
+      ],
       "platforms": {
-        "darwin/arm64": ["metal"],
-        "linux": ["cuda", "vulkan", "cpu"],
-        "windows": ["cuda", "vulkan", "cpu"]
+        "darwin/arm64": [
+          "metal"
+        ],
+        "linux": [
+          "cuda",
+          "vulkan",
+          "cpu"
+        ],
+        "windows": [
+          "cuda",
+          "vulkan",
+          "cpu"
+        ]
       },
-      "backend_preference": ["cuda", "metal", "vulkan", "cpu"],
-      "apis": ["openai-chat", "responses", "anthropic"],
+      "backend_preference": [
+        "cuda",
+        "metal",
+        "vulkan",
+        "cpu"
+      ],
+      "apis": [
+        "openai-chat",
+        "responses",
+        "anthropic"
+      ],
       "port": 1234,
       "defaults": {
-        "context": {"fixed_tokens": 4096, "confidence": "medium",
-                    "source": "LM Studio loads models with a 4096-token context unless changed; its Claude Code guide recommends raising it"},
+        "context": {
+          "fixed_tokens": 4096,
+          "confidence": "medium",
+          "source": "LM Studio loads models with a 4096-token context unless changed; its Claude Code guide recommends raising it"
+        },
         "honors_request_num_ctx": false,
         "keep_alive_s": 3600,
         "slots": 1,
@@ -129,18 +253,31 @@
         "ram_cache_gib": 0
       },
       "confidence": {
-        "keep_alive_s": "low", "slots": "low", "kv_cache_type": "high", "flash_attention": "low",
-        "overflow": "low", "on_context_full": "low", "swa_rollback": "low"
+        "keep_alive_s": "low",
+        "slots": "low",
+        "kv_cache_type": "high",
+        "flash_attention": "low",
+        "overflow": "low",
+        "on_context_full": "low",
+        "swa_rollback": "low"
       },
       "tuned": {
-        "context_tokens": 65536, "flash_attention": true, "keep_alive_s": -1,
+        "context_tokens": 65536,
+        "flash_attention": true,
+        "keep_alive_s": -1,
         "steps": [
           "Load the model with Context Length {{ctx}} (lms load <model> --context-length {{ctx}})",
           "Enable Flash Attention in the model's load settings",
           "Disable idle auto-unload (JIT TTL) for the session"
-        ]
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: set K and V cache quantization to Q8_0 in the load settings"
       },
-      "perf": {"decode_mult": 0.97, "prefill_mult": 0.97, "load_overhead_s": 2.0, "confidence": "low"},
+      "perf": {
+        "decode_mult": 0.97,
+        "prefill_mult": 0.97,
+        "load_overhead_s": 2.0,
+        "confidence": "low"
+      },
       "notes": [
         "Default 4096-token context is far below coding-agent prompts; raise it before using an agent."
       ]
@@ -150,13 +287,29 @@
       "name": "LM Studio (MLX engine)",
       "versions": "0.3.30 - 0.4.x",
       "engine": "mlx",
-      "formats": ["mlx"],
-      "platforms": {"darwin/arm64": ["mlx"]},
-      "backend_preference": ["mlx"],
-      "apis": ["openai-chat", "responses", "anthropic"],
+      "formats": [
+        "mlx"
+      ],
+      "platforms": {
+        "darwin/arm64": [
+          "mlx"
+        ]
+      },
+      "backend_preference": [
+        "mlx"
+      ],
+      "apis": [
+        "openai-chat",
+        "responses",
+        "anthropic"
+      ],
       "port": 1234,
       "defaults": {
-        "context": {"fixed_tokens": 4096, "confidence": "medium", "source": "same LM Studio load default as the llama.cpp engine"},
+        "context": {
+          "fixed_tokens": 4096,
+          "confidence": "medium",
+          "source": "same LM Studio load default as the llama.cpp engine"
+        },
         "honors_request_num_ctx": false,
         "keep_alive_s": 3600,
         "slots": 1,
@@ -168,26 +321,57 @@
         "checkpoints": 0,
         "ram_cache_gib": 0
       },
-      "confidence": {"keep_alive_s": "low", "slots": "low", "overflow": "low", "swa_rollback": "medium"},
-      "tuned": {
-        "context_tokens": 65536, "keep_alive_s": -1,
-        "steps": ["Load the MLX model with Context Length {{ctx}}", "Disable idle auto-unload (JIT TTL) for the session"]
+      "confidence": {
+        "keep_alive_s": "low",
+        "slots": "low",
+        "overflow": "low",
+        "swa_rollback": "medium"
       },
-      "perf": {"decode_mult": 1.0, "prefill_mult": 1.0, "load_overhead_s": 1.5, "confidence": "low"},
-      "notes": ["MLX rolls the KV cache back to the shared prefix and recomputes the rest."]
+      "tuned": {
+        "context_tokens": 65536,
+        "keep_alive_s": -1,
+        "steps": [
+          "Load the MLX model with Context Length {{ctx}}",
+          "Disable idle auto-unload (JIT TTL) for the session"
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: set KV cache quantization to 8-bit in the load settings"
+      },
+      "perf": {
+        "decode_mult": 1.0,
+        "prefill_mult": 1.0,
+        "load_overhead_s": 1.5,
+        "confidence": "low"
+      },
+      "notes": [
+        "MLX rolls the KV cache back to the shared prefix and recomputes the rest."
+      ]
     },
     {
       "id": "mlx-lm",
       "name": "mlx-lm server",
       "versions": "0.26+",
       "engine": "mlx",
-      "formats": ["mlx"],
-      "platforms": {"darwin/arm64": ["mlx"]},
-      "backend_preference": ["mlx"],
-      "apis": ["openai-chat"],
+      "formats": [
+        "mlx"
+      ],
+      "platforms": {
+        "darwin/arm64": [
+          "mlx"
+        ]
+      },
+      "backend_preference": [
+        "mlx"
+      ],
+      "apis": [
+        "openai-chat"
+      ],
       "port": 8080,
       "defaults": {
-        "context": {"native": true, "confidence": "medium", "source": "mlx-lm allocates the KV cache dynamically; the limit is memory"},
+        "context": {
+          "native": true,
+          "confidence": "medium",
+          "source": "mlx-lm allocates the KV cache dynamically; the limit is memory"
+        },
         "honors_request_num_ctx": false,
         "keep_alive_s": -1,
         "slots": 1,
@@ -199,10 +383,26 @@
         "checkpoints": 0,
         "ram_cache_gib": 0
       },
-      "confidence": {"slots": "medium", "overflow": "low", "swa_rollback": "low"},
-      "tuned": {"steps": ["mlx_lm.server --model <mlx-model>"]},
-      "perf": {"decode_mult": 1.0, "prefill_mult": 1.0, "load_overhead_s": 1.5, "confidence": "low"},
-      "notes": ["OpenAI Chat Completions only: harnesses that need the Anthropic or Responses API need a translation layer."]
+      "confidence": {
+        "slots": "medium",
+        "overflow": "low",
+        "swa_rollback": "low"
+      },
+      "tuned": {
+        "steps": [
+          "mlx_lm.server --model <mlx-model>"
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: --kv-bits 8"
+      },
+      "perf": {
+        "decode_mult": 1.0,
+        "prefill_mult": 1.0,
+        "load_overhead_s": 1.5,
+        "confidence": "low"
+      },
+      "notes": [
+        "OpenAI Chat Completions only: harnesses that need the Anthropic or Responses API need a translation layer."
+      ]
     }
   ]
 }

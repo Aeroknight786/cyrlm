@@ -125,7 +125,7 @@ const (
 )
 
 func computeBuffer(m catalog.Model, ctx int, fa bool) float64 {
-	b := 0.25*gib + 0.012*gib*m.MatmulParamsB
+	b := 0.25*gib + 0.012*gib*m.MatmulParamsB + m.RecurrentStateBytes
 	if !fa {
 		// Without flash attention the attention-score tensor of one
 		// micro-batch (512) is materialised in f32.
@@ -302,7 +302,7 @@ const (
 
 // RunScenario computes headline numbers for a scenario.
 func RunScenario(t *Timing, sc Scenario, ctx int) ScenarioResult {
-	r := ScenarioResult{ContextTokens: ctx, FitsInContext: sc.BasePromptTokens+sc.OutputTokensPerTurn < ctx}
+	r := ScenarioResult{ContextTokens: ctx, FitsInContext: ctx >= MinContext(sc)}
 	p0 := sc.BasePromptTokens
 	first := t.PrefillSec(0, p0) + t.DecodeSec(p0)
 	r.FirstReply = dur(first)
@@ -433,16 +433,28 @@ func Predict(in Input) Result {
 	}
 	probe := EstimateMemory(in.Model, q, 4096, runtime.KVElemBytes(kv), true, backend, t)
 	rec := RecommendedContext(in.Scenario, in.Model.NativeCtx, probe.MaxCtx)
+	// Tuned: when memory limits the context below what the harness needs,
+	// an 8-bit KV cache roughly doubles the context that fits.
+	kvSwitched := false
+	if in.Tuned && in.KVCacheType == "" && kv == "f16" && rec < MinContext(in.Scenario) {
+		p8 := EstimateMemory(in.Model, q, 4096, runtime.KVElemBytes("q8_0"), true, backend, t)
+		if r8 := RecommendedContext(in.Scenario, in.Model.NativeCtx, p8.MaxCtx); r8 > rec {
+			probe, rec, kv, kvSwitched = p8, r8, "q8_0", true
+		}
+	}
 	s := in.Runtime.Resolve(runtime.ResolveInput{
 		GPUMemGiB: t.TierMemBytes() / gib, NativeCtx: in.Model.NativeCtx, MaxFitCtx: probe.MaxCtx,
 		Tuned: in.Tuned, CtxOverride: in.CtxOverride, RecommendedCtx: rec,
 	})
-	if in.KVCacheType != "" {
-		s.KVCacheType = in.KVCacheType
+	if in.KVCacheType != "" || kvSwitched {
+		s.KVCacheType = kv
 	}
 	res.Settings = s
 	if in.Tuned {
 		res.TuneSteps = in.Runtime.TunedSteps(s.ContextTokens)
+		if kvSwitched {
+			res.TuneSteps = append(res.TuneSteps, in.Runtime.KVQ8Step())
+		}
 	}
 	elem := runtime.KVElemBytes(s.KVCacheType)
 	res.Memory = EstimateMemory(in.Model, q, s.ContextTokens, elem, s.FlashAttention, backend, t)
@@ -499,6 +511,11 @@ func Predict(in Input) Result {
 	res.Scenario = RunScenario(tm, sc, s.ContextTokens)
 	res.DecodeTPSDeep = res.Scenario.FollowUpDecodeT
 	res.Accuracy = AccuracyFor(t.Device, backend, sc.MidDepth, in.Calibrated, res.Memory.Level == FitOffload)
+	if in.Model.RecurrentLayers > 0 && !res.Accuracy.NoClaim {
+		res.Accuracy.DecodePct += 15
+		res.Accuracy.PrefillPct += 15
+		res.Accuracy.Basis += "; hybrid linear-attention model: little benchmark data for its recurrent layers"
+	}
 	res.Supported = res.Memory.Level != FitNo
 
 	// Warnings.
@@ -512,8 +529,13 @@ func Predict(in Input) Result {
 		default:
 			what = "the prompt is silently truncated and the agent will misbehave"
 		}
-		res.Warnings = append(res.Warnings, fmt.Sprintf("%s's ~%dk-token prompt does not fit the %d-token context (%s): %s",
-			HarnessTitle(sc.Harness), sc.BasePromptTokens/1000, s.ContextTokens, s.ContextNote, what))
+		if sc.BasePromptTokens+sc.OutputTokensPerTurn < s.ContextTokens {
+			res.Warnings = append(res.Warnings, fmt.Sprintf("the %d-token context (%s) leaves almost no room after %s's ~%dk-token prompt: the conversation overflows within a few turns",
+				s.ContextTokens, s.ContextNote, HarnessTitle(sc.Harness), sc.BasePromptTokens/1000))
+		} else {
+			res.Warnings = append(res.Warnings, fmt.Sprintf("%s's ~%dk-token prompt does not fit the %d-token context (%s): %s",
+				HarnessTitle(sc.Harness), sc.BasePromptTokens/1000, s.ContextTokens, s.ContextNote, what))
+		}
 	}
 	if !in.Model.Tools && sc.Harness != "aider" {
 		res.Warnings = append(res.Warnings, in.Model.Name+" has no native tool calling in local runtimes: coding agents that call tools will fail")
@@ -541,6 +563,15 @@ func nz(v float64) float64 {
 		return 1
 	}
 	return v
+}
+
+// MinContext is the smallest context in which the harness can work: its
+// base prompt plus room for a few turns of conversation.
+func MinContext(sc Scenario) int {
+	if sc.BasePromptTokens == 0 {
+		sc = DefaultScenario()
+	}
+	return sc.BasePromptTokens + 8192
 }
 
 // RecommendedContext returns a context size suited to the harness: room for

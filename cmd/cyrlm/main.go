@@ -313,7 +313,10 @@ func cmdPredict(args []string) error {
 	if c.jsonOut {
 		return printJSON(jsonResults(results))
 	}
-	printPrediction(m, t, sc, results)
+	inst := detectInstalled(t)
+	printPrediction(m, t, sc, results, inst)
+	printRecommendation(results, inst)
+	fmt.Println()
 	return nil
 }
 
@@ -367,7 +370,7 @@ func cmdServe(args []string, try bool) error {
 
 	// Runtime: explicit, else an installed one that supports this machine,
 	// else the first profile that does.
-	prof, why, err := chooseRuntime(c, t)
+	prof, why, err := chooseRuntime(c, t, m, sc)
 	if err != nil {
 		return err
 	}
@@ -383,7 +386,7 @@ func cmdServe(args []string, try bool) error {
 			m.Name, t.Name, prof.Name, res.Memory.TotalBytes/(1<<30), res.Memory.BudgetBytes/(1<<30), suffix("; ", res.Memory.Fix))
 	}
 	if try {
-		printPrediction(m, t, sc, []predict.Result{res})
+		printPrediction(m, t, sc, []predict.Result{res}, installed{})
 	}
 
 	// Upstream.
@@ -477,33 +480,6 @@ func capabilities(m catalog.Model) []string {
 		c = append(c, "thinking")
 	}
 	return c
-}
-
-func chooseRuntime(c common, t predict.Target) (runtime.Profile, string, error) {
-	if c.runtime != "" && c.runtime != "all" {
-		p, err := runtime.Get(c.runtime)
-		return p, "chosen with --runtime", err
-	}
-	supported := func(p runtime.Profile) bool {
-		_, ok := p.ChooseBackend(t.OS, t.Arch, t.HWBackends)
-		return ok || t.CPUOnly
-	}
-	if !t.Synthetic {
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		installed := hw.DetectRuntimes(ctx)
-		cancel()
-		for _, ir := range installed {
-			if p, err := runtime.Get(ir.ID); err == nil && supported(p) {
-				return p, "installed on this machine", nil
-			}
-		}
-	}
-	for _, p := range runtime.All() {
-		if supported(p) {
-			return p, "most common runtime for this machine (none detected; pick with --runtime)", nil
-		}
-	}
-	return runtime.Profile{}, "", errors.New("no runtime profile supports this machine")
 }
 
 func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstream.Client, string, error) {

@@ -2,6 +2,7 @@ package predict
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/aeroknight786/cyrlm/internal/catalog"
@@ -132,5 +133,35 @@ func TestOllamaDefaultContextTiers(t *testing.T) {
 		if res.Settings.ContextTokens != c.want {
 			t.Errorf("%s %v GB: context %d, want %d (capped at native 131072)", c.device, c.vram, res.Settings.ContextTokens, c.want)
 		}
+	}
+}
+
+func TestAppleUnknownCoresName(t *testing.T) {
+	sys, _ := SyntheticSystem("Apple M1", 8, 0)
+	sys.GPUs[0].Cores = 0
+	tg := TargetFromSystem(sys, 0)
+	if strings.Contains(tg.Name, "0-core") || !strings.Contains(tg.Name, "GPU core count unknown") {
+		t.Fatalf("name %q", tg.Name)
+	}
+}
+
+func TestGeneratedCatalogModels(t *testing.T) {
+	prof, _ := runtime.Get("llamacpp")
+	sys, _ := SyntheticSystem("RTX 4090", 64, 0)
+	tg := TargetFromSystem(sys, 0)
+	for _, id := range []string{"qwen3.6:35b-a3b", "gemma4:26b-a4b", "glm-4.7-flash", "qwen3.8:27b"} {
+		m, ok := catalog.Lookup(id)
+		if !ok || !m.Generated {
+			t.Fatalf("%s missing from the generated catalog", id)
+		}
+		res := Predict(Input{Model: m, Runtime: prof, Target: tg, Tuned: true})
+		if res.Unsupported != "" || res.DecodeTPS0 <= 0 || res.Memory.TotalBytes <= 0 {
+			t.Fatalf("%s: bad prediction %+v", id, res.Unsupported)
+		}
+	}
+	// Hybrid models' KV cache grows only on their full-attention layers.
+	q36, _ := catalog.Lookup("qwen3.6:35b-a3b")
+	if kv := q36.KVCacheBytes(65536, 2); kv > 1.5e9 {
+		t.Fatalf("qwen3.6 KV at 64k = %.2f GB, expected ~1.3 GB (10 full-attention layers)", kv/1e9)
 	}
 }

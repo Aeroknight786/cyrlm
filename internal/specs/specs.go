@@ -316,10 +316,27 @@ func AppleCPU(chip string, perfCores int) Device {
 	}
 }
 
+// modernX86 reports whether a CPU name belongs to a family with AVX2
+// (Intel Haswell and later, AMD Zen and later).
+func modernX86(name string) bool {
+	n := strings.ToLower(name)
+	for _, k := range []string{"ryzen", "epyc", "threadripper", "core(tm) i", "core i", "core ultra", "xeon"} {
+		if strings.Contains(n, k) {
+			return true
+		}
+	}
+	return false
+}
+
 // X86CPU returns an estimated spec for CPU-only inference. measuredGBs > 0
 // (from the bandwidth probe) replaces the assumption.
 func X86CPU(name string, cores int, flags []string, measuredGBs float64) Device {
 	fpc := 16.0 // FP32 FLOPs/cycle/core without AVX2
+	if len(flags) == 0 && modernX86(name) {
+		// Flags unknown (e.g. Windows): every x86 CPU family below has
+		// AVX2; AVX-512 is not assumed.
+		flags = []string{"avx2"}
+	}
 	for _, f := range flags {
 		switch f {
 		case "avx512f":

@@ -13,10 +13,18 @@
 package catalog
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 )
+
+// generatedJSON holds entries produced by tools/catalog-gen from the
+// official GGUF headers on Hugging Face (exact geometry and file sizes).
+//
+//go:embed models_gguf.json
+var generatedJSON []byte
 
 // Quant is one downloadable quantization of a model.
 type Quant struct {
@@ -66,6 +74,20 @@ type Model struct {
 	KVHeads        int
 	HeadDim        int
 	QHeads         int
+	// RecurrentLayers are linear-attention/SSM layers with a fixed-size
+	// state instead of a growing KV cache (hybrid models).
+	RecurrentLayers int
+	// KVPerTokenF16 / SWAKVPerTokenF16, when set, are exact f16 KV bytes per
+	// token for full-attention and sliding layers (from the GGUF header);
+	// they override the heads × head-dim formula (needed for MLA etc.).
+	KVPerTokenF16    float64
+	SWAKVPerTokenF16 float64
+	// RecurrentStateBytes is the fixed per-sequence recurrent state.
+	RecurrentStateBytes float64
+	// Generated is true for entries read from GGUF headers.
+	Generated bool
+	// UpstreamVerified is false when OpenRouterID is a best guess.
+	UpstreamUnverified bool
 
 	// DecodeEff scales predicted decode speed for architectures whose
 	// kernels run below the bandwidth model (1 = no adjustment). Qwen3 MoE
@@ -238,6 +260,22 @@ var models = []Model{
 	},
 }
 
+func init() {
+	var gen []Model
+	if err := json.Unmarshal(generatedJSON, &gen); err != nil {
+		panic("catalog: invalid models_gguf.json: " + err.Error())
+	}
+	have := map[string]bool{}
+	for _, m := range models {
+		have[m.ID] = true
+	}
+	for _, m := range gen {
+		if !have[m.ID] {
+			models = append(models, m)
+		}
+	}
+}
+
 // All returns catalog models sorted by total size.
 func All() []Model {
 	out := append([]Model(nil), models...)
@@ -318,6 +356,9 @@ func (m Model) ReadBytes(q Quant) float64 {
 // KVBytesPerToken is the KV-cache size of one token across full-attention
 // layers for a cache element size (2 = f16, 1.0625 = q8_0, 0.5625 = q4_0).
 func (m Model) KVBytesPerToken(elemBytes float64) float64 {
+	if m.KVPerTokenF16 > 0 {
+		return m.KVPerTokenF16 * elemBytes / 2
+	}
 	return 2 * float64(m.FullAttnLayers*m.KVHeads*m.HeadDim) * elemBytes
 }
 
@@ -327,6 +368,9 @@ func (m Model) KVCacheBytes(ctx int, elemBytes float64) float64 {
 	win := m.SWAWindow
 	if ctx < win {
 		win = ctx
+	}
+	if m.KVPerTokenF16 > 0 || m.SWAKVPerTokenF16 > 0 {
+		return (m.KVPerTokenF16*float64(ctx) + m.SWAKVPerTokenF16*float64(win)) * elemBytes / 2
 	}
 	perLayerTok := 2 * float64(m.KVHeads*m.HeadDim) * elemBytes
 	return perLayerTok * (float64(m.FullAttnLayers)*float64(ctx) + float64(m.SWALayers)*float64(win))

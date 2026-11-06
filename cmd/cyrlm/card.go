@@ -81,7 +81,12 @@ func printDetect(sys *hw.System, t predict.Target, rts []hw.InstalledRuntime) {
 		if r.Running {
 			state = " · running at " + r.Endpoint
 		}
-		fmt.Printf("  %-20s %s%s\n", r.ID, r.Version, state)
+		fmt.Printf("  %-20s %s%s\n", runtimeTitles[r.ID], r.Version, state)
+		if ids, note := profileIDsFor(r); note != "" {
+			fmt.Printf("  %-20s ↳ %s\n", "", note)
+		} else if len(ids) > 0 {
+			fmt.Printf("  %-20s ↳ simulated as: %s\n", "", strings.Join(ids, ", "))
+		}
 	}
 }
 
@@ -93,6 +98,9 @@ func printModels(ms []catalog.Model) {
 		active := "dense"
 		if m.MoE {
 			active = fmt.Sprintf("%.1fB", m.ReadParamsB)
+		}
+		if m.RecurrentLayers > 0 {
+			active += " hybrid"
 		}
 		tools := "yes"
 		if !m.Tools {
@@ -144,7 +152,7 @@ func fitCell(r predict.Result) string {
 	return fmt.Sprintf("%s %.1f/%.0f GB", sym, m.TotalBytes/(1<<30), m.BudgetBytes/(1<<30))
 }
 
-func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs []predict.Result) {
+func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs []predict.Result, inst installed) {
 	fmt.Printf("\n%s on %s\n", m.Name, t.Name)
 	fmt.Printf("Scenario: %s — %dk-token system prompt + tools, then ~%s new tokens and ~%d output tokens per turn\n\n",
 		predict.HarnessTitle(sc.Harness), sc.BasePromptTokens/1000, sim.Kilo(sc.NewTokensPerTurn), sc.OutputTokensPerTurn)
@@ -174,7 +182,11 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 		if !r.Scenario.FitsInContext {
 			ctx += " ⚠"
 		}
-		fmt.Fprintf(w, "%s\t%s %s\t%s\t%s\t%s\t%s\t%s\t%s\n", rowLabel(r), r.Quant.Name, gb(float64(r.Quant.FileBytes)), ctx, fitCell(r), first, follow, writes, task)
+		label := rowLabel(r)
+		if inst.has(r.Runtime.ID) {
+			label += " ●"
+		}
+		fmt.Fprintf(w, "%s\t%s %s\t%s\t%s\t%s\t%s\t%s\t%s\n", label, r.Quant.Name, gb(float64(r.Quant.FileBytes)), ctx, fitCell(r), first, follow, writes, task)
 		for _, wn := range r.Warnings {
 			if strings.HasPrefix(wn, "quality caveat") || strings.Contains(wn, "no native tool calling") {
 				if !contains(notes, wn) {
@@ -192,6 +204,9 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 	}
 	w.Flush()
 	fmt.Printf("\nFIRST REPLY = cold start (model load + the whole prompt). FOLLOW-UP = a typical later turn (new tokens only + the reply).\n")
+	if inst.detected && len(inst.byProfile) > 0 {
+		fmt.Println("● = installed on this machine.")
+	}
 	fmt.Printf("* TASK = a %d-call agent task; at datacenter speed it would take about %s. \"✗ breaks\" = the harness prompt does not fit the context.\n", sc.Turns, cloud)
 	if acc != nil {
 		if acc.NoClaim {
@@ -217,16 +232,6 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 		fmt.Println()
 		for _, n := range notes {
 			fmt.Printf("  ⚠ %s\n", n)
-		}
-	}
-	// Tuning steps for the first tuned row.
-	for _, r := range rs {
-		if r.Settings.Tuned && len(r.TuneSteps) > 0 && r.Unsupported == "" {
-			fmt.Printf("\nTuned settings for %s:\n", r.Runtime.Name)
-			for _, s := range r.TuneSteps {
-				fmt.Printf("  - %s\n", s)
-			}
-			break
 		}
 	}
 	fmt.Println()

@@ -74,6 +74,9 @@ type Tuned struct {
 	KeepAliveS     *int     `json:"keep_alive_s,omitempty"`
 	FlashAttention *bool    `json:"flash_attention,omitempty"`
 	Steps          []string `json:"steps"`
+	// KVQ8Step explains how to switch the KV cache to 8-bit, suggested
+	// when memory limits the context.
+	KVQ8Step string `json:"kv_q8_step,omitempty"`
 }
 
 // Perf are runtime-level multipliers on top of the engine/backend model.
@@ -376,6 +379,14 @@ func (p Profile) TunedSteps(ctx int) []string {
 		out[i] = strings.ReplaceAll(s, "{{ctx}}", fmt.Sprint(ctx))
 	}
 	return out
+}
+
+// KVQ8Step returns the instruction for an 8-bit KV cache.
+func (p Profile) KVQ8Step() string {
+	if p.Tuned.KVQ8Step != "" {
+		return p.Tuned.KVQ8Step
+	}
+	return "Use an 8-bit KV cache (q8_0) to fit a longer context"
 }
 
 // SupportsAPI reports whether the real runtime exposes a protocol.

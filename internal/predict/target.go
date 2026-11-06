@@ -87,7 +87,15 @@ func TargetFromSystem(sys *hw.System, measuredCPUGBs float64) Target {
 		if sys.GPUWiredLimitBytes == 0 {
 			t.Notes = append(t.Notes, fmt.Sprintf("macOS lets the GPU use about %.0f of %.0f GB by default (raise with sudo sysctl iogpu.wired_limit_mb)", t.GPUMemBytes/gib, ram/gib))
 		}
-		t.Name = fmt.Sprintf("%s (%d-core GPU), %.0f GB unified memory", strings.TrimSuffix(d.Name, fmt.Sprintf(" %dc", gpu.Cores)), gpu.Cores, ram/gib)
+		if gpu.Cores > 0 {
+			t.Name = fmt.Sprintf("%s (%d-core GPU), %.0f GB unified memory", strings.TrimSuffix(d.Name, fmt.Sprintf(" %dc", gpu.Cores)), gpu.Cores, ram/gib)
+		} else {
+			chipName := d.Name
+			if i := strings.LastIndex(chipName, " "); i > 0 {
+				chipName = chipName[:i] // drop the assumed "<n>c" bin
+			}
+			t.Name = fmt.Sprintf("%s (GPU core count unknown), %.0f GB unified memory", chipName, ram/gib)
+		}
 	case gpu != nil:
 		d, ok := specs.LookupGPU(gpu.Name, gpu.Laptop)
 		if !ok {
