@@ -1,0 +1,5 @@
+# Inputs for the triaLM refactor (docs/PLAN.md)
+
+- `harness-results.json` — real runs of Claude Code 2.1.319, OpenCode 1.19.5, Aider 0.86.2, Qwen Code 0.26.9, Cline 3.0.74 and Continue cn 1.5.47 against `cyrlm try` and `cyrlm bridge` (2026-11-06, Linux, scripted fake upstream). Each entry lists what passed, every problem with the printed connect instructions, what the harness actually sends, and proposed fixes by file. P0b works through these.
+- `fake_upstream.py` — the scripted OpenAI Chat Completions server used for those runs: streams SSE, returns a tool call on the first request that offers tools (`FAKE_TOOL` picks the tool), plain text once a tool result is present, and HTTP 500 like a strict Qwen chat template when a system message is not first. Basis for the harness e2e tests. Run with `python3 -I fake_upstream.py <port> <request-log>`.
+- `charm-demo/` — a verified Charm v2 skeleton (bubbletea v2.1.1, lipgloss v2.0.6, bubbles v2.2.1, huh v2.0.3; Go 1.26): requirements form → recipe table → confirm → inline progress, with plain and `--json` fallbacks. A separate Go module, so the main build ignores it. Starting point for P1b.
