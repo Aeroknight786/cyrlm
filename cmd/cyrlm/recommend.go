@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aeroknight786/cyrlm/internal/catalog"
+	"github.com/aeroknight786/cyrlm/internal/harness"
 	"github.com/aeroknight786/cyrlm/internal/hw"
 	"github.com/aeroknight786/cyrlm/internal/predict"
 	"github.com/aeroknight786/cyrlm/internal/runtime"
@@ -99,10 +100,10 @@ func usable(r predict.Result) bool {
 
 // recommend returns the fastest working setup overall and among installed
 // runtimes (nil when none qualifies), ranked by the scenario's task time.
-func recommend(rs []predict.Result, in installed) (best, bestInstalled *predict.Result) {
+func recommend(rs []predict.Result, in installed, h harness.Harness) (best, bestInstalled *predict.Result) {
 	idx := make([]int, 0, len(rs))
 	for i := range rs {
-		if usable(rs[i]) {
+		if usable(rs[i]) && h.CompatibleWith(rs[i].Runtime.APIs) {
 			idx = append(idx, i)
 		}
 	}
@@ -131,10 +132,10 @@ func modeLabel(r *predict.Result) string {
 	return "default settings"
 }
 
-func printRecommendation(rs []predict.Result, in installed) {
-	best, mine := recommend(rs, in)
+func printRecommendation(rs []predict.Result, in installed, h harness.Harness) {
+	best, mine := recommend(rs, in, h)
 	if best == nil {
-		fmt.Println("Recommendation: no runtime gives a working setup for this model here — try a smaller quant (--quant), a smaller model, or --ctx.")
+		fmt.Printf("Recommendation: no runtime gives a working %s setup for this model here — try a smaller quant (--quant), a smaller model, or --ctx.\n", h.Name)
 		return
 	}
 	fmt.Printf("Best setup: %s with %s — task ≈ %s, first reply %s, then ~%s per turn.\n",
@@ -189,7 +190,7 @@ func installedNames(in installed) string {
 // chooseRuntime picks the runtime to simulate for serve/try: explicit
 // --runtime, else the best working setup among installed runtimes, else the
 // best working setup overall.
-func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scenario) (runtime.Profile, string, error) {
+func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scenario, h harness.Harness) (runtime.Profile, string, error) {
 	if c.runtime != "" && c.runtime != "all" {
 		p, err := runtime.Get(c.runtime)
 		return p, "chosen with --runtime", err
@@ -200,7 +201,7 @@ func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scena
 	if err != nil {
 		return runtime.Profile{}, "", err
 	}
-	best, mine := recommend(rs, in)
+	best, mine := recommend(rs, in, h)
 	switch {
 	case mine != nil:
 		return mine.Runtime, "best of your installed runtimes: " + in.describe(mine.Runtime.ID), nil

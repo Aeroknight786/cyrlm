@@ -38,6 +38,14 @@ go install github.com/aeroknight786/cyrlm/cmd/cyrlm@latest
 curl -fsSL https://raw.githubusercontent.com/aeroknight786/cyrlm/main/install.sh | sh
 ```
 
+## Let your coding agent do everything
+
+```sh
+cyrlm prompt --harness claude-code     # prints a message — paste it into Claude Code (or codex, opencode, …)
+```
+
+The message tells your agent to use the CLI step by step: detect your machine, show the best options (`cyrlm recommend`), offer a live trial at your machine's speed (`cyrlm try`), and — when you say go — set it up (`cyrlm plan`), asking before every download or change, then measure the real setup against the prediction (`cyrlm verify`). At the end it asks whether you want to share the anonymous result (`cyrlm share`) to improve predictions for everyone. Keys never go through the chat: you run `cyrlm login` yourself.
+
 ## Quick start
 
 ```sh
@@ -112,6 +120,12 @@ Long contexts (≥16k) widen these by 10–15 points. Details, data and scripts:
 | Aider, Continue, Zed, JetBrains | Ollama native | point at the Ollama URL |
 
 Cursor sends requests from its own servers, so it needs a public tunnel to reach a local endpoint.
+
+## Accounts and sharing (optional)
+
+- `cyrlm login` stores the key from your cyrlm account page (owner-only file). With it, trials run on cyrlm's hosted models instead of your own OpenRouter key.
+- `cyrlm verify` always saves its result locally. Sharing is opt-in: `cyrlm share --last` shows the exact payload (timings, token counts, hardware class — never prompts, paths or hostnames) and asks first; `cyrlm config set share always|ask|never` sets the default.
+- Server contract: [docs/CLOUD_API.md](docs/CLOUD_API.md).
 
 ## Privacy and cost
 

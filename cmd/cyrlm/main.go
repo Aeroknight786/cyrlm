@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aeroknight786/cyrlm/internal/account"
 	"github.com/aeroknight786/cyrlm/internal/api"
 	"github.com/aeroknight786/cyrlm/internal/catalog"
 	"github.com/aeroknight786/cyrlm/internal/harness"
@@ -41,7 +42,14 @@ Usage:
   cyrlm serve    <model> [flags]               run the simulated local runtime (Ollama-compatible)
   cyrlm try      <model> --harness <h> [flags] predict + serve + connect your harness
   cyrlm inspect  <file.gguf | URL>             read a GGUF header (no full download)
+  cyrlm recommend [--harness h]                best models + runtimes for this machine
+  cyrlm plan     <model> --runtime r [flags]   exact setup steps (for you or your coding agent)
+  cyrlm verify   --runtime r --model m         measure your real setup against the prediction
+  cyrlm prompt   [--harness h]                 the message to paste into your coding agent
+  cyrlm login | logout | config | share        account key and opt-in sharing of results
   cyrlm version
+
+Let your coding agent do it all:  cyrlm prompt --harness claude-code   (paste the output into it)
 
 Common flags:
   --runtime <id>     ollama | llamacpp | lmstudio | lmstudio-mlx | mlx-lm (predict: default all)
@@ -53,7 +61,7 @@ Common flags:
   --ram <GB> --vram <GB>   memory for --device
 
 Serve/try flags:
-  --upstream <u>     openrouter (default) | mock | https://any-openai-compatible/v1
+  --upstream <u>     auto (your cyrlm account if logged in, else OpenRouter) | cyrlm | openrouter | mock | URL
   --upstream-model   cloud model id (default: catalog's OpenRouter id)
   --key-env <VAR>    env var holding the upstream API key (default OPENROUTER_API_KEY)
   --provider <slug>  OpenRouter: pin provider(s), comma-separated
@@ -89,6 +97,22 @@ func main() {
 		err = cmdServe(args, true)
 	case "inspect":
 		err = cmdInspect(args)
+	case "recommend":
+		err = cmdRecommend(args)
+	case "verify":
+		err = cmdVerify(args)
+	case "plan":
+		err = cmdPlan(args)
+	case "prompt":
+		err = cmdPrompt(args)
+	case "login":
+		err = cmdLogin(args)
+	case "logout":
+		err = cmdLogout(args)
+	case "share":
+		err = cmdShare(args)
+	case "config":
+		err = cmdConfig(args)
 	case "version", "--version", "-v":
 		fmt.Println("cyrlm", version)
 	case "help", "--help", "-h":
@@ -314,8 +338,9 @@ func cmdPredict(args []string) error {
 		return printJSON(jsonResults(results))
 	}
 	inst := detectInstalled(t)
+	_, hh, _ := scenarioFor(c.harness)
 	printPrediction(m, t, sc, results, inst)
-	printRecommendation(results, inst)
+	printRecommendation(results, inst, hh)
 	fmt.Println()
 	return nil
 }
@@ -330,7 +355,7 @@ func cmdServe(args []string, try bool) error {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
 	var c common
 	c.register(fs, "")
-	up := fs.String("upstream", "openrouter", "openrouter | mock | base URL")
+	up := fs.String("upstream", "auto", "auto | cyrlm | openrouter | mock | base URL")
 	upModel := fs.String("upstream-model", "", "upstream model id")
 	keyEnv := fs.String("key-env", "", "env var with the upstream API key")
 	provider := fs.String("provider", "", "OpenRouter provider slug(s) to pin")
@@ -370,7 +395,7 @@ func cmdServe(args []string, try bool) error {
 
 	// Runtime: explicit, else an installed one that supports this machine,
 	// else the first profile that does.
-	prof, why, err := chooseRuntime(c, t, m, sc)
+	prof, why, err := chooseRuntime(c, t, m, sc, hh)
 	if err != nil {
 		return err
 	}
@@ -464,6 +489,13 @@ func cmdServe(args []string, try bool) error {
 	return nil
 }
 
+func nonEmptyStr(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
 func suffix(sep, s string) string {
 	if s == "" {
 		return ""
@@ -483,10 +515,30 @@ func capabilities(m catalog.Model) []string {
 }
 
 func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstream.Client, string, error) {
+	acct := account.Load()
+	if kind == "auto" {
+		switch {
+		case acct.CanShare():
+			kind = "cyrlm"
+		case os.Getenv(nonEmptyStr(keyEnv, "OPENROUTER_API_KEY")) != "":
+			kind = "openrouter"
+		default:
+			return nil, "", errors.New("the trial needs the real model in the cloud: log in with `cyrlm login` (key from your cyrlm account) or set OPENROUTER_API_KEY. For an offline timing demo use --upstream mock")
+		}
+	}
 	switch kind {
 	case "mock":
 		c := &upstream.Mock{}
 		return c, c.Describe(), nil
+	case "cyrlm":
+		if !acct.CanShare() {
+			return nil, "", errors.New("--upstream cyrlm needs `cyrlm login` and a configured account server")
+		}
+		if model == "" {
+			model = nonEmptyStr(m.OpenRouterID, m.ID)
+		}
+		c := &upstream.OpenAICompat{BaseURL: strings.TrimRight(acct.APIURL, "/") + "/v1", APIKey: acct.Key, Model: model}
+		return c, "your cyrlm account (" + model + ")", nil
 	}
 	base := kind
 	if kind == "openrouter" || kind == "" {

@@ -18,6 +18,9 @@ type Harness struct {
 	ID       string
 	Name     string
 	Protocol string
+	// Protocols are all wire protocols the harness can use with a custom
+	// endpoint; a runtime is compatible when it serves one of them.
+	Protocols []string
 	// Scenario sizes: base prompt (system + tool definitions) as measured
 	// or reported for recent versions; these drive the headline numbers.
 	Scenario predict.Scenario
@@ -26,24 +29,36 @@ type Harness struct {
 }
 
 var harnesses = []Harness{
-	{ID: "claude-code", Name: "Claude Code", Protocol: "anthropic", Binary: "claude",
+	{ID: "claude-code", Name: "Claude Code", Protocol: "anthropic", Protocols: []string{"anthropic"}, Binary: "claude",
 		Scenario: predict.Scenario{Harness: "claude-code", BasePromptTokens: 33000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 45000}},
-	{ID: "codex", Name: "Codex CLI", Protocol: "responses", Binary: "codex",
+	{ID: "codex", Name: "Codex CLI", Protocol: "responses", Protocols: []string{"responses"}, Binary: "codex",
 		Scenario: predict.Scenario{Harness: "codex", BasePromptTokens: 9000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 25000}},
-	{ID: "opencode", Name: "OpenCode", Protocol: "openai-chat", Binary: "opencode",
+	{ID: "opencode", Name: "OpenCode", Protocol: "openai-chat", Protocols: []string{"openai-chat", "anthropic"}, Binary: "opencode",
 		Scenario: predict.Scenario{Harness: "opencode", BasePromptTokens: 7000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 22000}},
-	{ID: "aider", Name: "Aider", Protocol: "ollama", Binary: "aider",
+	{ID: "aider", Name: "Aider", Protocol: "ollama", Protocols: []string{"ollama", "openai-chat", "anthropic"}, Binary: "aider",
 		Scenario: predict.Scenario{Harness: "aider", BasePromptTokens: 4000, NewTokensPerTurn: 1500, OutputTokensPerTurn: 600, Turns: 20, MidDepth: 12000}},
-	{ID: "cline", Name: "Cline", Protocol: "openai-chat",
+	{ID: "cline", Name: "Cline", Protocol: "openai-chat", Protocols: []string{"openai-chat", "ollama", "anthropic"},
 		Scenario: predict.Scenario{Harness: "cline", BasePromptTokens: 12000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 28000}},
-	{ID: "continue", Name: "Continue", Protocol: "ollama",
+	{ID: "continue", Name: "Continue", Protocol: "ollama", Protocols: []string{"ollama", "openai-chat", "anthropic"},
 		Scenario: predict.Scenario{Harness: "continue", BasePromptTokens: 8000, NewTokensPerTurn: 2000, OutputTokensPerTurn: 300, Turns: 30, MidDepth: 20000}},
-	{ID: "zed", Name: "Zed", Protocol: "ollama",
+	{ID: "zed", Name: "Zed", Protocol: "ollama", Protocols: []string{"ollama", "openai-chat"},
 		Scenario: predict.Scenario{Harness: "zed", BasePromptTokens: 6000, NewTokensPerTurn: 2000, OutputTokensPerTurn: 300, Turns: 30, MidDepth: 18000}},
-	{ID: "qwen-code", Name: "Qwen Code", Protocol: "openai-chat", Binary: "qwen",
+	{ID: "qwen-code", Name: "Qwen Code", Protocol: "openai-chat", Protocols: []string{"openai-chat"}, Binary: "qwen",
 		Scenario: predict.Scenario{Harness: "qwen-code", BasePromptTokens: 25000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 40000}},
-	{ID: "generic", Name: "Any OpenAI/Ollama-compatible tool", Protocol: "openai-chat",
+	{ID: "generic", Name: "Any OpenAI/Ollama-compatible tool", Protocol: "openai-chat", Protocols: []string{"openai-chat", "ollama", "anthropic", "responses"},
 		Scenario: predict.Scenario{Harness: "generic", BasePromptTokens: 8000, NewTokensPerTurn: 2000, OutputTokensPerTurn: 300, Turns: 30, MidDepth: 20000}},
+}
+
+// CompatibleWith reports whether a runtime serving apis can be used directly.
+func (h Harness) CompatibleWith(apis []string) bool {
+	for _, p := range h.Protocols {
+		for _, a := range apis {
+			if p == a {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // All returns the known harnesses.
