@@ -1,0 +1,53 @@
+{
+  "runtimes": null,
+  "system": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu_name": "8-core x86 CPU",
+    "cpu_cores": 8,
+    "cpu_threads": 16,
+    "cpu_flags": [
+      "avx2"
+    ],
+    "ram_bytes": 68719476736,
+    "gpus": [
+      {
+        "vendor": "nvidia",
+        "name": "RTX 4090",
+        "vram_bytes": 25769803776,
+        "unified": false,
+        "integrated": false,
+        "backends": [
+          "cuda",
+          "vulkan"
+        ]
+      }
+    ]
+  },
+  "target": {
+    "Name": "what-if: RTX 4090 (24 GB VRAM), 64 GB RAM",
+    "OS": "linux",
+    "Arch": "amd64",
+    "Device": {
+      "Name": "RTX 4090",
+      "Segment": "nv_desktop",
+      "BandwidthGBs": 1008,
+      "FP16TFLOPS": 330.3,
+      "Confident": true,
+      "Note": ""
+    },
+    "HWBackends": [
+      "cuda",
+      "vulkan"
+    ],
+    "GPUMemBytes": 25340307046.4,
+    "VRAMTotalBytes": 25769803776,
+    "RAMBytes": 68719476736,
+    "Unified": false,
+    "CPUOnly": false,
+    "Laptop": false,
+    "DiskGBs": 2.5,
+    "Notes": null,
+    "Synthetic": true
+  }
+}

@@ -1,0 +1,4 @@
+
+[exit: exit status 1]
+[stderr]
+error: Qwen3.6 35B-A3B does not fit with Ollama here (needs 22.5 GB, 22.0 GB available); try a smaller --quant or --ctx, or --force

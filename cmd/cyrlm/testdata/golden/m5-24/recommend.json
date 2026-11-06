@@ -1,0 +1,229 @@
+{
+  "harness": "claude-code",
+  "machine": "what-if: Apple M5 (10-core GPU), 24 GB unified memory",
+  "options": [
+    {
+      "rank": 1,
+      "model": "qwen3.6:35b-a3b",
+      "model_name": "Qwen3.6 35B-A3B",
+      "quant": "IQ3_XXS",
+      "runtime": "llamacpp",
+      "try_command": "cyrlm try qwen3.6:35b-a3b --runtime llamacpp --quant IQ3_XXS --harness claude-code",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "llamacpp",
+        "tuned": true,
+        "backend": "metal",
+        "quant": "IQ3_XXS",
+        "download_gb": 13.211155424,
+        "context_tokens": 73728,
+        "memory_gb": 15.415491003103583,
+        "budget_gb": 17.179869184,
+        "fit": "fits",
+        "decode_tps": 48.955894568775456,
+        "decode_tps_deep": 35.6514486076477,
+        "prefill_tps": 893.1296971780419,
+        "cold_first_reply_s": 41.116632406,
+        "follow_up_ttft_s": 5.519319621,
+        "follow_up_turn_s": 13.934124958,
+        "session_s": 652.306283104,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 60,
+        "prefill_error_range_pct": 70,
+        "no_speed_claim": false,
+        "warnings": [
+          "quality caveat: IQ3_XXS is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than the cloud's provider-dependent weights the trial uses (often a few points on coding benchmarks, more tool-call errors). A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed"
+        ],
+        "assumptions": [
+          "default context: recent builds size the context to free memory (--fit); older builds default to 4096",
+          "checkpoints=8 (unverified for this version)"
+        ],
+        "tune_steps": [
+          "llama-server -m \u003cmodel.gguf\u003e -c 73728 -fa on --jinja",
+          "Optional: --slot-save-path to persist the harness prompt cache across restarts"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    },
+    {
+      "rank": 2,
+      "model": "gemma4:26b-a4b",
+      "model_name": "Gemma 4 26B-A4B",
+      "quant": "IQ4_XS",
+      "runtime": "llamacpp",
+      "try_command": "cyrlm try gemma4:26b-a4b --runtime llamacpp --quant IQ4_XS --harness claude-code",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "llamacpp",
+        "tuned": true,
+        "backend": "metal",
+        "quant": "IQ4_XS",
+        "download_gb": 13.597177568,
+        "context_tokens": 57344,
+        "memory_gb": 15.830823979728917,
+        "budget_gb": 17.179869184,
+        "fit": "tight",
+        "decode_tps": 31.336385245938096,
+        "decode_tps_deep": 24.277418942242345,
+        "prefill_tps": 686.1082659585578,
+        "cold_first_reply_s": 52.355622463,
+        "follow_up_ttft_s": 6.371177226,
+        "follow_up_turn_s": 18.728339275,
+        "session_s": 795.076864971,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 45,
+        "prefill_error_range_pct": 55,
+        "no_speed_claim": false,
+        "warnings": [
+          "memory is tight: other apps or a longer context may push it over",
+          "quality caveat: the trial uses the cloud's provider-dependent weights; local IQ4_XS is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+        ],
+        "assumptions": [
+          "default context: recent builds size the context to free memory (--fit); older builds default to 4096",
+          "checkpoints=8 (unverified for this version)"
+        ],
+        "tune_steps": [
+          "llama-server -m \u003cmodel.gguf\u003e -c 57344 -fa on --jinja",
+          "Optional: --slot-save-path to persist the harness prompt cache across restarts"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    },
+    {
+      "rank": 3,
+      "model": "gpt-oss:20b",
+      "model_name": "gpt-oss 20B",
+      "quant": "MLX-MXFP4",
+      "runtime": "lmstudio-mlx",
+      "try_command": "cyrlm try gpt-oss:20b --runtime lmstudio-mlx --quant MLX-MXFP4 --harness claude-code",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "lmstudio-mlx",
+        "tuned": true,
+        "backend": "mlx",
+        "quant": "MLX-MXFP4",
+        "download_gb": 12.1,
+        "context_tokens": 90112,
+        "memory_gb": 14.95481073901568,
+        "budget_gb": 17.179869184,
+        "fit": "fits",
+        "decode_tps": 43.85021197493402,
+        "decode_tps_deep": 31.567800904974575,
+        "prefill_tps": 749.0764583665008,
+        "cold_first_reply_s": 48.003168204,
+        "follow_up_ttft_s": 6.5363677540000005,
+        "follow_up_turn_s": 16.039722166,
+        "session_s": 796.824472453,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 55,
+        "prefill_error_range_pct": 65,
+        "no_speed_claim": false,
+        "warnings": [
+          "LM Studio (MLX engine) uses MLX files; using MLX-MXFP4 instead of MXFP4"
+        ],
+        "assumptions": [
+          "keep_alive_s=3600 (unverified for this version)",
+          "overflow=truncate_middle (unverified for this version)",
+          "slots=1 (unverified for this version)"
+        ],
+        "tune_steps": [
+          "Load the MLX model with Context Length 90112",
+          "Disable idle auto-unload (JIT TTL) for the session"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    },
+    {
+      "rank": 4,
+      "model": "qwen3.5:4b",
+      "model_name": "Qwen3.5 4B",
+      "quant": "Q4_K_M",
+      "runtime": "llamacpp",
+      "try_command": "cyrlm try qwen3.5:4b --runtime llamacpp --harness claude-code",
+      "verdict": "comfortable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "llamacpp",
+        "tuned": true,
+        "backend": "metal",
+        "quant": "Q4_K_M",
+        "download_gb": 2.740937888,
+        "context_tokens": 90112,
+        "memory_gb": 6.391167544014289,
+        "budget_gb": 17.179869184,
+        "fit": "fits",
+        "decode_tps": 38.35781710136792,
+        "decode_tps_deep": 26.13232135518301,
+        "prefill_tps": 815.7547164408103,
+        "cold_first_reply_s": 42.536000358,
+        "follow_up_ttft_s": 5.240785973,
+        "follow_up_turn_s": 16.720822358,
+        "session_s": 807.953199662,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 60,
+        "prefill_error_range_pct": 70,
+        "no_speed_claim": false,
+        "warnings": [
+          "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+        ],
+        "assumptions": [
+          "default context: recent builds size the context to free memory (--fit); older builds default to 4096",
+          "checkpoints=8 (unverified for this version)"
+        ],
+        "tune_steps": [
+          "llama-server -m \u003cmodel.gguf\u003e -c 90112 -fa on --jinja",
+          "Optional: --slot-save-path to persist the harness prompt cache across restarts"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    },
+    {
+      "rank": 5,
+      "model": "gemma4:12b",
+      "model_name": "Gemma 4 12B",
+      "quant": "Q4_K_M",
+      "runtime": "llamacpp",
+      "try_command": "cyrlm try gemma4:12b --runtime llamacpp --harness claude-code",
+      "verdict": "usable",
+      "runtime_installed": false,
+      "prediction": {
+        "runtime": "llamacpp",
+        "tuned": true,
+        "backend": "metal",
+        "quant": "Q4_K_M",
+        "download_gb": 7.12186144,
+        "context_tokens": 90112,
+        "memory_gb": 10.013328135117781,
+        "budget_gb": 17.179869184,
+        "fit": "fits",
+        "decode_tps": 15.820810943204082,
+        "decode_tps_deep": 13.89744906029737,
+        "prefill_tps": 297.23527814578637,
+        "cold_first_reply_s": 114.017593241,
+        "follow_up_ttft_s": 12.774745366,
+        "follow_up_turn_s": 34.361440788,
+        "session_s": 1593.276771153,
+        "cloud_session_s": 120,
+        "decode_error_range_pct": 45,
+        "prefill_error_range_pct": 55,
+        "no_speed_claim": false,
+        "warnings": [
+          "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+        ],
+        "assumptions": [
+          "default context: recent builds size the context to free memory (--fit); older builds default to 4096",
+          "checkpoints=8 (unverified for this version)"
+        ],
+        "tune_steps": [
+          "llama-server -m \u003cmodel.gguf\u003e -c 90112 -fa on --jinja",
+          "Optional: --slot-save-path to persist the harness prompt cache across restarts"
+        ],
+        "context_note": "tuned for agentic use"
+      }
+    }
+  ],
+  "ranking": "speed tier (comfortable/usable/slow), then model size as a capability proxy — not a coding-quality score"
+}

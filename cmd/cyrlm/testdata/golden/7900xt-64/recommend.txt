@@ -1,0 +1,15 @@
+
+Best local models for Claude Code on what-if: RX 7900 XT (20 GB VRAM), 64 GB RAM
+
+#  MODEL            RUNTIME                   FILE             FIRST REPLY  FOLLOW-UP  TASK*        FEEL
+1  qwen3.6:35b-a3b  Ollama                    Q3_K_XL 16.8 GB  31 s         5.2 s      3 min 58 s   comfortable
+2  qwen3-coder:30b  Ollama                    Q3_K_XL 13.8 GB  68 s         15 s       13 min 26 s  comfortable
+3  gemma4:26b-a4b   Ollama                    Q4_K_M 16.9 GB   37 s         6.6 s      4 min 53 s   comfortable
+4  gpt-oss:20b      Ollama                    MXFP4 12.1 GB    33 s         6.0 s      5 min 20 s   comfortable
+5  gemma4:12b       llama.cpp (llama-server)  Q4_K_M 7.1 GB    44 s         10 s       8 min 24 s   comfortable
+
+* TASK = a 40-call agent task (cloud: ~2 min 00 s). Tuned settings. ● = runtime installed. More options: --top 20
+Ranked by speed tier, then model size (a rough capability proxy — cyrlm does not score coding quality; try the top picks).
+Each model shows the file that runs best here: its usual 4-bit file when that is fast, else a smaller 3-bit file (more mistakes; see the quality caveat in `cyrlm predict`).
+Try #1: cyrlm try qwen3.6:35b-a3b --runtime ollama --quant Q3_K_XL --harness claude-code
+

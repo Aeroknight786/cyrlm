@@ -1,0 +1,56 @@
+{
+  "runtimes": null,
+  "system": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu_name": "8-core x86 CPU",
+    "cpu_cores": 8,
+    "cpu_threads": 16,
+    "cpu_flags": [
+      "avx2"
+    ],
+    "ram_bytes": 25769803776,
+    "gpus": [
+      {
+        "vendor": "apple",
+        "name": "Apple M5",
+        "vram_bytes": 25769803776,
+        "unified": true,
+        "integrated": false,
+        "cores": 10,
+        "backends": [
+          "metal"
+        ]
+      }
+    ],
+    "apple_chip": "Apple M5"
+  },
+  "target": {
+    "Name": "what-if: Apple M5 (10-core GPU), 24 GB unified memory",
+    "OS": "darwin",
+    "Arch": "arm64",
+    "Device": {
+      "Name": "Apple M5 10c",
+      "Segment": "apple_base",
+      "BandwidthGBs": 153.6,
+      "FP16TFLOPS": 16.384,
+      "Confident": false,
+      "Note": "M5-generation matmul throughput assumed (GPU neural accelerators); little benchmark data yet"
+    },
+    "HWBackends": [
+      "metal"
+    ],
+    "GPUMemBytes": 17179869184,
+    "VRAMTotalBytes": 17179869184,
+    "RAMBytes": 25769803776,
+    "Unified": true,
+    "CPUOnly": false,
+    "Laptop": false,
+    "DiskGBs": 5,
+    "Notes": [
+      "macOS lets the GPU use about 16 of 24 GB by default (raise with sudo sysctl iogpu.wired_limit_mb)",
+      "M5-generation matmul throughput assumed (GPU neural accelerators); little benchmark data yet"
+    ],
+    "Synthetic": true
+  }
+}

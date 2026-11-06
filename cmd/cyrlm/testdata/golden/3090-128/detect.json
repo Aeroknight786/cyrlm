@@ -1,0 +1,53 @@
+{
+  "runtimes": null,
+  "system": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu_name": "8-core x86 CPU",
+    "cpu_cores": 8,
+    "cpu_threads": 16,
+    "cpu_flags": [
+      "avx2"
+    ],
+    "ram_bytes": 137438953472,
+    "gpus": [
+      {
+        "vendor": "nvidia",
+        "name": "RTX 3090",
+        "vram_bytes": 25769803776,
+        "unified": false,
+        "integrated": false,
+        "backends": [
+          "cuda",
+          "vulkan"
+        ]
+      }
+    ]
+  },
+  "target": {
+    "Name": "what-if: RTX 3090 (24 GB VRAM), 128 GB RAM",
+    "OS": "linux",
+    "Arch": "amd64",
+    "Device": {
+      "Name": "RTX 3090",
+      "Segment": "nv_desktop",
+      "BandwidthGBs": 936,
+      "FP16TFLOPS": 142.3,
+      "Confident": true,
+      "Note": ""
+    },
+    "HWBackends": [
+      "cuda",
+      "vulkan"
+    ],
+    "GPUMemBytes": 25340307046.4,
+    "VRAMTotalBytes": 25769803776,
+    "RAMBytes": 137438953472,
+    "Unified": false,
+    "CPUOnly": false,
+    "Laptop": false,
+    "DiskGBs": 2.5,
+    "Notes": null,
+    "Synthetic": true
+  }
+}

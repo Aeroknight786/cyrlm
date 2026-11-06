@@ -1,0 +1,53 @@
+{
+  "runtimes": null,
+  "system": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu_name": "8-core x86 CPU",
+    "cpu_cores": 8,
+    "cpu_threads": 16,
+    "cpu_flags": [
+      "avx2"
+    ],
+    "ram_bytes": 68719476736,
+    "gpus": [
+      {
+        "vendor": "nvidia",
+        "name": "RTX 5070",
+        "vram_bytes": 12884901888,
+        "unified": false,
+        "integrated": false,
+        "backends": [
+          "cuda",
+          "vulkan"
+        ]
+      }
+    ]
+  },
+  "target": {
+    "Name": "what-if: RTX 5070 (12 GB VRAM), 64 GB RAM",
+    "OS": "linux",
+    "Arch": "amd64",
+    "Device": {
+      "Name": "RTX 5070",
+      "Segment": "nv_desktop",
+      "BandwidthGBs": 672,
+      "FP16TFLOPS": 123.5,
+      "Confident": true,
+      "Note": ""
+    },
+    "HWBackends": [
+      "cuda",
+      "vulkan"
+    ],
+    "GPUMemBytes": 12455405158.4,
+    "VRAMTotalBytes": 12884901888,
+    "RAMBytes": 68719476736,
+    "Unified": false,
+    "CPUOnly": false,
+    "Laptop": false,
+    "DiskGBs": 2.5,
+    "Notes": null,
+    "Synthetic": true
+  }
+}

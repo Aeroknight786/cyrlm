@@ -1,0 +1,15 @@
+
+Best local models for Claude Code on what-if: RTX 5070 (12 GB VRAM), 64 GB RAM
+
+#  MODEL          RUNTIME                   FILE           FIRST REPLY  FOLLOW-UP  TASK*       FEEL
+1  gemma4:12b     llama.cpp (llama-server)  Q4_K_M 7.1 GB  22 s         7.5 s      5 min 34 s  comfortable
+2  qwen3.5:9b     llama.cpp (llama-server)  Q4_K_M 5.7 GB  14 s         5.5 s      4 min 09 s  comfortable
+3  granite4.2:8b  llama.cpp (llama-server)  Q4_K_M 5.3 GB  22 s         8.7 s      6 min 02 s  comfortable
+4  llama3.1:8b    llama.cpp (llama-server)  Q4_K_M 4.9 GB  19 s         7.4 s      5 min 46 s  comfortable
+5  qwen3.5:4b     llama.cpp (llama-server)  Q4_K_M 2.7 GB  9.1 s        3.7 s      2 min 54 s  comfortable
+
+* TASK = a 40-call agent task (cloud: ~2 min 00 s). Tuned settings. ● = runtime installed. More options: --top 20
+Ranked by speed tier, then model size (a rough capability proxy — cyrlm does not score coding quality; try the top picks).
+Each model shows the file that runs best here: its usual 4-bit file when that is fast, else a smaller 3-bit file (more mistakes; see the quality caveat in `cyrlm predict`).
+Try #1: cyrlm try gemma4:12b --runtime llamacpp --harness claude-code
+

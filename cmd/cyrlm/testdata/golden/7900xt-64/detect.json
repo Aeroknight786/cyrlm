@@ -1,0 +1,53 @@
+{
+  "runtimes": null,
+  "system": {
+    "os": "linux",
+    "arch": "amd64",
+    "cpu_name": "8-core x86 CPU",
+    "cpu_cores": 8,
+    "cpu_threads": 16,
+    "cpu_flags": [
+      "avx2"
+    ],
+    "ram_bytes": 68719476736,
+    "gpus": [
+      {
+        "vendor": "amd",
+        "name": "RX 7900 XT",
+        "vram_bytes": 21474836480,
+        "unified": false,
+        "integrated": false,
+        "backends": [
+          "rocm",
+          "vulkan"
+        ]
+      }
+    ]
+  },
+  "target": {
+    "Name": "what-if: RX 7900 XT (20 GB VRAM), 64 GB RAM",
+    "OS": "linux",
+    "Arch": "amd64",
+    "Device": {
+      "Name": "RX 7900 XT",
+      "Segment": "amd_dgpu",
+      "BandwidthGBs": 800,
+      "FP16TFLOPS": 103.2,
+      "Confident": true,
+      "Note": ""
+    },
+    "HWBackends": [
+      "rocm",
+      "vulkan"
+    ],
+    "GPUMemBytes": 21045339750.4,
+    "VRAMTotalBytes": 21474836480,
+    "RAMBytes": 68719476736,
+    "Unified": false,
+    "CPUOnly": false,
+    "Laptop": false,
+    "DiskGBs": 2.5,
+    "Notes": null,
+    "Synthetic": true
+  }
+}

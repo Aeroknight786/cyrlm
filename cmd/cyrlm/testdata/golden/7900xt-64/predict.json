@@ -1,0 +1,216 @@
+[
+  {
+    "runtime": "llamacpp",
+    "tuned": false,
+    "backend": "vulkan",
+    "quant": "Q4_K_M",
+    "download_gb": 22.134528992,
+    "context_tokens": 262144,
+    "memory_gb": 28.412372615903582,
+    "budget_gb": 21.0453397504,
+    "fit": "offload",
+    "decode_tps": 71.95783416020788,
+    "decode_tps_deep": 55.13808419072646,
+    "prefill_tps": 813.3031019405923,
+    "cold_first_reply_s": 50.94590906,
+    "follow_up_ttft_s": 5.751516627,
+    "follow_up_turn_s": 11.192402076,
+    "session_s": 649.388976736,
+    "cloud_session_s": 120,
+    "decode_error_range_pct": 30,
+    "prefill_error_range_pct": 65,
+    "no_speed_claim": true,
+    "warnings": [
+      "does not fit in GPU memory: layers spill to system RAM, typically 3–10× slower (not predictable)",
+      "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+    ],
+    "assumptions": [
+      "default context: recent builds size the context to free memory (--fit); older builds default to 4096",
+      "checkpoints=8 (unverified for this version)"
+    ],
+    "context_note": "model native context, reduced to fit free memory"
+  },
+  {
+    "runtime": "llamacpp",
+    "tuned": true,
+    "backend": "vulkan",
+    "quant": "Q4_K_M",
+    "download_gb": 22.134528992,
+    "context_tokens": 90112,
+    "memory_gb": 24.889157255903584,
+    "budget_gb": 21.0453397504,
+    "fit": "offload",
+    "decode_tps": 95.45468576666727,
+    "decode_tps_deep": 73.14267531293127,
+    "prefill_tps": 988.1323545796181,
+    "cold_first_reply_s": 43.7628262,
+    "follow_up_ttft_s": 4.733906639,
+    "follow_up_turn_s": 8.835479335,
+    "session_s": 459.330054156,
+    "cloud_session_s": 120,
+    "decode_error_range_pct": 30,
+    "prefill_error_range_pct": 65,
+    "no_speed_claim": true,
+    "warnings": [
+      "does not fit in GPU memory: layers spill to system RAM, typically 3–10× slower (not predictable)",
+      "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+    ],
+    "assumptions": [
+      "default context: recent builds size the context to free memory (--fit); older builds default to 4096",
+      "checkpoints=8 (unverified for this version)"
+    ],
+    "tune_steps": [
+      "llama-server -m \u003cmodel.gguf\u003e -c 90112 -fa on --jinja",
+      "Optional: --slot-save-path to persist the harness prompt cache across restarts"
+    ],
+    "context_note": "tuned for agentic use"
+  },
+  {
+    "runtime": "lmstudio",
+    "tuned": false,
+    "backend": "vulkan",
+    "quant": "Q4_K_M",
+    "download_gb": 22.134528992,
+    "context_tokens": 4096,
+    "memory_gb": 23.261767303903582,
+    "budget_gb": 21.0453397504,
+    "fit": "offload",
+    "decode_tps": 117.01106146655648,
+    "decode_tps_deep": 95.33320361786429,
+    "prefill_tps": 1113.0350687195878,
+    "cold_first_reply_s": 40.512816096,
+    "follow_up_ttft_s": 3.4134734890000002,
+    "follow_up_turn_s": 6.560330917,
+    "session_s": 303.965504107,
+    "cloud_session_s": 120,
+    "decode_error_range_pct": 30,
+    "prefill_error_range_pct": 65,
+    "no_speed_claim": true,
+    "warnings": [
+      "Claude Code's ~33k-token prompt does not fit the 4096-token context (LM Studio (llama.cpp engine) default load setting): the middle of the conversation is silently cut",
+      "does not fit in GPU memory: layers spill to system RAM, typically 3–10× slower (not predictable)",
+      "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+    ],
+    "assumptions": [
+      "flash_attention=false (unverified for this version)",
+      "keep_alive_s=3600 (unverified for this version)",
+      "on_context_full=stop (unverified for this version)",
+      "overflow=truncate_middle (unverified for this version)",
+      "slots=1 (unverified for this version)",
+      "swa_rollback=checkpoints (unverified for this version)"
+    ],
+    "context_note": "LM Studio (llama.cpp engine) default load setting"
+  },
+  {
+    "runtime": "lmstudio",
+    "tuned": true,
+    "backend": "vulkan",
+    "quant": "Q4_K_M",
+    "download_gb": 22.134528992,
+    "context_tokens": 90112,
+    "memory_gb": 24.889157255903584,
+    "budget_gb": 21.0453397504,
+    "fit": "offload",
+    "decode_tps": 95.45468576666727,
+    "decode_tps_deep": 73.14267531293127,
+    "prefill_tps": 978.0493713696219,
+    "cold_first_reply_s": 44.607118323,
+    "follow_up_ttft_s": 4.7827098,
+    "follow_up_turn_s": 8.884282496,
+    "session_s": 462.651980805,
+    "cloud_session_s": 120,
+    "decode_error_range_pct": 30,
+    "prefill_error_range_pct": 65,
+    "no_speed_claim": true,
+    "warnings": [
+      "does not fit in GPU memory: layers spill to system RAM, typically 3–10× slower (not predictable)",
+      "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+    ],
+    "assumptions": [
+      "flash_attention=false (unverified for this version)",
+      "keep_alive_s=3600 (unverified for this version)",
+      "on_context_full=stop (unverified for this version)",
+      "overflow=truncate_middle (unverified for this version)",
+      "slots=1 (unverified for this version)",
+      "swa_rollback=checkpoints (unverified for this version)"
+    ],
+    "tune_steps": [
+      "Load the model with Context Length 90112 (lms load \u003cmodel\u003e --context-length 90112)",
+      "Enable Flash Attention in the model's load settings",
+      "Disable idle auto-unload (JIT TTL) for the session"
+    ],
+    "context_note": "tuned for agentic use"
+  },
+  {
+    "runtime": "ollama",
+    "tuned": false,
+    "backend": "rocm",
+    "quant": "Q4_K_M",
+    "download_gb": 22.134528992,
+    "context_tokens": 4096,
+    "memory_gb": 23.127549575903583,
+    "budget_gb": 21.0453397504,
+    "fit": "offload",
+    "decode_tps": 114.44080717194379,
+    "decode_tps_deep": 90.770364119722,
+    "prefill_tps": 1218.8646556413948,
+    "cold_first_reply_s": 38.439032604,
+    "follow_up_ttft_s": 3.097611689,
+    "follow_up_turn_s": 6.402655168,
+    "session_s": 295.374863196,
+    "cloud_session_s": 120,
+    "decode_error_range_pct": 30,
+    "prefill_error_range_pct": 75,
+    "no_speed_claim": true,
+    "warnings": [
+      "Claude Code's ~33k-token prompt does not fit the 4096-token context (Ollama default for 20 GiB of GPU memory): the prompt is silently truncated and the agent will misbehave",
+      "does not fit in GPU memory: layers spill to system RAM, typically 3–10× slower (not predictable)",
+      "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+    ],
+    "assumptions": [
+      "flash_attention=true (unverified for this version)",
+      "otherwise_tokens=262144 (unverified for this version)",
+      "overflow=truncate_oldest (unverified for this version)",
+      "swa_rollback=checkpoints (unverified for this version)"
+    ],
+    "context_note": "Ollama default for 20 GiB of GPU memory"
+  },
+  {
+    "runtime": "ollama",
+    "tuned": true,
+    "backend": "rocm",
+    "quant": "Q4_K_M",
+    "download_gb": 22.134528992,
+    "context_tokens": 90112,
+    "memory_gb": 24.889157255903584,
+    "budget_gb": 21.0453397504,
+    "fit": "offload",
+    "decode_tps": 91.48670086513735,
+    "decode_tps_deep": 67.77642311640098,
+    "prefill_tps": 1057.9242686127927,
+    "cold_first_reply_s": 42.560536682,
+    "follow_up_ttft_s": 4.383986949,
+    "follow_up_turn_s": 8.810304925,
+    "session_s": 455.522210922,
+    "cloud_session_s": 120,
+    "decode_error_range_pct": 30,
+    "prefill_error_range_pct": 75,
+    "no_speed_claim": true,
+    "warnings": [
+      "does not fit in GPU memory: layers spill to system RAM, typically 3–10× slower (not predictable)",
+      "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+    ],
+    "assumptions": [
+      "flash_attention=true (unverified for this version)",
+      "otherwise_tokens=262144 (unverified for this version)",
+      "overflow=truncate_oldest (unverified for this version)",
+      "swa_rollback=checkpoints (unverified for this version)"
+    ],
+    "tune_steps": [
+      "Set the context length: OLLAMA_CONTEXT_LENGTH=90112 (or num_ctx in a Modelfile)",
+      "Keep the model loaded: OLLAMA_KEEP_ALIVE=-1",
+      "Enable flash attention: OLLAMA_FLASH_ATTENTION=1"
+    ],
+    "context_note": "tuned for agentic use"
+  }
+]
