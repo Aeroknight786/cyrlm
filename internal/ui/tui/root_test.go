@@ -104,7 +104,7 @@ func TestViewGoldens(t *testing.T) {
 					if e != nil {
 						t.Fatal(e)
 					}
-					if got != string(want) {
+					if got != strings.ReplaceAll(string(want), "\r\n", "\n") { // a CRLF checkout is not a change
 						t.Fatalf("frame changed: %s; use -update\ngot:\n%s\nwant:\n%s", path, got, want)
 					}
 				})
