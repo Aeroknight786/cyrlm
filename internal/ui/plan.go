@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"github.com/aeroknight786/trialm/internal/figure"
 	"io"
 	"os"
 	"strings"
@@ -14,15 +13,7 @@ import (
 
 func PrintPlan(output io.Writer, p setup.Plan) {
 	fmt.Fprintf(output, "\nSetup plan %s · %s · %s\n", p.ModelName, p.Quant, p.RuntimeName)
-	on := p.OnDisk()
-	download := figure.Bytes(p.DownloadBytes-on, "setup:plan").String() + " download"
-	if p.DownloadUnknown {
-		download += " plus installer downloads of unknown size"
-	}
-	if on > 0 {
-		download += " · " + gb(float64(on)) + " already on disk"
-	}
-	fmt.Fprintf(output, "%d approval · %d OS password prompts · %s\n", p.Prompts.Approvals, p.Prompts.Passwords, download)
+	fmt.Fprintf(output, "%d approval · %d OS password prompts · %s\n", p.Prompts.Approvals, p.Prompts.Passwords, p.DownloadSummary())
 	if p.Prompts.AfterRestart != "" {
 		fmt.Fprintln(output, p.Prompts.AfterRestart)
 	}

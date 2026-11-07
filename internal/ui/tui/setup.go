@@ -157,7 +157,7 @@ func (m *Root) setupBody() string {
 	if p.ID == "" {
 		return "Planning local setup…"
 	}
-	b := fmt.Sprintf("Set up %s · %s · %s\n%d approval · %d OS password prompts · %s download\n", p.ModelName, p.Quant, p.RuntimeName, p.Prompts.Approvals, p.Prompts.Passwords, figure.Exact(float64(p.DownloadBytes-p.OnDisk())/1e9, "GB", figure.Measured, "setup:resolved-files").String())
+	b := fmt.Sprintf("Set up %s · %s · %s\n%d approval · %d OS password prompts · %s\n", p.ModelName, p.Quant, p.RuntimeName, p.Prompts.Approvals, p.Prompts.Passwords, p.DownloadSummary())
 	if p.DownloadUnknown {
 		b += "Plus installer downloads of unknown size\n"
 	}
@@ -189,7 +189,7 @@ func (m *Root) setupBody() string {
 	if u := m.setup.update; u.Progress != nil && u.Progress.Total > 0 {
 		progress := u.Progress
 		b += "Downloading " + m.progressBar(float64(progress.Done)/float64(progress.Total)) + "\n"
-		b += fmt.Sprintf("%d%% · %s / %s · %s · ETA %s\n", progress.Done*100/progress.Total, figure.Bytes(progress.Done, "download").String(), figure.Bytes(progress.Total, "download").String(), figure.Exact(progress.BytesPerSec/1e6, "MB/s", figure.Measured, "download").String(), figure.Exact(progress.ETA.Seconds(), "s", figure.Measured, "download").String())
+		b += fmt.Sprintf("%d%% · %s / %s · %s · ETA %s\n", progress.Done*100/progress.Total, figure.Bytes(progress.Done, "download").String(), figure.Bytes(progress.Total, "download").String(), figure.Exact(progress.BytesPerSec/1e6, "MB/s", figure.Measured, "download").String(), figure.Exact(math.Round(progress.ETA.Seconds()), "s", figure.Measured, "download").String())
 	}
 	if len(m.setup.logs) > 0 {
 		log := viewport.New(viewport.WithWidth(max(20, m.width-2)), viewport.WithHeight(len(m.setup.logs)))

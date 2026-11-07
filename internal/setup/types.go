@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/figure"
 	"os"
 	"strings"
 
@@ -192,4 +193,18 @@ func (p Plan) OnDisk() int64 {
 		}
 	}
 	return n
+}
+
+// DownloadSummary is the plan header's download phrase, e.g.
+// "16.7 MB download · 5.7 GB already on disk".
+func (p Plan) DownloadSummary() string {
+	on := p.OnDisk()
+	s := figure.Bytes(p.DownloadBytes-on, "setup:plan").String() + " download"
+	if p.DownloadUnknown {
+		s += " plus installer downloads of unknown size"
+	}
+	if on > 0 {
+		s += " · " + figure.Bytes(on, "setup:plan").String() + " already on disk"
+	}
+	return s
 }
