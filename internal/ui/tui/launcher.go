@@ -53,7 +53,7 @@ func (m *Root) launcher() string {
 		return b
 	}
 	if m.calibration != nil {
-		elapsed := figure.Exact(time.Since(m.started).Seconds(), "s", figure.Measured, "clock").String()
+		elapsed := time.Since(m.started).Round(time.Second).String() // "6s", "2m10s"
 		b += "\n" + m.card(m.waiting()+" Calibrating this machine\n"+m.progressBar(m.calibration.fraction)+"\nElapsed "+elapsed+" · ETA "+m.calibration.eta) + "\n"
 	} else if m.offer {
 		label := "✦ Calibrate this machine once · recommended"

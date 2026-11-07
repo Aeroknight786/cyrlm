@@ -79,3 +79,8 @@ func Duration(steps []Step) string {
 	m := math.Round(EstimatedSeconds(steps) / 60)
 	return fmt.Sprintf("about %.0f–%.0f min", math.Max(1, m-1), m+2)
 }
+
+// Remaining is an estimate of seconds left for people, e.g. "about 6 min".
+func Remaining(sec float64) string {
+	return fmt.Sprintf("about %.0f min", math.Max(1, math.Round(sec/60)))
+}

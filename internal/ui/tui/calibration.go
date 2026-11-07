@@ -13,7 +13,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/core"
-	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/store"
 )
 
@@ -106,7 +105,7 @@ func (j *calibrationJob) record(ev calib.Event) {
 	if ev.Total > 0 {
 		j.fraction = float64(max(0, ev.Step-1)) / float64(ev.Total)
 	}
-	j.eta = figure.Band(ev.ETA, 25, "s", figure.Simulated, "calibration:remaining").String()
+	j.eta = calib.Remaining(ev.ETA)
 	if ev.Total > 0 {
 		j.eta = fmt.Sprintf("%s · %d/%d", j.eta, ev.Step, ev.Total)
 	}
