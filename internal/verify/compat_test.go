@@ -1,4 +1,4 @@
-package main
+package verify
 
 import (
 	"context"
@@ -56,7 +56,7 @@ func TestChatHarnessStreamingCheck(t *testing.T) {
 	}))
 	defer ts.Close()
 	h, _ := harness.Get("qwen-code")
-	hc := harnessCheck(context.Background(), ts.URL, "m", "secret", h, []string{"openai-chat"})
+	hc := HarnessCheckRun(context.Background(), ts.URL, "m", "secret", h, []string{"openai-chat"})
 	if !hc.Passed {
 		t.Fatalf("check %+v", hc)
 	}
@@ -131,7 +131,7 @@ func TestAiderHarnessChecks(t *testing.T) {
 			if ollama {
 				apis = []string{"ollama", "openai-chat"}
 			}
-			hc := harnessCheck(context.Background(), ts.URL, "m", "key", h, apis)
+			hc := HarnessCheckRun(context.Background(), ts.URL, "m", "key", h, apis)
 			if !hc.Passed {
 				t.Fatalf("check %+v", hc)
 			}

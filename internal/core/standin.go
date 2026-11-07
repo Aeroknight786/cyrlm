@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"context"
@@ -23,7 +23,7 @@ type standIn struct {
 	Known    bool   // Upstream comes from the catalog (not a guessed id)
 }
 
-func (s standIn) describe() string {
+func (s standIn) Describe() string {
 	if s.Upstream == "" {
 		return ""
 	}
@@ -33,7 +33,7 @@ func (s standIn) describe() string {
 // findStandIn looks for the base model: GGUF general.base_model.* keys,
 // then the Hugging Face model card chain, then the closest catalog model of
 // the same architecture and size.
-func findStandIn(ref string, f *gguf.File, s *gguf.Summary) standIn {
+func FindStandIn(ref string, f *gguf.File, s *gguf.Summary) standIn {
 	var cands []string
 	source := ""
 	if n, ok := f.Uint("general.base_model.count"); ok {

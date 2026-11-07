@@ -1,10 +1,9 @@
-package main
+package cli
 
 import (
 	"fmt"
-	"math"
+	"github.com/aeroknight786/trialm/internal/figure"
 	"os"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -188,7 +187,7 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 		if r.Kind == "calibrated" {
 			label += " calibrated"
 		}
-		if inst.has(r.Runtime.ID) {
+		if inst.Has(r.Runtime.ID) {
 			label += " ●"
 		}
 		fmt.Fprintf(w, "%s\t%s %s\t%s\t%s\t%s\t%s\t%s\t%s\n", label, r.Quant.Name, gb(float64(r.Quant.FileBytes)), ctx, fitCell(r), first, follow, writes, task)
@@ -209,7 +208,7 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 	}
 	w.Flush()
 	fmt.Printf("\nFIRST REPLY = cold start (model load + the whole prompt). FOLLOW-UP = a typical later turn (new tokens only + the reply).\n")
-	if inst.detected && len(inst.byProfile) > 0 {
+	if inst.Detected && len(inst.ByProfile) > 0 {
 		fmt.Println("● = installed on this machine.")
 	}
 	fmt.Printf("* TASK = a %d-call agent task; at datacenter speed it would take about %s. \"✗ breaks\" = the harness prompt does not fit the context.\n", sc.Turns, cloud)
@@ -302,27 +301,8 @@ func printServeBanner(m catalog.Model, t predict.Target, p runtime.Profile, why 
 	fmt.Println()
 }
 
-// bandNumber limits precision to the expected error in the estimate.
-func bandNumber(v float64, pct int) string {
-	digits := 2
-	prefix := ""
-	if pct <= 10 {
-		digits = 3
-	} else if pct > 25 {
-		prefix = "~"
-	}
-	decimals := 0
-	if v != 0 {
-		decimals = max(0, digits-1-int(math.Floor(math.Log10(math.Abs(v)))))
-	}
-	rounded := v
-	if v != 0 {
-		scale := math.Pow(10, float64(digits-1-int(math.Floor(math.Log10(math.Abs(v))))))
-		rounded = math.Round(v*scale) / scale
-	}
-	return prefix + strconv.FormatFloat(rounded, 'f', decimals, 64)
-}
-
 func writingSpeed(r predict.Result) string {
 	return fmt.Sprintf("%s tok/s at %s", bandNumber(r.DecodeTPSDeep, r.Accuracy.DecodePct), sim.Kilo(r.Scenario.DecodeDepth))
 }
+
+var bandNumber = figure.BandNumber

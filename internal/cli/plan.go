@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"errors"
@@ -76,7 +76,7 @@ func cmdPlan(args []string) error {
 	if !t.Synthetic {
 		input.OwnedFileExists = ownedFileExists
 	}
-	for _, ir := range in.byProfile[prof.ID] {
+	for _, ir := range in.ByProfile[prof.ID] {
 		input.Installed, input.InstalledVersion = true, ir.Version
 		input.Running = input.Running || ir.Running
 	}

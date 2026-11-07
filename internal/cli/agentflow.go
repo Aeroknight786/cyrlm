@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"bufio"
@@ -9,13 +9,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/aeroknight786/trialm/internal/account"
-	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/hw"
 	"github.com/aeroknight786/trialm/internal/predict"
@@ -52,25 +51,6 @@ func cmdPrompt(args []string) error {
 
 // ---------------------------------------------------------------- recommend
 
-type recRow struct {
-	r       predict.Result
-	verdict string
-	rank    int
-}
-
-// verdictFor classifies how a setup feels in an agent session.
-func verdictFor(r predict.Result) (string, int) {
-	first := r.Scenario.ColdFirstReply.Seconds()
-	turn := r.Scenario.FollowUpTurn.Seconds()
-	switch {
-	case turn <= 20 && first <= 120:
-		return "comfortable", 0
-	case turn <= 60 && first <= 300:
-		return "usable", 1
-	}
-	return "slow", 2
-}
-
 func cmdRecommend(args []string) error {
 	fs := flag.NewFlagSet("recommend", flag.ExitOnError)
 	var c common
@@ -92,30 +72,11 @@ func cmdRecommend(args []string) error {
 	if err != nil {
 		return err
 	}
-	in := detectInstalled(t)
-	var rows []recRow
-	for _, m := range catalog.All() {
-		if !m.Tools && hh.ID != "aider" {
-			continue
-		}
-		row, ok, err := bestFileFor(c, m, t, sc, in, hh)
-		if err != nil {
-			return err
-		}
-		if ok {
-			rows = append(rows, row)
-		}
+	listing, err := (core.Session{}).Find(context.Background(), c.options(), t, sc, hh, "", *top)
+	if err != nil {
+		return err
 	}
-	// Within a speed tier, larger models first (size is the capability proxy).
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].rank != rows[j].rank {
-			return rows[i].rank < rows[j].rank
-		}
-		return rows[i].r.Model.TotalParamsB > rows[j].r.Model.TotalParamsB
-	})
-	if *top > 0 && len(rows) > *top {
-		rows = rows[:*top]
-	}
+	rows, in := listing.Rows, listing.Installed
 	if c.jsonOut {
 		type jr struct {
 			Rank      int        `json:"rank"`
@@ -130,9 +91,9 @@ func cmdRecommend(args []string) error {
 		}
 		var out []jr
 		for i, row := range rows {
-			out = append(out, jr{Rank: i + 1, Model: row.r.Model.OllamaTag, ModelName: row.r.Model.Name, Verdict: row.verdict,
-				Quant: row.r.Quant.Name, Runtime: row.r.Runtime.ID, TryCmd: tryCmd(row.r, hh.ID),
-				Installed: in.has(row.r.Runtime.ID), Result: jsonResults([]predict.Result{row.r})[0]})
+			out = append(out, jr{Rank: i + 1, Model: row.Result.Model.OllamaTag, ModelName: row.Result.Model.Name, Verdict: row.Verdict,
+				Quant: row.Result.Quant.Name, Runtime: row.Result.Runtime.ID, TryCmd: tryCmd(row.Result, hh.ID),
+				Installed: in.Has(row.Result.Runtime.ID), Result: jsonResults([]predict.Result{row.Result})[0]})
 		}
 		return printJSON(map[string]any{"machine": t.Name, "harness": hh.ID, "ranking": "speed tier (comfortable/usable/slow), then model size as a capability proxy — not a coding-quality score", "options": out})
 	}
@@ -140,16 +101,16 @@ func cmdRecommend(args []string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "#\tMODEL\tRUNTIME\tFILE\tFIRST REPLY\tFOLLOW-UP\tTASK*\tFEEL")
 	for i, row := range rows {
-		r := row.r
+		r := row.Result
 		rt := r.Runtime.Name
 		if r.Kind == "calibrated" {
 			rt += " calibrated"
 		}
-		if in.has(r.Runtime.ID) {
+		if in.Has(r.Runtime.ID) {
 			rt += " ●"
 		}
 		fmt.Fprintf(w, "%d\t%s\t%s\t%s %s\t%s\t%s\t%s\t%s\n", i+1, r.Model.OllamaTag, rt, r.Quant.Name, gb(float64(r.Quant.FileBytes)),
-			dur(r.Scenario.ColdFirstReply), dur(r.Scenario.FollowUpTurn), dur(r.Scenario.Session), row.verdict)
+			dur(r.Scenario.ColdFirstReply), dur(r.Scenario.FollowUpTurn), dur(r.Scenario.Session), row.Verdict)
 	}
 	w.Flush()
 	if len(rows) == 0 {
@@ -158,17 +119,17 @@ func cmdRecommend(args []string) error {
 	}
 	allSlow := true
 	for _, r := range rows {
-		if r.verdict != "slow" {
+		if r.Verdict != "slow" {
 			allSlow = false
 		}
 	}
 	if allSlow {
 		fmt.Println("\n⚠ None of these will feel usable in a coding agent on this machine: every first reply takes minutes. A machine with a GPU or Apple Silicon makes a large difference.")
 	}
-	fmt.Printf("\n* TASK = a %d-call agent task (cloud: ~%s). Tuned settings. ● = runtime installed. More options: --top 20\n", sc.Turns, dur(rows[0].r.Scenario.CloudSession))
+	fmt.Printf("\n* TASK = a %d-call agent task (cloud: ~%s). Tuned settings. ● = runtime installed. More options: --top 20\n", sc.Turns, dur(rows[0].Result.Scenario.CloudSession))
 	fmt.Println("Ranked by speed tier, then model size (a rough capability proxy — triaLM does not score coding quality; try the top picks).")
 	fmt.Println("Each model shows the file that runs best here: its usual 4-bit file when that is fast, else a smaller 3-bit file (more mistakes; see the quality caveat in `trialm predict`).")
-	fmt.Printf("Try #1: %s\n\n", tryCmd(rows[0].r, hh.ID))
+	fmt.Printf("Try #1: %s\n\n", tryCmd(rows[0].Result, hh.ID))
 	return nil
 }
 
@@ -179,78 +140,6 @@ func tryCmd(r predict.Result, harnessID string) string {
 		q = " --quant " + r.Quant.Name
 	}
 	return fmt.Sprintf("trialm try %s --runtime %s%s --harness %s", r.Model.OllamaTag, r.Runtime.ID, q, harnessID)
-}
-
-// bestFileFor picks the model file (quantization) and runtime to show for
-// m. Every file is tried; the model's default file wins when it reaches the
-// best speed tier any file reaches, otherwise the largest file (closest to
-// the default's quality) that does — so a 3-bit file is chosen only when
-// it is what lets the model fit or feel fast here. --quant pins the file.
-func bestFileFor(c common, m catalog.Model, t predict.Target, sc predict.Scenario, in installed, hh harness.Harness) (recRow, bool, error) {
-	quants := []string{c.quant}
-	if c.quant == "" {
-		quants = quants[:0]
-		for _, q := range m.Quants {
-			quants = append(quants, q.Name)
-		}
-	}
-	var cands []recRow
-	for _, qn := range quants {
-		cq := c
-		cq.quant = qn
-		rs, err := predictAll(cq, m, t, sc, []bool{true})
-		if err != nil {
-			continue // this file does not exist for any runtime here
-		}
-		best, mine := recommend(rs, in, hh)
-		pick := best
-		if mine != nil && best != nil && mine.Scenario.Session.Seconds() <= best.Scenario.Session.Seconds()*1.05 {
-			pick = mine
-		}
-		if pick == nil {
-			continue
-		}
-		v, rank := verdictFor(*pick)
-		cands = append(cands, recRow{r: *pick, verdict: v, rank: rank})
-	}
-	if len(cands) == 0 {
-		return recRow{}, false, nil
-	}
-	top := cands[0].rank
-	for _, r := range cands {
-		if r.rank < top {
-			top = r.rank
-		}
-	}
-	def := m.Quants[0]
-	var pick *recRow
-	for i := range cands {
-		r := &cands[i]
-		if r.rank != top {
-			continue
-		}
-		if r.r.Quant.Name == def.Name || (def.Format == "gguf" && r.r.Quant.Format == "mlx" && r.r.Quant.FileBytes <= def.FileBytes*11/10) {
-			// The default file (or its MLX equivalent) reaches the top tier.
-			if pick == nil || pick.r.Quant.FileBytes < def.FileBytes*9/10 || r.r.Scenario.Session < pick.r.Scenario.Session {
-				pick = r
-			}
-			continue
-		}
-		if r.r.Quant.FileBytes > def.FileBytes {
-			continue // bigger than the default: slower for a small quality gain
-		}
-		if pick == nil || (pick.r.Quant.FileBytes < def.FileBytes*9/10 && r.r.Quant.FileBytes > pick.r.Quant.FileBytes) {
-			pick = r
-		}
-	}
-	if pick == nil {
-		for i := range cands {
-			if cands[i].rank == top && (pick == nil || cands[i].r.Quant.FileBytes < pick.r.Quant.FileBytes) {
-				pick = &cands[i]
-			}
-		}
-	}
-	return *pick, true, nil
 }
 
 // ---------------------------------------------------------------- verify
@@ -318,7 +207,7 @@ func cmdVerify(args []string) error {
 	if err != nil {
 		return err
 	}
-	var hcheck *HarnessCheck
+	var hcheck *verify.HarnessCheck
 	if c.harness != "" && !*skipHarness {
 		hh, err := harness.Get(c.harness)
 		if err != nil {
@@ -327,7 +216,7 @@ func cmdVerify(args []string) error {
 		if !c.jsonOut {
 			fmt.Printf("Checking %s's requests (greeting, tool call, tool result) against %s…\n", hh.Name, prof.Name)
 		}
-		r := harnessCheck(ctx, *endpoint, *model, *apiKey, hh, prof.APIs)
+		r := verify.HarnessCheckRun(ctx, *endpoint, *model, *apiKey, hh, prof.APIs)
 		hcheck = &r
 	}
 	rep := buildReport(res, pred, prof, t, sys, *promptTokens, *follow, *output)
@@ -382,8 +271,8 @@ func buildReport(res *verify.Result, pred *predict.Result, prof runtime.Profile,
 			break
 		}
 	}
-	if ir := detectInstalled(t); ir.detected {
-		for _, r := range ir.byProfile[prof.ID] {
+	if ir := detectInstalled(t); ir.Detected {
+		for _, r := range ir.ByProfile[prof.ID] {
 			rep.RuntimeVer = r.Version
 			break
 		}
@@ -416,12 +305,12 @@ func buildReport(res *verify.Result, pred *predict.Result, prof runtime.Profile,
 	return rep
 }
 
-func printHarnessCheck(hc HarnessCheck) {
+func printHarnessCheck(hc verify.HarnessCheck) {
 	mark := func(s string) string {
 		switch s {
-		case checkPass:
+		case "pass":
 			return "✓"
-		case checkFail:
+		case "fail":
 			return "✗"
 		}
 		return "–"

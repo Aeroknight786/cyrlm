@@ -1,4 +1,4 @@
-package main
+package verify
 
 import (
 	"bufio"
@@ -42,7 +42,7 @@ const (
 // instructions plus several developer messages, a namespaced function tool
 // and a hosted tool. Chat harnesses exercise streaming tool deltas and
 // usage; Aider exercises whole-format edits and a trailing system reminder.
-func harnessCheck(ctx context.Context, endpoint, model, apiKey string, h harness.Harness, apis []string) HarnessCheck {
+func HarnessCheckRun(ctx context.Context, endpoint, model, apiKey string, h harness.Harness, apis []string) HarnessCheck {
 	hc := HarnessCheck{Harness: h.ID, Greeting: checkSkip, ToolCall: checkSkip, FollowUp: checkSkip}
 	if apiKey == "" {
 		apiKey = "local"

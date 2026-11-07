@@ -1,25 +1,22 @@
-package main
+package core
 
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
-	"path"
-	"strings"
-	"time"
-
 	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/gguf"
 	"github.com/aeroknight786/trialm/internal/hub"
+	"strings"
+	"time"
 )
 
-func isGGUFRef(s string) bool {
+func IsGGUFRef(s string) bool {
 	l := strings.ToLower(s)
 	return strings.HasSuffix(l, ".gguf") || strings.Contains(l, ".gguf?") || strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "https://")
 }
 
-func openGGUF(ref string) (*gguf.File, error) {
+func OpenGGUF(ref string) (*gguf.File, error) {
 	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
@@ -36,61 +33,6 @@ func hfResolve(u string) string {
 	return u
 }
 
-func cmdInspect(args []string) error {
-	fs := flag.NewFlagSet("inspect", flag.ExitOnError)
-	jsonOut := fs.Bool("json", false, "JSON output")
-	pos, err := parseInterspersed(fs, args)
-	if err != nil {
-		return err
-	}
-	if len(pos) != 1 {
-		return errors.New("usage: trialm inspect <file.gguf | https://…/model.gguf>")
-	}
-	f, err := openGGUF(pos[0])
-	if err != nil {
-		return err
-	}
-	s := f.Summary()
-	if *jsonOut {
-		return printJSON(s)
-	}
-	fmt.Printf("%s (%s) — %s\n", nonEmpty(s.Name, path.Base(pos[0])), s.Architecture, s.FileTypeLabel)
-	fmt.Printf("  file           %s (%d tensors)\n", gb(float64(s.FileSize)), s.TensorCount)
-	fmt.Printf("  parameters     %.2fB total", float64(s.ParameterCount)/1e9)
-	if s.ExpertCount > 0 {
-		fmt.Printf(", %d experts (%d active) → %.2fB read per token", s.ExpertCount, s.ExpertUsedCount, float64(s.ActiveParams)/1e9)
-	}
-	fmt.Println()
-	fmt.Printf("  per token      %s of weights read while generating\n", gb(float64(s.ActiveBytes)))
-	fmt.Printf("  layers         %d (%d full attention, %d sliding-window", s.BlockCount, s.FullAttentionLayers, s.SlidingLayers)
-	if s.RecurrentLayers > 0 {
-		fmt.Printf(", %d recurrent", s.RecurrentLayers)
-	}
-	fmt.Println(")")
-	fmt.Printf("  attention      %d heads, %d KV heads, head dim %d", s.HeadCount, s.HeadCountKV, s.KeyLength)
-	if s.SlidingWindow > 0 {
-		fmt.Printf(", window %d", s.SlidingWindow)
-	}
-	fmt.Println()
-	fmt.Printf("  KV cache       %.0f KiB/token (f16), %.0f KiB/token (q8_0)\n", float64(s.KVBytesPerTokenF16)/1024, float64(s.KVBytesPerTokenQ8_0)/1024)
-	for _, c := range []int{8192, 32768, 131072} {
-		if uint64(c) <= s.ContextLength || s.ContextLength == 0 {
-			fmt.Printf("                 %3dk context → %s (f16)\n", c/1024, gb(float64(s.KVBytesPerTokenF16)*float64(c)+float64(s.SlidingKVBytesF16)))
-		}
-	}
-	fmt.Printf("  context        %d tokens trained\n", s.ContextLength)
-	fmt.Printf("  chat template  %v\n", s.HasChatTemplate)
-	if si := findStandIn(pos[0], f, s); si.Upstream != "" {
-		fmt.Printf("  trial          no cloud provider hosts this exact file: trials use its base %s as a stand-in (cloud id %s)\n", si.describe(), si.Upstream)
-		fmt.Println("                 speed is simulated from this file exactly; behaviour is the base model's")
-	}
-	for _, n := range s.Notes {
-		fmt.Printf("  note: %s\n", n)
-	}
-	fmt.Printf("\nPredict it: trialm predict %s\n", pos[0])
-	return nil
-}
-
 func hubRepo(ref string) (string, bool) { return hub.RepoFromURL(ref) }
 
 func nonEmpty(a, b string) string {
@@ -101,8 +43,8 @@ func nonEmpty(a, b string) string {
 }
 
 // modelFromGGUF converts a GGUF summary into a one-quant catalog model.
-func modelFromGGUF(ref string) (catalog.Model, error) {
-	f, err := openGGUF(ref)
+func ModelFromGGUF(ref string) (catalog.Model, error) {
+	f, err := OpenGGUF(ref)
 	if err != nil {
 		return catalog.Model{}, fmt.Errorf("reading GGUF header: %w", err)
 	}
@@ -143,10 +85,10 @@ func modelFromGGUF(ref string) (catalog.Model, error) {
 	if m.ReadParamsB <= 0 {
 		m.ReadParamsB, m.MatmulParamsB = m.TotalParamsB, m.TotalParamsB
 	}
-	if si := findStandIn(ref, f, s); si.Upstream != "" {
+	if si := FindStandIn(ref, f, s); si.Upstream != "" {
 		m.OpenRouterID = si.Upstream
 		m.UpstreamUnverified = !si.Known
-		m.TrialStandIn = si.describe()
+		m.TrialStandIn = si.Describe()
 	} else {
 		m.Notes = append(m.Notes, "no base model found: pass --upstream-model to choose the cloud model for a trial")
 	}
