@@ -1,0 +1,14 @@
+What do you need? · Enter accepts every default
+❯ Tool              ‹ codex ›
+  Use               ‹ agent ›
+  Model             ‹ any ›
+  Priority          ‹ balanced ›
+  Context (native)  ‹ 64k ›
+  Quality           ‹ 3bit-ok ›
+  Engines           ‹ stable+new ›
+  Speed boosts      ‹ auto ›
+  Trial             ‹ repo ›
+Native context only · YaRN choices arrive in v0.6
+Trial: no-logging providers · cap 2.00 USD
+
+↑↓ row  ←→ change  enter go  esc back  q quit

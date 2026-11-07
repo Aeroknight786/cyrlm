@@ -3,11 +3,11 @@ package cli
 import (
 	"context"
 	"os"
-	"os/exec"
 	"runtime"
 
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/ui"
+	"github.com/aeroknight786/trialm/internal/ui/tui"
 )
 
 type keyFlow ui.KeyFlow
@@ -24,15 +24,4 @@ func (f keyFlow) run(ctx context.Context, args []string) error {
 	return flow.Run(ctx, args)
 }
 
-func openBrowser(u string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", u)
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", u)
-	default:
-		cmd = exec.Command("xdg-open", u)
-	}
-	return cmd.Run()
-}
+var openBrowser = tui.OpenBrowser

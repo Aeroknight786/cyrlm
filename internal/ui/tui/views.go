@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+func wrap(s string, w int) string { return ansi.Wrap(s, max(1, w), "") }
 func strip(s string) string       { return ansi.Strip(s) }
 func clip(s string, w int) string { return ansi.Truncate(s, max(1, w), "") }
 func metric(r predict.Result, v float64, unit string, reading bool) figure.Figure {
@@ -26,7 +28,7 @@ func (m *Root) body() string {
 	case First:
 		machine := "Detecting this machine…"
 		if m.detection.Target.Name != "" {
-			machine = m.detection.Target.Name
+			machine = m.detection.Target.Name + " · " + figure.Exact(m.detection.Target.GPUMemBytes/(1<<30), "GB for models", figure.Measured, "hardware:budget").String()
 		}
 		engine := "none yet (setup arrives in v0.5)"
 		if len(m.detection.Runtimes) > 0 {
@@ -37,7 +39,7 @@ func (m *Root) body() string {
 		if m.password == nil {
 			return "OpenRouter key"
 		}
-		return title + "\n" + m.password.View()
+		return title + "\n" + m.authURL + "\n" + m.password.View()
 	case Calibration:
 		return title + "\n\nCalibrate this machine · recommended\n≈3–7 min · no model downloads\nSynthetic files need about 6 GB of temporary disk.\nUses an installed llama-bench. Skip and browse if unavailable."
 	case Calibrating:
@@ -56,7 +58,7 @@ func (m *Root) body() string {
 			if i == m.field {
 				mark = m.theme.selected.Render("❯ ")
 			}
-			lines = append(lines, mark+strings.ReplaceAll(f.View(), "\n", " "))
+			lines = append(lines, mark+fmt.Sprintf("%-18s", m.labels[i])+strings.TrimSpace(strings.ReplaceAll(f.View(), "\n", " ")))
 		}
 		lines = append(lines, "Native context only · YaRN choices arrive in v0.6", "Trial: no-logging providers · cap "+figure.Exact(m.cfg.Preferences.BudgetUSD, "USD", figure.Measured, "prefs:budget").String())
 		return strings.Join(lines, "\n")
@@ -108,6 +110,11 @@ func (m *Root) body() string {
 	case Search:
 		return m.search.View()
 	case Why:
+		if len(m.stack) > 1 && m.stack[len(m.stack)-2] == ClaimCard {
+			cs := Claims()
+			c := cs[min(max(0, m.selected), len(cs)-1)]
+			return "Source · " + c.SourceName + "\n" + c.SourceURL + "\n" + c.Date + " · " + c.DateBasis + "\nGrade " + c.Grade + " · unverified by triaLM\n" + c.Hardware
+		}
 		if row, ok := m.row(); ok {
 			r := row.Result
 			f := metric(r, r.DecodeTPSDeep, "tok/s", false)
@@ -117,7 +124,7 @@ func (m *Root) body() string {
 	case Setup:
 		return "Set up locally\nSetup execution arrives in v0.5.\nReview the plan: trialm setup --dry-run\nNo engine or model has been installed."
 	case Trial:
-		return "Trial in another terminal\nRequest · waiting for harness\nCache · pending\nWait · local pacing\nSpend · tracked in the trial card"
+		return m.meter.String()
 	case Chat:
 		return m.chat.view()
 	}
@@ -128,29 +135,22 @@ func (m *Root) recipes() string {
 	if len(m.listing.Rows) == 0 {
 		return b + "No working recipe for these needs. Press r to change them."
 	}
-	if m.width >= 90 {
-		b += "    MODEL                         FILE · ENGINE                  WRITES       TURN       FIRST\n"
+	if m.width >= 60 {
+		b += m.tableView() + "\n"
 	} else {
-		b += "    MODEL                         FILE · ENGINE                  TURN\n"
+		for i, row := range m.listing.Rows {
+			r := row.Result
+			mark := "  "
+			if i == m.selected {
+				mark = "❯ "
+			}
+			b += fmt.Sprintf("%s%d %s\n  %s · %s\n  turn %s\n", mark, i+1, r.Model.Name, r.Quant.Name, r.Runtime.ID, metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false).String())
+		}
 	}
-	for i, row := range m.listing.Rows {
-		r := row.Result
-		mark := "  "
-		if i == m.selected {
-			mark = "❯ "
-		}
-		model := fmt.Sprintf("%s%d %s", mark, i+1, r.Model.Name)
-		file := r.Quant.Name + " · " + r.Runtime.Name
-		turn := metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false).String()
-		if m.width < 60 {
-			b += model + "\n  " + file + "\n  turn " + turn + "\n"
-		} else if m.width < 90 {
-			b += fmt.Sprintf("%-33s %-26s %9s\n", clip(model, 32), clip(file, 25), turn)
-		} else {
-			b += fmt.Sprintf("%-33s %-26s %11s %9s %9s\n", clip(model, 32), clip(file, 25), metric(r, r.DecodeTPSDeep, "t/s", false).String(), turn, metric(r, r.Scenario.ColdFirstReply.Seconds(), "s", true).String())
-		}
-		if strings.Contains(r.Quant.Name, "3_") || strings.Contains(r.Quant.Name, "IQ3") {
-			b += "  " + m.theme.caveat.Render("3-bit · quality caveat") + "\n"
+	for _, row := range m.listing.Rows {
+		if strings.Contains(row.Result.Quant.Name, "IQ3") {
+			b += m.theme.caveat.Render("3-bit files: quality caveat") + "\n"
+			break
 		}
 	}
 	b += "\nClaims we can't simulate yet\n"
@@ -158,7 +158,7 @@ func (m *Root) recipes() string {
 	for _, c := range ClaimsFor(m.detection.Target.Device.Name, m.detection.Target.OS) {
 		b += "  claim " + c.ID + " · " + c.Figures[0].String() + " [" + c.Grade + "]\n"
 	}
-	b += m.theme.cloud.Render("Trial: real cloud model · no-logging providers · cap " + figure.Exact(m.cfg.Preferences.BudgetUSD, "USD", figure.Measured, "prefs:budget").String())
+	b += wrap(m.theme.cloud.Render("Trial: real cloud model · no-logging providers · cap "+figure.Exact(m.cfg.Preferences.BudgetUSD, "USD", figure.Measured, "prefs:budget").String()), m.width)
 	b += "\n" + m.theme.dim.Render("calibrate for tighter numbers: trialm calibrate")
 	return b
 }
@@ -172,16 +172,23 @@ func (m *Root) details() string {
 	b := r.Model.Name + " · " + r.Quant.Name + " · " + r.Runtime.Name + "\n"
 	b += "Memory " + m.progressBar(mem.TotalBytes/max(1, mem.BudgetBytes)) + "\n" + figure.Exact(mem.TotalBytes/(1<<30), "GB", figure.Simulated, "memory:plan").String() + " of " + figure.Exact(mem.BudgetBytes/(1<<30), "GB", figure.Measured, "hardware:budget").String() + " · " + mem.Level + "\n"
 	if r.Timing != nil {
-		read := r.Timing.PrefillSec(r.Scenario.DecodeDepth, r.Scenario.DecodeDepth+m.listing.Scenario.NewTokensPerTurn)
-		write := r.Timing.DecodeSec(r.Scenario.DecodeDepth) * float64(m.listing.Scenario.OutputTokensPerTurn)
+		read := r.Scenario.FollowUpTTFT.Seconds()
+		write := max(0, r.Scenario.FollowUpTurn.Seconds()-read)
 		b += "Turn " + metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false).String() + "\n" + m.split(read, write, 0)
 	}
 	flash := "off"
 	if r.Settings.FlashAttention {
 		flash = "on: keeps prompt reading efficient"
 	}
-	b += "\n✓ flash attention · " + flash + "\n· KV cache · " + r.Settings.KVCacheType + " · " + mem.Level + " at this context\n· YaRN · native context; opt-in arrives in v0.6\n· spec · not simulated yet (v0.6)\n"
+	b += fmt.Sprintf("\n✓ flash attention, %d slot(s) · %s\n· KV cache · %s · %s at this context\n· YaRN · not needed: native %dk ≥ %dk\n· spec · not simulated yet (v0.6)\n", r.Settings.Slots, flash, r.Settings.KVCacheType, mem.Level, r.Model.NativeCtx/1024, r.Settings.ContextTokens/1024)
 	b += strings.Join(r.TuneSteps, "\n")
+	if mem.Level == predict.FitOK {
+		b = m.theme.good.Render("✓ fits") + "\n" + b
+	} else if mem.Level == predict.FitNo {
+		b = m.theme.blocked.Render("✗ blocked") + "\n" + b
+	} else {
+		b = m.theme.caveat.Render("caveat: "+mem.Level) + "\n" + b
+	}
 	return b
 }
 func (m *Root) progressBar(v float64) string {
@@ -198,7 +205,8 @@ func (m *Root) split(read, write, fixed float64) string {
 	if total <= 0 {
 		return "Time split: no requests yet.\n"
 	}
-	a, b := int(100*read/total), int(100*write/total)
+	a := int(math.Round(100 * read / total))
+	b := min(100-a, int(math.Round(100*write/total)))
 	label := fmt.Sprintf("reading %d%% · writing %d%% · fixed/tools %d%%", a, b, 100-a-b)
 	if m.theme.plain || m.theme.ascii {
 		return m.progressBar(read/total) + "\n" + label + "\n"
@@ -206,6 +214,15 @@ func (m *Root) split(read, write, fixed float64) string {
 	w := max(8, min(36, m.width-8))
 	n := int(float64(w) * read / total)
 	k := int(float64(w) * write / total)
-	bar := lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render(strings.Repeat("━", n)) + lipgloss.NewStyle().Foreground(lipgloss.Color("5")).Render(strings.Repeat("━", k)) + m.theme.dim.Render(strings.Repeat("━", max(0, w-n-k)))
-	return bar + "\n" + label + "\n"
+	bar := strings.Builder{}
+	for i := 0; i < w; i++ {
+		color := fmt.Sprintf("#%02x%02x%02x", 40+140*i/max(1, w-1), 150-70*i/max(1, w-1), 170+50*i/max(1, w-1))
+		glyph := "━"
+		if i == n || i == n+k {
+			glyph = "╷"
+		}
+		bar.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(glyph))
+	}
+
+	return bar.String() + "\n" + label + "\n"
 }

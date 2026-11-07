@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/harness"
+	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/selfupdate"
 	"github.com/aeroknight786/trialm/internal/store"
 )
@@ -16,6 +18,10 @@ import (
 // SessionConfig adapts the stdlib session once for both home and find.
 func SessionConfig(ctx context.Context, s store.Store, p store.Preferences, o core.Options, top int, version string) Config {
 	cfg := Config{Context: ctx, Store: s, Preferences: p}
+	cfg.Headless = os.Getenv("SSH_CONNECTION") != "" || (runtime.GOOS != "darwin" && runtime.GOOS != "windows" && os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "")
+	cfg.Authorize = func(ctx context.Context, key string) error {
+		return Authorize(ctx, s, openrouter.Client{}, "", OpenBrowser, key)
+	}
 	cfg.Detect = func(ctx context.Context) (core.Detection, error) { return (core.Session{}).Detect(ctx, o) }
 	cfg.Find = func(ctx context.Context, p store.Preferences) (core.Listing, error) {
 		opts := o

@@ -1,0 +1,13 @@
+Recipes for codex · balanced · 64k native
+Simulated or calibrated · uncertainty shown on ?
+MODEL                   FILE · ENGINE           TURN      
+
+3-bit files: quality caveat
+
+Claims we can't simulate yet
+  claim splash/m5pro/qwen35b · 175 claim tok/s writing [S]
+Trial: real cloud model · no-logging providers · cap 2.00
+USD
+calibrate for tighter numbers: trialm calibrate
+
+enter try  s set up  d details  w window  r needs  / search

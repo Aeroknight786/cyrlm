@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -24,27 +23,15 @@ func runWindow(ctx context.Context, args []string, w io.Writer) error {
 	}
 	return err
 }
-func windowArgs(args []string) []string {
-	a := append([]string(nil), args...)
-	for _, flag := range []string{"window", "json", "launch", "plain", "here"} {
-		a, _, _ = takeFlag(a, flag, false)
-	}
-	return a
-}
+
+var windowArgs = window.Args
+
 func printClaims(jsonOut bool) error {
 	cs := tui.Claims()
 	if jsonOut {
 		return emit("result", map[string]any{"claims": cs}, core.Next{Cmd: "trialm find", Why: "rank simulated recipes"})
 	}
-	fmt.Fprintln(out(), "Published claims · unverified by triaLM · never ranked")
-	for _, c := range cs {
-		fmt.Fprintf(out(), "\n%s [%s]\n%s\n%s\n", c.ID, c.Grade, c.Hardware, c.Recipe)
-		for _, f := range c.Figures {
-			fmt.Fprintln(out(), " ", f.String())
-		}
-		fmt.Fprintln(out(), c.SourceName, "·", c.Date, "·", c.DateBasis)
-		fmt.Fprintln(out(), c.SourceURL)
-	}
+	tui.PrintClaims(out(), cs)
 	return nil
 }
 func autoWindow() bool {

@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -45,7 +46,16 @@ func TestFiguresPreserveBandAndNext(t *testing.T) {
 // UI formatting of speeds and times must go through figure. Existing plain
 // layouts use string cells; new raw float/unit formats fail this guard.
 func TestNoRawSpeedOrTimeFloatFormats(t *testing.T) {
-	files, err := filepath.Glob("*.go")
+	files := []string{}
+	err := filepath.WalkDir(".", func(path string, d os.DirEntry, e error) error {
+		if e != nil {
+			return e
+		}
+		if !d.IsDir() && strings.HasSuffix(path, ".go") {
+			files = append(files, path)
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

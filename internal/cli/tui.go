@@ -58,12 +58,17 @@ func runTUI(ctx context.Context, verb string, args []string) error {
 	return tui.Run(cfg)
 }
 
-func runTrialTUI(ctx context.Context, c common, r predict.Result, args []string) error {
+func runTrialTUI(ctx context.Context, c common, r predict.Result, args []string, window bool) error {
 	p := c.prefs
 	p.Tool = c.harness
 	p.Context = r.Settings.ContextTokens
 	cfg := tui.SessionConfig(ctx, store.Default(), p, c.options(), 5, version)
 	cfg.Start = tui.Trial
-	cfg.DirectArgs = windowArgs(args)
+	if window {
+		cfg.WindowArgs = windowArgs(args)
+		cfg.Window = func(ctx context.Context, args []string) error { return runWindow(ctx, args, nil) }
+	} else {
+		cfg.DirectArgs = windowArgs(args)
+	}
 	return tui.Run(cfg)
 }

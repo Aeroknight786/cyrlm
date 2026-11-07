@@ -15,7 +15,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"github.com/aeroknight786/trialm/internal/core"
+	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/store"
+	"github.com/aeroknight786/trialm/internal/ui/window"
+	"github.com/charmbracelet/colorprofile"
 )
 
 type Screen string
@@ -55,6 +58,9 @@ type Config struct {
 	NoColor, ASCII  bool
 	DirectArgs      []string
 	AutomaticWindow bool
+	Process         func(context.Context, string, []string) *exec.Cmd
+	WindowArgs      []string
+	Headless        bool
 }
 type detectedMsg struct {
 	detection core.Detection
@@ -65,12 +71,17 @@ type recipesMsg struct {
 	err     error
 }
 type authorizedMsg struct{ err error }
+type headlessReadyMsg struct {
+	login *headlessLogin
+	err   error
+}
 type noticeMsg string
 type childMsg struct {
 	kind Screen
 	err  error
 }
 type pulseMsg time.Time
+type windowDoneMsg struct{ err error }
 
 // Root owns every screen and sub-model for the entire interactive session.
 type Root struct {
@@ -82,6 +93,7 @@ type Root struct {
 	listing         core.Listing
 	selected, field int
 	fields          []huh.Field
+	labels          []string
 	secret          string
 	password        *huh.Input
 	search          textinput.Model
@@ -94,7 +106,11 @@ type Root struct {
 	started         time.Time
 	calibration     *calibrationJob
 	chat            chatModel
+	chatStop        func() error
 	Error           error
+	meter           window.Meter
+	headless        *headlessLogin
+	authURL         string
 }
 
 func New(cfg Config) *Root {
@@ -118,7 +134,7 @@ func New(cfg Config) *Root {
 }
 func Run(cfg Config) error {
 	cfg.NoColor = cfg.NoColor || os.Getenv("NO_COLOR") != ""
-	cfg.ASCII = cfg.ASCII || os.Getenv("TERM") == "dumb"
+	cfg.ASCII = cfg.ASCII || asciiTerminal(nativeOS, os.Getenv)
 	m := New(cfg)
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	if err != nil {
@@ -137,8 +153,14 @@ func (m *Root) back() {
 }
 func (m *Root) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.spin.Tick}
+	if m.cfg.WindowArgs != nil {
+		return tea.Batch(m.spin.Tick, m.beginWindow(m.cfg.WindowArgs))
+	}
 	if m.cfg.DirectArgs != nil {
-		return tea.Batch(m.spin.Tick, m.execute(m.cfg.DirectArgs))
+		if m.cfg.Store.Key() != "" || !needsCloudKey(m.cfg.DirectArgs) {
+			return tea.Batch(m.spin.Tick, m.execute(m.cfg.DirectArgs))
+		}
+		m.replace(First)
 	}
 	if m.cfg.Detect != nil {
 		cmds = append(cmds, func() tea.Msg { d, e := m.cfg.Detect(m.cfg.Context); return detectedMsg{d, e} })
@@ -200,8 +222,7 @@ func (m *Root) try(window bool) tea.Cmd {
 	m.push(Trial)
 	m.started = time.Now()
 	if window {
-		m.busy = true
-		return func() tea.Msg { return childMsg{Trial, m.cfg.Window(m.cfg.Context, args)} }
+		return m.beginWindow(args)
 	}
 	if m.cfg.Preferences.Use == "chat" {
 		args = append(args, "--use", "chat")
@@ -209,8 +230,19 @@ func (m *Root) try(window bool) tea.Cmd {
 	return m.execute(args)
 }
 func (m *Root) execute(args []string) tea.Cmd {
-	cmd := exec.CommandContext(m.cfg.Context, m.cfg.Executable, append([]string{"try", "--plain", "--here"}, args...)...)
-	cmd.Env = childEnv(os.Environ())
+	if m.cfg.Preferences.Use == "chat" {
+		return m.startChat(args)
+	}
+	argv := append([]string{"try", "--plain", "--here"}, args...)
+	cmd := exec.CommandContext(m.cfg.Context, m.cfg.Executable, argv...)
+	if m.cfg.Process != nil {
+		cmd = m.cfg.Process(m.cfg.Context, m.cfg.Executable, argv)
+	}
+	if cmd.Env == nil {
+		cmd.Env = childEnv(os.Environ())
+	} else {
+		cmd.Env = childEnv(cmd.Env)
+	}
 	return tea.ExecProcess(cmd, func(e error) tea.Msg { return childMsg{kind: Trial, err: e} })
 }
 
@@ -225,11 +257,18 @@ func childEnv(env []string) []string {
 }
 func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
+	case tea.ColorProfileMsg:
+		if !m.theme.plain && v.Profile >= colorprofile.ANSI256 {
+			m.theme = m.theme.rich()
+		}
 	case tea.WindowSizeMsg:
 		m.width = max(20, v.Width)
 		m.height = max(8, v.Height)
 		m.bar.SetWidth(max(8, min(48, m.width-6)))
 		m.chat.resize(m.width, m.height)
+		for _, f := range m.fields {
+			f.WithWidth(max(12, m.width-24))
+		}
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(v)
@@ -260,16 +299,42 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.listing = v.listing
 		m.selected = 0
+	case headlessReadyMsg:
+		m.busy = false
+		if v.err != nil {
+			m.message = "Cannot start sign-in. Press p to paste a key."
+			return m, nil
+		}
+		m.headless = v.login
+		m.authURL = v.login.URL
+		m.push(Paste)
+		m.password = huh.NewInput().Title("Authorization code").Value(&m.secret).EchoMode(huh.EchoModePassword)
+		m.password.WithWidth(max(24, m.width-4))
+		m.password.WithKeyMap(huh.NewDefaultKeyMap())
+		m.password.WithTheme(m.formTheme())
+		return m, m.password.Focus()
 	case authorizedMsg:
 		m.busy = false
 		m.secret = ""
+		m.headless = nil
+		m.authURL = ""
 		if v.err != nil {
 			m.message = "Could not connect OpenRouter. Press p to paste a key or try again."
 			return m, nil
 		}
+		if m.cfg.DirectArgs != nil {
+			m.replace(Trial)
+			return m, m.execute(m.cfg.DirectArgs)
+		}
 		return m, m.afterKey()
 	case noticeMsg:
 		m.notice = string(v)
+	case windowDoneMsg:
+		if v.err != nil {
+			m.Error = v.err
+			return m, tea.Quit
+		}
+		return m, func() tea.Msg { return childMsg{kind: Trial} }
 	case childMsg:
 		m.busy = false
 		if v.err != nil {
@@ -302,7 +367,10 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.calibration.record(v.event)
 		return m, m.calibration.next()
 	case pulseMsg:
-		if m.screen() == Calibrating {
+		if m.screen() == Trial {
+			m.meter = window.ReadMeter(m.cfg.Store)
+		}
+		if m.screen() == Calibrating || m.screen() == Trial {
 			return m, tea.Tick(time.Second, func(t time.Time) tea.Msg { return pulseMsg(t) })
 		}
 	case tea.PasteMsg:
@@ -311,30 +379,63 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = "claim parsing arrives in v0.6"
 			return m, nil
 		}
+	case chatStartedMsg:
+		m.busy = false
+		if v.err != nil {
+			m.back()
+			m.message = v.err.Error()
+			return m, nil
+		}
+		m.chat = newChat(m.cfg.Context, v.client)
+		m.chatStop = v.stop
+		m.replace(Chat)
+		m.chat.resize(m.width, m.height)
+		return m, nil
 	case chatResponseMsg:
 		return m, m.chat.receive(v)
 	case tea.KeyPressMsg:
 		key := v.String()
 		if key == "ctrl+c" {
+			if m.headless != nil {
+				m.headless.close()
+				m.headless = nil
+			}
 			if m.calibration != nil {
 				m.calibration.cancel()
+			}
+			if m.chatStop != nil {
+				stop := m.chatStop
+				m.chatStop = nil
+				m.Error = context.Canceled
+				return m, tea.Sequence(func() tea.Msg { _ = stop(); return nil }, tea.Interrupt)
 			}
 			m.Error = context.Canceled
 			return m, tea.Interrupt
 		}
 		if m.screen() == Chat {
 			if key == "esc" {
-				return m, tea.Quit
+				return m, m.finishChat()
 			}
 			return m, m.chat.update(v)
 		}
 		if m.screen() == Paste {
 			if key == "esc" {
+				if m.headless != nil {
+					m.headless.close()
+					m.headless = nil
+				}
+				m.authURL = ""
 				m.secret = ""
 				m.back()
 				return m, nil
 			}
 			if key == "enter" {
+				if m.headless != nil {
+					login := m.headless
+					secret := m.secret
+					m.busy = true
+					return m, func() tea.Msg { return authorizedMsg{login.finish(m.cfg.Context, secret)} }
+				}
 				return m, m.authorize(m.secret)
 			}
 			_, cmd := m.password.Update(msg)
@@ -374,9 +475,12 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "p":
 				m.push(Paste)
 				m.password = huh.NewInput().Title("OpenRouter key").Value(&m.secret).EchoMode(huh.EchoModePassword)
-				m.password.WithTheme(huh.ThemeFunc(func(bool) *huh.Styles { return huh.ThemeBase(true) }))
+				m.password.WithTheme(m.formTheme())
+				m.password.WithWidth(max(24, m.width-4))
+				m.password.WithKeyMap(huh.NewDefaultKeyMap())
 				return m, m.password.Focus()
 			case "s":
+				m.cfg.DirectArgs = nil
 				return m, m.afterKey()
 			}
 		case Calibration:
@@ -408,11 +512,13 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.push(Recipes)
 				return m, m.find()
 			case "up", "k":
+				m.fields[m.field].Blur()
 				m.field = (m.field + len(m.fields) - 1) % len(m.fields)
 			case "down", "j", "tab":
+				m.fields[m.field].Blur()
 				m.field = (m.field + 1) % len(m.fields)
 			case "left", "h", "right", "l":
-				_, cmd := m.fields[m.field].Update(v)
+				_, cmd := m.fields[m.field].Update(changeKey(v))
 				return m, cmd
 			}
 		case Home:
@@ -507,6 +613,13 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 func (m *Root) openSearch() tea.Cmd { m.push(Search); return m.search.Focus() }
 func (m *Root) authorize(secret string) tea.Cmd {
+	if m.cfg.Headless && m.screen() == First && secret == "" {
+		m.busy = true
+		return func() tea.Msg {
+			h, e := beginHeadless(m.cfg.Store, openrouter.Client{}, "")
+			return headlessReadyMsg{h, e}
+		}
+	}
 	if m.cfg.Authorize == nil {
 		return nil
 	}
@@ -520,8 +633,11 @@ func (m *Root) makeFields() {
 		for i, o := range options {
 			opts[i] = huh.NewOption(o, o)
 		}
-		f := huh.NewSelect[string]().Title(title).Options(opts...).Value(value).Inline(true)
-		f.WithTheme(huh.ThemeFunc(func(bool) *huh.Styles { return huh.ThemeBase(true) }))
+		f := huh.NewSelect[string]().Options(opts...).Value(value).Inline(true)
+		f.WithKeyMap(huh.NewDefaultKeyMap())
+		f.WithWidth(32)
+		m.labels = append(m.labels, title)
+		f.WithTheme(m.formTheme())
 		f.Focus()
 		m.fields = append(m.fields, f)
 	}
@@ -529,8 +645,11 @@ func (m *Root) makeFields() {
 	add("Use", &p.Use, "agent", "chat")
 	add("Model", &p.Model, "any", "qwen3.6", "gpt-oss")
 	add("Priority", &p.Priority, "speed", "balanced", "quality", "long")
-	ctx := huh.NewSelect[int]().Title("Context (native)").Options(huh.NewOption("48k", 49152), huh.NewOption("64k", 65536), huh.NewOption("128k", 131072), huh.NewOption("256k", 262144)).Value(&p.Context).Inline(true)
-	ctx.WithTheme(huh.ThemeFunc(func(bool) *huh.Styles { return huh.ThemeBase(true) }))
+	ctx := huh.NewSelect[int]().Options(huh.NewOption("48k", 49152), huh.NewOption("64k", 65536), huh.NewOption("128k", 131072), huh.NewOption("256k", 262144)).Value(&p.Context).Inline(true)
+	ctx.WithKeyMap(huh.NewDefaultKeyMap())
+	ctx.WithWidth(32)
+	m.labels = append(m.labels, "Context (native)")
+	ctx.WithTheme(m.formTheme())
 	ctx.Focus()
 	m.fields = append(m.fields, ctx)
 	add("Quality", &p.QualityFloor, "3bit-ok", "4bit+")
@@ -574,13 +693,13 @@ func (m *Root) footer() string {
 }
 func (m *Root) View() tea.View {
 	body := m.body()
-	if m.busy && m.screen() != Calibrating {
+	if m.busy && m.screen() != Calibrating && m.screen() != Trial {
 		body += "\n" + m.spin.View() + " Working…"
 	}
 	if m.message != "" {
 		body += "\n" + m.theme.caveat.Render(m.message)
 	}
-	body += "\n\n" + m.theme.dim.Render(m.footer())
+	body += "\n\n" + m.helpView()
 	if m.theme.plain {
 		body = strip(body)
 	}
@@ -591,9 +710,41 @@ func (m *Root) fit(s string) string {
 	// never enter this view. ANSI-aware clipping keeps the renderer at the margin.
 	lines := strings.Split(s, "\n")
 	for i, l := range lines {
-		lines[i] = clip(l, m.width)
+		if m.screen() == Recipes || m.screen() == Needs || m.screen() == Chat {
+			lines[i] = clip(l, m.width)
+		} else {
+			lines[i] = wrap(l, m.width)
+		}
 	}
 	return strings.Join(lines, "\n")
 }
 
 var _ tea.Model = (*Root)(nil)
+
+func changeKey(v tea.KeyPressMsg) tea.KeyPressMsg {
+	// huh supports arrows; translate the shared h/l bindings at the root.
+	if v.String() == "h" {
+		return tea.KeyPressMsg{Code: tea.KeyLeft}
+	}
+	if v.String() == "l" {
+		return tea.KeyPressMsg{Code: tea.KeyRight}
+	}
+	return v
+}
+
+func (m *Root) beginWindow(args []string) tea.Cmd {
+	m.busy = true
+	return tea.Batch(func() tea.Msg { return windowDoneMsg{m.cfg.Window(m.cfg.Context, args)} }, tea.Tick(time.Second, func(t time.Time) tea.Msg { return pulseMsg(t) }))
+}
+
+func needsCloudKey(args []string) bool {
+	for i, a := range args {
+		if a == "--upstream" && i+1 < len(args) {
+			return args[i+1] == "auto" || args[i+1] == "openrouter"
+		}
+		if strings.HasPrefix(a, "--upstream=") {
+			return a == "--upstream=auto" || a == "--upstream=openrouter"
+		}
+	}
+	return true
+}

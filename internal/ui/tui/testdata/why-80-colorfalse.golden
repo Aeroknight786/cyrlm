@@ -1,0 +1,13 @@
+Why these numbers?
+Qwen3.6 35B-A3B · llama.cpp (llama-server)
+~40 tok/s
+Range ~16 to ~64
+Source: prediction:qwen3.6-35b-a3b/llamacpp
+Writing ±60% · reading ±70%
+quality caveat: IQ3_XXS is a ~3-bit file chosen so this model fits and runs fast
+here; expect clearly more mistakes than the cloud's provider-dependent weights
+the trial uses (often a few points on coding benchmarks, more tool-call errors).
+A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice
+when quality matters more than speed
+
+esc back  q quit

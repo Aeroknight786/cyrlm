@@ -84,6 +84,7 @@ func Generate(s store.Store, goos, exe, dir string, args []string) (string, stri
 	}
 	script := filepath.Join(run, id+ext)
 	exit := filepath.Join(run, id+".exit")
+	started := filepath.Join(run, id+".started")
 	full := append([]string{"try", "--plain", "--here"}, args...)
 	var body string
 	if goos == "windows" {
@@ -91,9 +92,9 @@ func Generate(s store.Store, goos, exe, dir string, args []string) (string, stri
 		for _, a := range full {
 			quoted = append(quoted, psQuote(a))
 		}
-		body = "$ErrorActionPreference = 'Stop'\nSet-Location -LiteralPath " + psQuote(dir) + "\n$env:TRIALM_RUN_ID = " + psQuote(id) + "\n$env:TRIALM_HOME = " + psQuote(s.Dir) + "\nRemove-Item Env:CLAUDECODE,Env:CLAUDE_CODE_ENTRYPOINT -ErrorAction SilentlyContinue\ntry { & " + psQuote(exe) + " " + strings.Join(quoted, " ") + "\n$code = $LASTEXITCODE } catch { $code = 1; Write-Error $_ -ErrorAction Continue }\n[IO.File]::WriteAllText(" + psQuote(exit) + ", [string]$code)\nexit $code\n"
+		body = "[IO.File]::WriteAllText(" + psQuote(started) + ", 'started')\n$ErrorActionPreference = 'Stop'\nSet-Location -LiteralPath " + psQuote(dir) + "\n$env:TRIALM_RUN_ID = " + psQuote(id) + "\n$env:TRIALM_HOME = " + psQuote(s.Dir) + "\nRemove-Item Env:CLAUDECODE,Env:CLAUDE_CODE_ENTRYPOINT -ErrorAction SilentlyContinue\ntry { & " + psQuote(exe) + " " + strings.Join(quoted, " ") + "\n$code = $LASTEXITCODE } catch { $code = 1; Write-Error $_ -ErrorAction Continue }\n[IO.File]::WriteAllText(" + psQuote(exit) + ", [string]$code)\nexit $code\n"
 	} else {
-		body = "#!/bin/sh\ncd " + Quote(dir) + " || exit 1\nunset CLAUDECODE CLAUDE_CODE_ENTRYPOINT\nexport TRIALM_HOME=" + Quote(s.Dir) + "\nexport TRIALM_RUN_ID=" + Quote(id) + "\n" + Command(exe, full) + "\nstatus=$?\nprintf '%s' \"$status\" > " + Quote(exit) + "\nexit \"$status\"\n"
+		body = "#!/bin/sh\nprintf started > " + Quote(started) + "\ncd " + Quote(dir) + " || exit 1\nunset CLAUDECODE CLAUDE_CODE_ENTRYPOINT\nexport TRIALM_HOME=" + Quote(s.Dir) + "\nexport TRIALM_RUN_ID=" + Quote(id) + "\n" + Command(exe, full) + "\nstatus=$?\nprintf '%s' \"$status\" > " + Quote(exit) + "\nexit \"$status\"\n"
 	}
 	if e := os.WriteFile(script, []byte(body), 0700); e != nil {
 		return "", "", e
@@ -105,7 +106,19 @@ func Generate(s store.Store, goos, exe, dir string, args []string) (string, stri
 	}
 	return id, script, nil
 }
+
+type Launcher struct {
+	Platform, Executable, Directory string
+	Getenv                          func(string) string
+	Lookup                          func(string) (string, error)
+	Open                            func([]string) error
+	AckTimeout                      time.Duration
+}
+
 func Run(ctx context.Context, s store.Store, args []string, w io.Writer) error {
+	return (Launcher{}).Run(ctx, s, args, w)
+}
+func (l Launcher) Run(ctx context.Context, s store.Store, args []string, w io.Writer) error {
 	exe, e := os.Executable()
 	if e != nil {
 		return e
@@ -114,22 +127,52 @@ func Run(ctx context.Context, s store.Store, args []string, w io.Writer) error {
 	if e != nil {
 		return e
 	}
+	if l.Platform == "" {
+		l.Platform = runtime.GOOS
+	}
+	if l.Executable != "" {
+		exe = l.Executable
+	}
+	if l.Directory != "" {
+		dir = l.Directory
+	}
+	if l.Getenv == nil {
+		l.Getenv = os.Getenv
+	}
+	if l.Lookup == nil {
+		l.Lookup = exec.LookPath
+	}
+	if l.AckTimeout == 0 {
+		l.AckTimeout = 10 * time.Second
+	}
+	if l.Open == nil {
+		l.Open = func(a []string) error {
+			b, e := exec.CommandContext(ctx, a[0], a[1:]...).CombinedOutput()
+			if e != nil {
+				return fmt.Errorf("%w: %s", e, b)
+			}
+			return nil
+		}
+	}
 	fallback := Command(exe, append([]string{"try", "--here"}, args...))
-	id, script, e := Generate(s, runtime.GOOS, exe, dir, args)
+	id, script, e := Generate(s, l.Platform, exe, dir, args)
 	if e != nil {
 		return e
 	}
-	argv, e := Opener(runtime.GOOS, script, dir, os.Getenv, exec.LookPath)
+	argv, e := Opener(l.Platform, script, dir, l.Getenv, l.Lookup)
 	if e != nil {
 		return &NeedsTerminal{fallback, e}
 	}
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	if b, e := cmd.CombinedOutput(); e != nil {
-		return &NeedsTerminal{fallback, fmt.Errorf("%w: %s", e, b)}
+	if e = l.Open(argv); e != nil {
+		return &NeedsTerminal{fallback, e}
 	}
+	_ = runStore(s).Write("active.json", map[string]string{"ID": id})
 	if w != nil {
-		fmt.Fprintln(w, "Request · waiting in the new terminal\nCache · waiting for the first request\nWait · local pacing\nSpend · tracked in the trial card")
+		fmt.Fprintln(w, (Meter{}).String())
 	}
+	launched := time.Now()
+	acknowledged := false
+
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -139,10 +182,20 @@ func Run(ctx context.Context, s store.Store, args []string, w io.Writer) error {
 			if e != nil {
 				return e
 			}
+			if w != nil {
+				fmt.Fprintln(w, ReadMeter(s).String())
+			}
 			if n != 0 {
 				return fmt.Errorf("trial window exited %d", n)
 			}
 			return nil
+		}
+		if !acknowledged {
+			_, e = os.Stat(filepath.Join(s.Dir, "run", id+".started"))
+			acknowledged = e == nil
+			if !acknowledged && time.Since(launched) > l.AckTimeout {
+				return &NeedsTerminal{fallback, errors.New("terminal did not start the trial script")}
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -150,4 +203,17 @@ func Run(ctx context.Context, s store.Store, args []string, w io.Writer) error {
 		case <-ticker.C:
 		}
 	}
+}
+
+// Args removes parent display/launch flags before starting a terminal child.
+func Args(args []string) []string {
+	out := []string{}
+	for _, arg := range args {
+		name, _, _ := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
+		if strings.HasPrefix(arg, "--") && (name == "window" || name == "json" || name == "launch" || name == "plain" || name == "here") {
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out
 }

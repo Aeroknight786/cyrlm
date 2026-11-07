@@ -14,7 +14,7 @@ type savedRecipe = store.Recipe
 func saveListing(rows []core.Row, h string) error {
 	list := []savedRecipe{}
 	for _, r := range rows {
-		list = append(list, savedRecipe{r.Result.Model.OllamaTag, r.Result.Quant.Name, r.Result.Runtime.ID, h})
+		list = append(list, savedRecipe{Model: r.Result.Model.OllamaTag, Quant: r.Result.Quant.Name, Runtime: r.Result.Runtime.ID, Harness: h})
 	}
 	return store.Default().Write("last.json", list)
 }

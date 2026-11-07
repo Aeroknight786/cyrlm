@@ -35,6 +35,7 @@ func newCalibration(parent context.Context, exe string) *calibrationJob {
 	job := &calibrationJob{events: make(chan calibrationEventMsg, 32), cancel: cancel, eta: "estimating"}
 	go func() {
 		defer close(job.events)
+		defer cancel()
 		cmd := exec.CommandContext(ctx, exe, "calibrate", "--json")
 		cmd.Env = childEnv(os.Environ())
 		home := store.Default().Dir
@@ -69,7 +70,10 @@ func newCalibration(parent context.Context, exe string) *calibrationJob {
 		if sc.Err() != nil {
 			err = sc.Err()
 		}
-		job.events <- calibrationEventMsg{done: true, err: err}
+		select {
+		case job.events <- calibrationEventMsg{done: true, err: err}:
+		case <-ctx.Done():
+		}
 	}()
 	return job
 }

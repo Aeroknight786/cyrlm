@@ -34,6 +34,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/tok"
 	"github.com/aeroknight786/trialm/internal/trial"
 	"github.com/aeroknight786/trialm/internal/ui/tui"
+	windowui "github.com/aeroknight786/trialm/internal/ui/window"
 	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
@@ -503,8 +504,8 @@ func cmdServe(args []string, try bool) error {
 			explicitLaunch = true
 		}
 	})
-	if try && selectedMode == Interactive && !explicitLaunch && !*here && !*serve && !*window && paths.Getenv("DETACHED") == "" {
-		return runTrialTUI(commandContext, c, res, args)
+	if try && selectedMode == Interactive && !explicitLaunch && !*here && !*serve && paths.Getenv("DETACHED") == "" {
+		return runTrialTUI(commandContext, c, res, args, *window)
 	}
 	prof := res.Runtime
 	// Upstream first, so a missing key is the first thing a user sees.
@@ -635,6 +636,15 @@ func cmdServe(args []string, try bool) error {
 			ContextLength: res.Settings.ContextTokens, SizeBytes: res.Quant.FileBytes, Capabilities: capabilities(m),
 			ModifiedAt: time.Now(),
 		},
+	})
+	meterCtx, meterCancel := context.WithCancel(commandContext)
+	defer meterCancel()
+	windowui.Track(meterCtx, store.Default(), os.Getenv("TRIALM_RUN_ID"), max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct), func() trial.Report {
+		spend := -1.0
+		if spending != nil {
+			spend = spending.Spent()
+		}
+		return trial.Summarize(dev.Stats().Snapshot(), spend, fidelity)
 	})
 	bound, err := srv.Listen(*host, *port, !portSet)
 	if err != nil {

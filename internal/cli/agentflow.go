@@ -20,6 +20,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/runtime"
 	"github.com/aeroknight786/trialm/internal/sim"
+	"github.com/aeroknight786/trialm/internal/ui"
 	"github.com/aeroknight786/trialm/internal/verify"
 )
 
@@ -34,19 +35,7 @@ func cmdPrompt(args []string) error {
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
 	}
-	p := agentPrompt
-	if *h != "" {
-		hh, err := harness.Get(*h)
-		if err != nil {
-			return err
-		}
-		p = strings.ReplaceAll(p, "<HARNESS>", hh.ID)
-	} else {
-		p = strings.ReplaceAll(p, "You are running in <HARNESS> — use that as `--harness`", "Work out which coding tool you are running in and use it wherever <your-tool> appears as `--harness`")
-		p = strings.ReplaceAll(p, "<HARNESS>", "<your-tool>")
-	}
-	fmt.Fprint(out(), p)
-	return nil
+	return ui.PrintPrompt(out(), agentPrompt, *h)
 }
 
 // ---------------------------------------------------------------- recommend

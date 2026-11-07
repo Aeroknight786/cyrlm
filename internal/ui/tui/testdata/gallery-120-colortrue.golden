@@ -1,0 +1,13 @@
+Published claims · unverified by triaLM · never ranked
+❯ strata/5070/q2_0/4k [V]
+  RTX 5070 12 GB · Ryzen 5 7600 · 64 GB DDR5-5200
+  93.0 claim tok/s writing at 4K
+  avalon/7900xt/short [S]
+  RX 7900 XT 20 GB · Ryzen 7 3800XT · DDR4-3200 · PCIe 3.0 · RAM amount not stated for this row
+  98.4 claim tok/s writing with MTP
+  splash/m5pro/qwen35b [S]
+  M5 Pro · core count and RAM differ between cited tables; comparison conditions incomplete
+  175 claim tok/s writing
+
+
+[36m↑↓[m [90mmove[m[90m  [m[36menter[m [90mclaim[m[90m  [m[36mesc[m [90mback[m[90m  [m[36mq[m [90mquit[m
