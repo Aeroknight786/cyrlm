@@ -10,6 +10,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/sim"
 )
 
 func calibrationCheck(ctx context.Context, home, engine, path string, jsonOut bool) error {
@@ -58,7 +59,7 @@ func calibrationCheck(ctx context.Context, home, engine, path string, jsonOut bo
 		if !v.InsideBand {
 			result = "MISSED band"
 		}
-		fmt.Printf("%s depth %d: measured %.2g tok/s, calibrated %.2g tok/s ±%d%%; error %+.0f%%; %s (%s)\n", mode, v.Depth, v.MeasuredTPS, v.PredictedTPS, v.BandPct, v.ErrorPct, result, v.LoadMode)
+		fmt.Printf("%s at %s: measured %s tok/s, calibrated %s tok/s ±%d%%; error %+.0f%%; %s (%s)\n", mode, sim.Kilo(v.Depth), bandNumber(v.MeasuredTPS, 10), bandNumber(v.PredictedTPS, v.BandPct), v.BandPct, v.ErrorPct, result, v.LoadMode)
 	}
 	fmt.Println("Saved validation rows in calib.json. Synthetic fits are unchanged.")
 	return nil
