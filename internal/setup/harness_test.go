@@ -11,7 +11,7 @@ import (
 )
 
 func TestOwnedHarnessPlanFilesMatchSetup(t *testing.T) {
-	for _, goos := range []string{"linux", "windows"} {
+	for _, goos := range []string{"darwin", "linux", "windows"} {
 		for _, rt := range []string{"ollama", "llamacpp"} {
 			for _, id := range []string{"aider", "qwen-code", "cline", "continue"} {
 				t.Run(goos+"/"+rt+"/"+id, func(t *testing.T) {
@@ -118,4 +118,23 @@ func TestClaudePlanOutputCap(t *testing.T) {
 		}
 	}
 	contains(t, "claude parent markers", st.Why, "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "per-session attribution")
+}
+
+// Plan file paths use the same portable form for every target, regardless of
+// the host running the planner. Shell commands use target-specific separators.
+func TestHarnessPlanPathsAreHostIndependent(t *testing.T) {
+	for _, target := range []string{"darwin", "linux", "windows"} {
+		t.Run(target, func(t *testing.T) {
+			in := spec{model: "qwen3-8b", runtime: "ollama", goos: target, goarch: "amd64", harness: "qwen-code"}.input(t)
+			p := build(t, in)
+			st := mustStep(t, p, "harness-qwen-code")
+			file(t, st, "~/.trialm/harness/qwen-code/settings.json")
+			command := runs(st)
+			if target == "windows" {
+				contains(t, "target shell", command, `"$HOME\.trialm\harness\qwen-code\settings.json"`)
+			} else {
+				contains(t, "target shell", command, `"$HOME/.trialm/harness/qwen-code/settings.json"`)
+			}
+		})
+	}
 }
