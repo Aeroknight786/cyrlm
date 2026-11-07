@@ -209,3 +209,41 @@ The minimal durable structure is:
 4. **Simple local corrections:** fit only the quantities the observations identify; otherwise retain the population prior. Keep exact measurements available without pretending they establish cross-model accuracy.
 
 No larger learning system is justified yet. The immediate work is measurement correctness, narrower transfer, and reproducible evaluation.
+---
+
+# Second opinion: can long-context prefill be predicted more reliably? (Fable, 2026-11-07)
+
+# Can long-context prefill be predicted more accurately? (2026-11-07, read-only)
+
+Method: replayed the shipped Go prefill formula in Python on the 285 eligible pp rows, then a leave-one-device-out (LODO) refit of the same dense/MoE/attention form, plus within-device long/short slopes (which cancel level error and isolate the attention coefficient). Scripts: (scratch) pp_replay.py, pp_lodo.py. Decode at depth not re-examined; fit-attn's held-out rule already governs it.
+
+## 1. Verdict
+
+Not with current data. Where you have held-out evidence (Metal; CUDA desktop on current builds) long-context prefill is already close to short-context accuracy and no refit beats the shipped constants, while the 31% headline comes from one Strix Halo box, nine 2024 CUDA rows that look like flash-attention-off, and spec-level errors on DGX Spark/Thor — none of which a population constant can fix. The caveat: the CUDA evidence is 7 rows of gpt-oss-20b from one thread, so "fine" is not established for dense 30B+ models, where attention is ~63% of predicted time at 32K vs 42% for gpt-oss-20b.
+
+## 2. Held-out numbers (LODO, Go form)
+
+- Long/deep, all 66 rows: 31.1% median (the review's 30.9% was right). By stratum: Metal 2025 builds 7.3% (7 devices); CUDA desktop 2025 18.7% (7 devices, 7 rows, all gpt-oss-20b pp32768); CUDA 2024 rows 47%, every one over-predicted 1.4–2.2x; nv_unified ~20% but Spark 0.7x and Thor 1.4x at every depth (level, not slope); ROCm 58% and Vulkan 420% because every depth row is the same Strix Halo device, so held out there is no attention evidence at all.
+- In-sample replay of the shipped constants gives the same picture (CUDA desktop 2025 20.8%, Metal 4–12%), so the constants themselves are not off.
+- Slopes: implied eff_attn per device is Metal 0.19–0.40 (shipped 0.279), CUDA 2025 0.13–0.57 (shipped 0.313), CUDA 2024 0.05–0.10 on all 7 cards — the uniform signature of non-flash attention (f32 scores, memory-bound). triaLM launches llama.cpp with FA on.
+- Refits: excluding 2024 rows from training moves CUDA desktop 18.7 -> 17.4%, Metal 7.3 -> 7.1%; fitting eff_attn from slopes alone is 13% vs 11% (CUDA), 12% vs 11% (Metal). Nothing to gain.
+
+## 3. Changes worth making (ranked)
+
+1. Record Ready and calibration prefill measurements properly (review rec 1): actual depth and prompt length, engine prompt_ms not wall TTFT, FA/batch/KV type. Every Ready run then becomes a (device, model, depth, prefill) row; today that evidence is lost. It is the only route that fixes Strix Halo, Arc, ROCm, M5 and nv_unified, which are driver and level effects. Cost: bookkeeping. Risk: none to generalisation; it is measurement.
+2. Verify the XD (May 2024) command line; if FA was off, exclude those CUDA rows from CUDA prefill fits and reported error, and label eff_attn "FA on". This is scoping, not an accuracy gain (~1 point held out), but it stops the error claim describing a regime triaLM never launches. The Metal XD rows are consistent with 2025 and should stay.
+3. M5: hold. The fixture (Qwen3.5-9B Q4_K_M, pp2048 at d0/8K/32K = 368/220/162) implies attention at 0.16–0.32 of the vector rate, i.e. the 4x accelerator factor is wrong for attention, but 1x over-corrects at 32K (0.28 vs 0.44 measured) and the short-context level is also 0.36 of 4x vs 0.66 on the public M5 Pro F16 row. One device, one hybrid, busy machine: measure before touching specs.go; the ±30% band is honest.
+
+## 4. What not to do
+
+- Refit the attention constants per backend; held out it does not help.
+- Add per-segment constants for Strix Halo, nv_unified or Arc (one device each, 2–4x driver swing). Measure-only is correct.
+- Add a bandwidth-bound attention term: with FA and ubatch 512 the KV read is ~40x cheaper than the FLOPs on a 4090; the 2024 rows only look memory-bound because FA was off.
+- Tune the Vulkan 0.08 floor on four rows from one box (it makes them 1.6x optimistic, but that is one device).
+
+## 5. Cheapest data that would unlock it
+
+1. CUDA desktop, current build, FA on: `llama-bench -m <qwen3-8b Q4_K_M> -m <qwen3-32b Q4_K_M> -p 2048 -d 0,8192,32768 -n 32` on three or more cards (3090/4090/5090 class plus a 5060 Ti). Dense full-attention long-context evidence CUDA has none of. ~10 min per card.
+2. The owner's M5 with a dense 8B at Q4_K_M and Q8_0, same sweep: separates "accelerators skip Q4_K_M" from "hybrid layers are slow".
+3. One RDNA3/4 dGPU on Vulkan and ROCm, same sweep: a second device for both backends.
+4. triaLM's own runs can supply all of this: calibration already sweeps 0/8K/32K but on synthetic GGUFs; Ready measures the real model. With item 3.1 fixed and an opt-in upload, the dataset grows on real user hardware.
