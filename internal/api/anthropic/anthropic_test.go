@@ -228,7 +228,7 @@ func TestDecodeToolChoiceAndThinking(t *testing.T) {
 		{`"thinking":{"type":"between_tools"}`, "", ""},
 		{`"thinking":{"type":"adaptive"}`, "", "medium"},
 		{`"thinking":{"type":"adaptive","display":"summarized"},"output_config":{"effort":"low"}`, "", "low"},
-		{`"output_config":{"effort":"max"}`, "", "high"},
+		{`"output_config":{"effort":"max"}`, "", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.extra, func(t *testing.T) {

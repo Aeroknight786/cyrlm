@@ -38,7 +38,8 @@ type messagesRequest struct {
 }
 
 type outputConfig struct {
-	Effort string `json:"effort"`
+	Effort string          `json:"effort"`
+	Format json.RawMessage `json:"format"`
 }
 
 type inMessage struct {
@@ -56,13 +57,15 @@ type inBlock struct {
 	Content   json.RawMessage `json:"content"`
 	IsError   bool            `json:"is_error"`
 	Thinking  string          `json:"thinking"`
+	ToolName  string          `json:"tool_name"`
 }
 
 type inTool struct {
-	Type        string          `json:"type"`
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Type         string          `json:"type"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	InputSchema  json.RawMessage `json:"input_schema"`
+	DeferLoading bool            `json:"defer_loading"`
 }
 
 type inToolChoice struct {
@@ -103,6 +106,20 @@ func (f *Frontend) DecodeRequest(body []byte) (*llm.Request, error) {
 		}
 	}
 	req.ReasoningEffort = effortFor(in.Thinking, in.OutputConfig)
+	if in.OutputConfig != nil && !isNull(in.OutputConfig.Format) {
+		var format struct {
+			Type   string          `json:"type"`
+			Schema json.RawMessage `json:"schema"`
+		}
+		if err := json.Unmarshal(in.OutputConfig.Format, &format); err != nil {
+			return nil, fmt.Errorf("output_config.format: %v", err)
+		}
+		if format.Type == "json_schema" && !isNull(format.Schema) {
+			req.ResponseFormat, _ = json.Marshal(map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "output", "schema": format.Schema}})
+		} else {
+			warn.add("ignored unsupported output_config.format", 1)
+		}
+	}
 
 	sys, err := decodeSystem(in.System, &warn)
 	if err != nil {
@@ -112,6 +129,7 @@ func (f *Frontend) DecodeRequest(body []byte) (*llm.Request, error) {
 		req.Messages = append(req.Messages, llm.Message{Role: llm.RoleSystem, Content: sys})
 	}
 
+	loaded := &toolReferences{seen: map[string]bool{}}
 	toolNames := map[string]string{} // tool_use id -> name, for tool results
 	for i, m := range in.Messages {
 		where := fmt.Sprintf("messages.%d", i)
@@ -121,7 +139,7 @@ func (f *Frontend) DecodeRequest(body []byte) (*llm.Request, error) {
 		}
 		switch m.Role {
 		case "user":
-			req.Messages = append(req.Messages, decodeUser(blocks, toolNames, &warn)...)
+			req.Messages = append(req.Messages, decodeUser(blocks, toolNames, loaded, &warn)...)
 		case "assistant":
 			msg, err := decodeAssistant(blocks, where, &warn)
 			if err != nil {
@@ -145,6 +163,7 @@ func (f *Frontend) DecodeRequest(body []byte) (*llm.Request, error) {
 		}
 	}
 
+	deferred := map[string]llm.Tool{}
 	for i, t := range in.Tools {
 		if t.Type != "" && t.Type != "custom" {
 			warn.add(fmt.Sprintf("dropped server tool %q of type %q (not simulated)", t.Name, t.Type), 1)
@@ -157,7 +176,16 @@ func (f *Frontend) DecodeRequest(body []byte) (*llm.Request, error) {
 		if !isNull(t.InputSchema) {
 			tool.Parameters = compact(t.InputSchema)
 		}
-		req.Tools = append(req.Tools, tool)
+		if t.DeferLoading {
+			deferred[t.Name] = tool
+		} else {
+			req.Tools = append(req.Tools, tool)
+		}
+	}
+	for _, name := range loaded.order {
+		if tool, ok := deferred[name]; ok {
+			req.Tools = append(req.Tools, tool)
+		}
 	}
 
 	if tc := in.ToolChoice; tc != nil {
@@ -189,7 +217,7 @@ func (f *Frontend) DecodeRequest(body []byte) (*llm.Request, error) {
 // decodeUser converts one user turn. Tool results become RoleTool messages
 // (in block order, first, since they answer the preceding assistant turn);
 // remaining text and media follow as one RoleUser message.
-func decodeUser(blocks []inBlock, toolNames map[string]string, warn *warnings) []llm.Message {
+func decodeUser(blocks []inBlock, toolNames map[string]string, loaded *toolReferences, warn *warnings) []llm.Message {
 	var out []llm.Message
 	var texts []string
 	images := 0
@@ -200,7 +228,7 @@ func decodeUser(blocks []inBlock, toolNames map[string]string, warn *warnings) [
 		case "image", "document":
 			images++
 		case "tool_result":
-			out = append(out, decodeToolResult(b, toolNames, warn))
+			out = append(out, decodeToolResult(b, toolNames, loaded, warn))
 		default:
 			warn.add(fmt.Sprintf("ignored %s block in user message", b.Type), 1)
 		}
@@ -218,7 +246,7 @@ func decodeUser(blocks []inBlock, toolNames map[string]string, warn *warnings) [
 	return out
 }
 
-func decodeToolResult(b inBlock, toolNames map[string]string, warn *warnings) llm.Message {
+func decodeToolResult(b inBlock, toolNames map[string]string, loaded *toolReferences, warn *warnings) llm.Message {
 	msg := llm.Message{Role: llm.RoleTool, ToolCallID: b.ToolUseID, Name: toolNames[b.ToolUseID]}
 	raw := bytes.TrimSpace(b.Content)
 	switch {
@@ -236,6 +264,14 @@ func decodeToolResult(b inBlock, toolNames map[string]string, warn *warnings) ll
 			switch p.Type {
 			case "text":
 				texts = append(texts, p.Text)
+			case "tool_reference":
+				if p.ToolName != "" {
+					texts = append(texts, "Tool loaded: "+p.ToolName+" (its schema is now in your tool list; call it directly).")
+					if !loaded.seen[p.ToolName] {
+						loaded.seen[p.ToolName] = true
+						loaded.order = append(loaded.order, p.ToolName)
+					}
+				}
 			case "image", "document":
 				msg.Images++
 			default:
@@ -352,7 +388,7 @@ func effortFor(th *inThinking, oc *outputConfig) string {
 		}
 	}
 	if th == nil {
-		return effort
+		return ""
 	}
 	switch th.Type {
 	case "enabled":
@@ -414,4 +450,10 @@ func (w *warnings) list() []string {
 		}
 	}
 	return out
+}
+
+// toolReferences preserves first-reference order across the conversation.
+type toolReferences struct {
+	seen  map[string]bool
+	order []string
 }

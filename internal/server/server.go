@@ -57,18 +57,20 @@ type Config struct {
 
 // Server is the simulated runtime.
 type Server struct {
-	cfg       Config
-	mux       *http.ServeMux
-	chat      api.Frontend
-	anth      *anthropic.Frontend
-	resp      api.Frontend
-	ollChat   api.Frontend
-	ollGen    api.Frontend
-	logMu     sync.Mutex
-	listener  net.Listener
-	httpSrv   *http.Server
-	startedAt time.Time
-	bridgeN   atomic.Int64
+	cfg          Config
+	mux          *http.ServeMux
+	chat         api.Frontend
+	anth         *anthropic.Frontend
+	resp         api.Frontend
+	ollChat      api.Frontend
+	ollGen       api.Frontend
+	logMu        sync.Mutex
+	listener     net.Listener
+	httpSrv      *http.Server
+	startedAt    time.Time
+	bridgeN      atomic.Int64
+	warnedNumCtx sync.Once
+	warnedSystem sync.Once
 }
 
 // New creates a server.
@@ -78,6 +80,13 @@ func New(cfg Config) *Server {
 	}
 	if cfg.Log == nil {
 		cfg.Log = io.Discard
+	}
+	if cfg.Bridge && strings.EqualFold(cfg.RuntimeName, "ollama") {
+		if client, ok := cfg.Upstream.(*upstream.OpenAICompat); ok {
+			clone := *client
+			clone.Ollama = true
+			cfg.Upstream = &clone
+		}
 	}
 	s := &Server{
 		cfg:       cfg,
@@ -99,6 +108,7 @@ func (s *Server) routes() {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		fmt.Fprint(w, "Ollama is running (simulated by triaLM)")
 	})
+	m.HandleFunc("HEAD /api/hello", func(w http.ResponseWriter, r *http.Request) {})
 	m.HandleFunc("HEAD /{$}", func(w http.ResponseWriter, r *http.Request) {})
 	m.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		api.WriteJSON(w, 200, map[string]string{"status": "ok"})
@@ -277,6 +287,7 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 			rec.PromptTokens = cerr.PromptTokens
 			rec.Finish = "context_error"
 			n := dev.Stats().Add(rec)
+			s.logWarnings(n, fe.Name(), req)
 			s.logf("#%d %s  ✗ rejected: %s\n", n, fe.Name(), cerr.Message)
 			fe.WriteError(w, http.StatusBadRequest, "context_length_exceeded", cerr.Message)
 			return
@@ -292,6 +303,7 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 		if err != nil {
 			rec.Error = err.Error()
 			n := dev.Stats().Add(rec)
+			s.logWarnings(n, fe.Name(), req)
 			s.logf("#%d %s  ✗ upstream error: %v\n", n, fe.Name(), err)
 			status, kind := upstreamErrorStatus(err)
 			fe.WriteError(w, status, kind, "triaLM upstream: "+err.Error())
@@ -306,6 +318,7 @@ func (s *Server) gen(fe api.Frontend) http.HandlerFunc {
 		defer release()
 		plan := dev.Plan(prep)
 		meta.PromptTokens = plan.PromptTokens
+		meta.CachedPromptTokens = plan.CachedTokens
 
 		var res sim.PaceResult
 		if req.Stream {
@@ -383,8 +396,20 @@ func (s *Server) relay(w http.ResponseWriter, r *http.Request, fe api.Frontend, 
 	start := time.Now()
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	for _, wn := range req.Warnings {
-		s.logf("#%d %s  ! %s\n", n, fe.Name(), wn)
+	s.logWarnings(int(n), fe.Name(), req)
+	ctxN := s.cfg.Model.ContextLength
+	if client, ok := s.cfg.Upstream.(*upstream.OpenAICompat); ok && client.Ollama {
+		if req.NumCtx > 0 {
+			ctxN = req.NumCtx
+		} else if ctxN > 0 {
+			req.NumCtx = ctxN
+		}
+	}
+	if ctxN > 0 {
+		room := max(256, ctxN-tok.Render(req, tok.RenderOptions{}).Len())
+		if req.MaxTokens > room {
+			req.MaxTokens = room
+		}
 	}
 	events, err := s.cfg.Upstream.Stream(ctx, req)
 	if err != nil {
@@ -528,7 +553,13 @@ func (s *Server) logf(format string, a ...any) {
 }
 
 func (s *Server) logRecord(n int, rec sim.Record, pl *sim.Plan, prep *sim.Prepared, res sim.PaceResult) {
+	s.logWarnings(n, rec.Protocol, prep.Req)
 	var b strings.Builder
+	for _, note := range pl.Notes {
+		if strings.HasPrefix(note, "upstream prompt_tokens=") {
+			fmt.Fprintf(&b, "#%d %s  ! %s\n", n, rec.Protocol, note)
+		}
+	}
 	fmt.Fprintf(&b, "#%-3d %-11s prompt %s", n, rec.Protocol, sim.Kilo(rec.PromptTokens))
 	if rec.CachedTokens > 0 {
 		fmt.Fprintf(&b, " (cached %s, new %s)", sim.Kilo(rec.CachedTokens), sim.Kilo(rec.PrefillTokens))
@@ -635,4 +666,41 @@ func (s *Server) StatsJSON() ([]byte, error) {
 		return []byte("[]"), nil
 	}
 	return json.MarshalIndent(s.cfg.Device.Stats().Snapshot(), "", "  ")
+}
+
+// logWarnings makes lossy conversions visible on both trial and bridge paths.
+func (s *Server) logWarnings(n int, proto string, req *llm.Request) {
+	for _, msg := range req.Warnings {
+		s.logf("#%d %s  ! %s\n", n, proto, msg)
+	}
+	if s.cfg.Bridge && req.Protocol == llm.ProtocolOllama && req.NumCtx > 0 {
+		client, native := s.cfg.Upstream.(*upstream.OpenAICompat)
+		if native && client.Ollama && s.cfg.Model.ContextLength > 0 && req.NumCtx != s.cfg.Model.ContextLength {
+			s.warnedNumCtx.Do(func() {
+				s.logf("#%d %s  ! options.num_ctx=%d differs from the configured context (%d); Ollama may reload the model\n", n, proto, req.NumCtx, s.cfg.Model.ContextLength)
+			})
+		} else if !native || !client.Ollama {
+			s.warnedNumCtx.Do(func() {
+				ctxN := s.cfg.Model.ContextLength
+				if ctxN > 0 {
+					s.logf("#%d %s  ! options.num_ctx=%d ignored: the runtime's context is fixed at %d (set it on the runtime)\n", n, proto, req.NumCtx, ctxN)
+				} else {
+					s.logf("#%d %s  ! options.num_ctx=%d ignored: set the context on the runtime\n", n, proto, req.NumCtx)
+				}
+			})
+		}
+	}
+	pastLeading := false
+	for _, m := range req.Messages {
+		if m.Role != llm.RoleSystem {
+			pastLeading = true
+			continue
+		}
+		if pastLeading {
+			s.warnedSystem.Do(func() {
+				s.logf("#%d %s  ! mid-conversation system message merged into a user turn for the runtime's chat template\n", n, proto)
+			})
+			break
+		}
+	}
 }

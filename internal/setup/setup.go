@@ -622,7 +622,11 @@ func (b *builder) pkill(pattern string) string {
 func verifyWhy(pl *Plan) string {
 	w := fmt.Sprintf("Checks that %s answers at %s with %s, that the context window is %d tokens and compares real speed with triaLM's prediction.", pl.RuntimeName, pl.Endpoint, pl.LocalModelName, pl.ContextTokens)
 	if pl.Harness != "" {
-		w += " It then sends requests in " + pl.Harness + "'s own format (a greeting, a tool call and the tool result) and reports \"Ready\" only if all three work: a fast runtime can still reject a coding tool's requests. The setup is not done until this says Ready."
+		shape := "a greeting, a tool call and the tool result"
+		if pl.Harness == "aider" {
+			shape = "a greeting, a whole-file edit block and a follow-up with a system reminder"
+		}
+		w += " It then sends requests in " + pl.Harness + "'s own format (" + shape + ") and reports \"Ready\" only if all three work: a fast runtime can still reject a coding tool's requests. The setup is not done until this says Ready."
 	}
 	return w
 }

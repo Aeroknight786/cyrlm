@@ -166,7 +166,7 @@ func (s *stream) Start() error {
 			Role:    "assistant",
 			Model:   s.meta.Model,
 			Content: []any{},
-			Usage:   usageJSON{InputTokens: s.meta.PromptTokens, OutputTokens: 1},
+			Usage:   usageFor(llm.Usage{PromptTokens: s.meta.PromptTokens, CachedPromptTokens: s.meta.CachedPromptTokens, CompletionTokens: 1}),
 		},
 	}
 	if err := s.sse.Event("message_start", ev); err != nil {
