@@ -294,7 +294,8 @@ type ScenarioResult struct {
 	CloudSession    time.Duration // the same task at datacenter speed
 	FitsInContext   bool
 	ContextTokens   int
-	FollowUpDecodeT float64 // tok/s at MidDepth
+	FollowUpDecodeT float64 // tok/s at follow-up depth
+	DecodeDepth     int     // approximate context depth during the follow-up reply
 }
 
 // Cloud reference speeds for the comparison line.
@@ -317,6 +318,7 @@ func RunScenario(t *Timing, sc Scenario, ctx int) ScenarioResult {
 	if d < p0 {
 		d = p0
 	}
+	r.DecodeDepth = d + sc.NewTokensPerTurn + sc.OutputTokensPerTurn/2
 	ttft := t.PrefillSec(d, d+sc.NewTokensPerTurn)
 	r.FollowUpTTFT = dur(ttft)
 	gen := 0.0

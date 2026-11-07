@@ -555,6 +555,9 @@ func (s *Server) logRecord(n int, rec sim.Record, pl *sim.Plan, prep *sim.Prepar
 	if pl.Cold {
 		fmt.Fprintf(&b, "     ↳ load %s: %s\n", sim.FormatDur(rec.LoadSec), pl.LoadReason)
 	}
+	for _, note := range pl.Notes {
+		fmt.Fprintf(&b, "     ↳ %s\n", note)
+	}
 	if pl.Miss != nil {
 		fmt.Fprintf(&b, "     ↳ cache miss at token %d of a %d-token cached prompt: %s\n", pl.Miss.At, pl.Miss.Previous, pl.Miss.Reason)
 		fmt.Fprintf(&b, "       before: …%s\n       was:    %s…\n       now:    %s…\n", oneLine(pl.Miss.Before), oneLine(pl.Miss.Was), oneLine(pl.Miss.Now))

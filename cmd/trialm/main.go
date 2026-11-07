@@ -511,7 +511,7 @@ func cmdServe(args []string, try bool) error {
 	}
 
 	dev := sim.NewDevice(sim.Config{
-		RuntimeName: prof.Name, RuntimeID: prof.ID, Settings: res.Settings, Timing: res.Timing, Model: m,
+		RuntimeName: prof.Name, RuntimeID: prof.ID, Settings: res.Settings, Timing: res.Timing, Model: m, Memory: res.Memory,
 		Render: tok.RenderOptions{StripPastReasoning: true},
 	})
 	var origins []string

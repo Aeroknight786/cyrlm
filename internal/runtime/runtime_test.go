@@ -55,6 +55,10 @@ func TestResolve(t *testing.T) {
 	if s.ContextTokens != 50000 || s.Overflow != OverflowError || s.Slots != 4 {
 		t.Errorf("llama.cpp defaults: %+v", s)
 	}
+	unknown := lc.Resolve(ResolveInput{NativeCtx: 131072})
+	if unknown.ContextTokens != 4096 {
+		t.Errorf("unknown fit: got %d", unknown.ContextTokens)
+	}
 	capped := lc.Resolve(ResolveInput{NativeCtx: 32768, CtxOverride: 131072})
 	if capped.ContextTokens != 32768 {
 		t.Errorf("context must be capped at native, got %d", capped.ContextTokens)
