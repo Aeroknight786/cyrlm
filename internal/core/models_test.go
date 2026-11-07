@@ -37,6 +37,7 @@ func TestCachedModelSources(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			home, root := t.TempDir(), t.TempDir()
 			t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 			t.Setenv("HF_HUB_CACHE", filepath.Join(home, "hf"))
 			t.Setenv("HF_HOME", "")
 			t.Setenv("OLLAMA_MODELS", filepath.Join(home, "ollama"))
@@ -106,6 +107,7 @@ func TestCachedModelSources(t *testing.T) {
 func TestModelsOrderingAndLocalPlan(t *testing.T) {
 	home, root := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("TRIALM_HOME", root)
 	t.Setenv("HF_HUB_CACHE", filepath.Join(home, "hf"))
 	t.Setenv("OLLAMA_MODELS", filepath.Join(home, "ollama"))
@@ -171,6 +173,7 @@ func TestModelsOrderingAndLocalPlan(t *testing.T) {
 func TestCompleteCachedShardsAndMLX(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	t.Setenv("HF_HUB_CACHE", filepath.Join(home, "hf"))
 	t.Setenv("OLLAMA_MODELS", filepath.Join(home, "ollama"))
 	model, _ := catalog.Lookup("qwen3.5:9b")
