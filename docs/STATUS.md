@@ -1,6 +1,6 @@
 # triaLM refactor status
 
-*Updated 2026-11-07 (P1a and P1b merged on `trialm-refactor`). The plan is [PLAN.md](PLAN.md); this file says where each phase stands and what only the owner can check.*
+*Updated 2026-11-07 (P1a, P1b and P2 merged on `trialm-refactor`; P2 is the last phase in this run). The plan is [PLAN.md](PLAN.md); this file says where each phase stands and what only the owner can check.*
 
 ## Where things are
 
@@ -10,7 +10,7 @@
 | **P0b** harness fixes + M5 calibration | `trialm-refactor` (pushed, not released) | Done except the owner checks below. Not tagged v0.2.1 and not merged to `main` until those pass. |
 | **P1a** core + agent CLI + private trial | `trialm-refactor` (pushed, not released) | Done against local fakes; the live OpenRouter checks below are yours. Details: [P1A_REPORT.md](P1A_REPORT.md). |
 | **P1b** new Charm CLI | `trialm-refactor` (pushed, not released) | Done except owner checks 9–11. Details: [P1B_REPORT.md](P1B_REPORT.md). All 7 CLIs pass both harness paths (the agent's sandbox blocked Codex; rerun outside it: 14/14). |
-| P2 | — | Not started. |
+| **P2** one-approval setup + launch | `trialm-refactor` (pushed, not released) | Done except owner checks 12–16. Reports: [setup](P2SETUP_REPORT.md), [downloader](P2DL_REPORT.md), [verify](P2VERIFY_REPORT.md), [launch](P2LAUNCH_REPORT.md). |
 
 ## P0b: what is done
 
@@ -41,6 +41,17 @@
 - Gates: 96 screen goldens (16 screens × 60/80/120 columns × colour/NO_COLOR); Journey A in 4 keys + 1 browser click; binary 11.7 of 14 MB; govulncheck clean.
 - Review fixes after driving the real binary on the M5 (calibration ran from the offer screen in ~3.5 min): the needs form defaults to the installed tool; Ctrl-C during calibration now also stops llama-bench and deletes the temporary file (it left a 4 GB file and an orphaned process before); a stop prints `Stopped.`; status lines are words, not llama-bench flags.
 
+## P2: what is done
+
+- **`trialm setup`** turns a recipe into a typed plan (closed step set, argv templates, no shell strings) with a `plan_id`, counted prompts (1 approval; +1 OS password per admin row; "1 more after each restart" for the Mac wired limit) and a byte total that subtracts files already on disk. One Y/n, then it installs, fetches, starts, and runs Ready. Ctrl-C pauses; running it again resumes. `--undo` reverses everything (models and engine only with `--delete-models` / `--remove-engine`) and understands cyrlm setups.
+- **Engines:** llama.cpp **b12182** from pinned ggml-org assets with GitHub's sha256 (macOS arm64, Linux CPU/Vulkan/CUDA, Windows CPU/CUDA), so no Homebrew is needed; Ollama, LM Studio and mlx-lm adapters as typed steps. `internal/runtime` became `internal/engine`; the old shell-script builders are gone.
+- **Downloader:** Range resume, sha256, redirect handling that never forwards the HF token, and reuse of HF-cache / LM Studio / Ollama files by hard link.
+- **Ready:** warm-up, writing at short/8K/target depth, reading, cached follow-up, the speculative-verify sweep (exact 1–4 token counts via llama-server's `/completion`), the harness probe, the low-bit tool-call test and the spill check; signed "we were N% optimistic" lines. Real measurements go into `calib.json` under the machine fingerprint.
+- **`trialm launch [tool]`** starts the engine (and the bridge in-process when the tool needs it), hands the terminal to the tool, keeps the engine warm 15 min; `--print`, `--serve cline|continue|zed` (with tested snippets), `--stop`, `--check`. TUI: Setup, progress, Ready and the returning-user home with ready setups first.
+- **Verified here:** race tests on all three OSes; the new **engine-e2e** CI job runs real setup → Ready → undo with the pinned release on Ubuntu, macOS and Windows; `harness-e2e -local` passes **all 7 CLIs** through `trialm launch` on a real CPU llama-server (on this Mac, Codex included); trial/bridge e2e still 14/14.
+- **Real-local on the M5** (scratch triaLM home, your HF cache): `trialm setup qwen3.5:9b --runtime llamacpp --quant Q4_K_M --harness codex` reused the 5.7 GB file (0 bytes downloaded, same inode), installed b12182 (16.7 MB), moved off port 8080 (your `chat.py` holds it), and reached Ready in about 4 min. Measured: writing 21 tok/s at short context (predicted 22), 9 tok/s at 64K (we were ~80% optimistic there), reading 420 tok/s. A second run measured 14 / 9.1 / 280: this Mac still varies about 1.5x between runs. Full undo left your HF file untouched.
+- **Bugs this run found and fixed:** Ready overflowed the context at the target depth (prompt sizing); reading was measured after the 64K request and included llama-server's prompt-cache save (160 vs 420 tok/s); the spec sweep could never succeed through the chat template; the Windows setup lock blocked its own journal rename; `stop` did not wait for exit (Windows kept the DLLs locked).
+
 ## Owner checks (each needs you)
 
 1. **P0a on the M5:** `curl -fsSL https://github.com/Aeroknight786/trialm/releases/latest/download/install.sh | sh`. The first `trialm` run moves your real `~/.cyrlm` into `~/.trialm` (a symlink stays at `~/.cyrlm`). Check that the old key and setup still launch.
@@ -58,6 +69,12 @@
 9. **The new app, first run:** `go build -o ~/.local/bin/trialm ./cmd/trialm && TRIALM_HOME=$(mktemp -d) trialm` in Terminal or iTerm. Walk it: browser sign-in, Enter on calibration, Enter on needs, `d` on a recipe, Enter to try. Ctrl-C at any point should restore the terminal.
 10. **Journey D prompt counts from real Claude Code and Codex** (keep your normal permission mode): `trialm --json`, `trialm find --json`, `trialm try 1 --window`, then `trialm --json` and read `data.trials`. Count tool prompts, approvals and browser clicks.
 11. **macOS window mode:** from Claude Code, `trialm try 1` (it picks window mode automatically) — count any macOS permission prompts; close the window early and check the card says partial. Also Windows Terminal/conhost and Linux tmux if you use them.
+
+12. **The full Journey A on your own home (P2):** `trialm` → pick a recipe → `s` set up → Enter. Watch the counted prompts on the plan, the download bar and the Ready card; then `trialm launch codex` the next day. This downloads the model you pick (13 GB for Qwen3.6 35B-A3B); the cached 9B costs nothing: `trialm setup qwen3.5:9b --runtime llamacpp --quant Q4_K_M --harness codex`.
+13. **Codex + bridge on a real llama-server through `trialm launch codex`** (the P0b acceptance, now one command): greeting, a tool call, a follow-up at 64K.
+14. **A Mac wired-limit recipe:** one OS password prompt, and the "1 more after each restart" line after a reboot.
+15. **Clean-machine acceptance:** a macOS without Homebrew and a fresh Linux VM: 1 approval, 0 password prompts to Ready. CI covers this on GitHub runners; a real clean machine is still yours.
+16. **The 15-minute warm engine** after quitting the tool, and the IDE snippets in the real Cline, Continue and Zed.
 
 ## How P0b was built
 
