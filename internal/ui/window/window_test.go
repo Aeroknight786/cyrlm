@@ -53,7 +53,7 @@ func TestScriptQuotingPermissionsAndScrub(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX execution; PowerShell generation is tested separately")
 	}
-	s := store.Store{Dir: t.TempDir()}
+	s := store.Store{Dir: filepath.Join(t.TempDir(), "state with spaces and 'quotes'")}
 	exe, _ := os.Executable()
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "injected")
@@ -144,6 +144,20 @@ func TestLauncherFailureAndAcknowledgement(t *testing.T) {
 		return os.WriteFile(filepath.Join(s.Dir, "run", id+".exit"), []byte("0"), 0600)
 	}
 	if e = l.Run(context.Background(), s, []string{"qwen3:8b"}, io.Discard); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func TestClosedWindowReturnsCheckpoint(t *testing.T) {
+	s := store.Store{Dir: t.TempDir()}
+	l := Launcher{Platform: "darwin", AckTimeout: time.Second, Open: func(a []string) error {
+		id := strings.TrimSuffix(filepath.Base(a[len(a)-1]), ".command")
+		if e := s.SaveTrial(store.TrialEntry{ID: id, Incomplete: true}); e != nil {
+			return e
+		}
+		return os.WriteFile(filepath.Join(s.Dir, "run", id+".started"), []byte("99999999"), 0600)
+	}}
+	if e := l.Run(context.Background(), s, []string{"fake"}, nil); e != nil {
 		t.Fatal(e)
 	}
 }

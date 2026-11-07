@@ -1,9 +1,9 @@
 Recipes for codex · balanced · 64k native
 Simulated or calibrated · uncertainty shown on ?
 [1;90mMODEL                         [m[1;90mFILE · ENGINE              [m[1;90mWRITES      [m[1;90mTURN      [m[1;90mFIRST     [m
-[36m❯ 1 Qwen3.6 35B-A3B           IQ3_XXS · llamacpp              ~40 t/s     ~11 s     ~10 s[m                               
-  2 Gemma 4 26B-A4B           IQ4_XS · llamacpp               ~29 t/s     ~15 s     ~13 s                               
-  3 gpt-oss 20B               MLX-MXFP4 · lmstudio-mlx        ~36 t/s     ~13 s     ~11 s                               
+[36m❯ 1 Qwen3.6 35B-A3B           IQ3_XXS 13.2 GB · llamacpp      ~40 t/s     ~11 s     ~10 s[m                               
+  2 Gemma 4 26B-A4B           IQ4_XS 13.6 GB · llamacpp       ~29 t/s     ~15 s     ~13 s                               
+  3 gpt-oss 20B               MLX-MXFP4 12.1 GB · lmstud…     ~36 t/s     ~13 s     ~11 s                               
 [33m3-bit files: quality caveat[m
 
 Claims we can't simulate yet

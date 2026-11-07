@@ -31,12 +31,17 @@ func ReadMeter(s store.Store) Meter {
 	}
 	return m
 }
-func Track(ctx context.Context, s store.Store, id string, band int, report func() trial.Report) {
+func Track(ctx context.Context, s store.Store, id string, band int, row store.TrialEntry, report func() trial.Report) {
 	if id == "" {
 		return
 	}
 	save := func() {
 		r := report()
+		row.ID = id
+		row.Band = band
+		row.Report = r
+		row.Incomplete = true
+		_ = s.SaveTrial(row)
 		reuse := 0
 		if r.PromptTokens > 0 {
 			reuse = 100 * r.CachedTokens / r.PromptTokens

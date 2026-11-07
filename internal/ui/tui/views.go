@@ -79,8 +79,12 @@ func (m *Root) body() string {
 			return "No trials yet."
 		}
 		r := m.last.Report
+		partial := ""
+		if m.last.Incomplete {
+			partial = "Partial summary · window closed before the final report.\n"
+		}
 		split := m.split(r.ReadingSeconds, r.WritingSeconds, r.LoadSeconds+r.BetweenTurnsSeconds)
-		return "Trial over · " + m.last.Model + " · " + m.last.Quant + " · " + m.last.Runtime + "\n" + r.Plain(m.last.Band) + split + "\nHow did it feel?"
+		return partial + "Trial over · " + m.last.Model + " · " + m.last.Quant + " · " + m.last.Runtime + "\n" + r.Plain(m.last.Band) + split + "\nHow did it feel?"
 	case Home:
 		b := title + "  " + m.detection.Target.Name + credit + "\n"
 		// P2 owns verified ready setups; a trial is never labelled ready.

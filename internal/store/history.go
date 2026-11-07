@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/aeroknight786/trialm/internal/trial"
@@ -10,14 +11,15 @@ import (
 
 // TrialEntry keeps the card after a child trial returns the terminal.
 type TrialEntry struct {
-	ID      string       `json:"id"`
-	At      time.Time    `json:"at"`
-	Model   string       `json:"model"`
-	Quant   string       `json:"quant"`
-	Runtime string       `json:"runtime"`
-	Band    int          `json:"band"`
-	Rating  int          `json:"rating"`
-	Report  trial.Report `json:"report"`
+	ID         string       `json:"id"`
+	At         time.Time    `json:"at"`
+	Model      string       `json:"model"`
+	Quant      string       `json:"quant"`
+	Runtime    string       `json:"runtime"`
+	Band       int          `json:"band"`
+	Rating     int          `json:"rating"`
+	Report     trial.Report `json:"report"`
+	Incomplete bool         `json:"incomplete,omitempty"`
 }
 
 func (s Store) History() ([]TrialEntry, error) {
@@ -28,13 +30,24 @@ func (s Store) History() ([]TrialEntry, error) {
 	}
 	return rows, err
 }
+
+var historyMu sync.Mutex
+
 func (s Store) SaveTrial(row TrialEntry) error {
+	historyMu.Lock()
+	defer historyMu.Unlock()
 	rows, err := s.History()
 	if err != nil {
 		return err
 	}
 	for i := range rows {
 		if rows[i].ID == row.ID {
+			if row.Incomplete && !rows[i].Incomplete {
+				return nil
+			}
+			if row.Rating == 0 {
+				row.Rating = rows[i].Rating
+			}
 			rows[i] = row
 			return s.Write("history.json", rows)
 		}

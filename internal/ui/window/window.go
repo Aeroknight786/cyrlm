@@ -19,6 +19,10 @@ import (
 	"github.com/aeroknight786/trialm/internal/store"
 )
 
+type ChildExit struct{ Code int }
+
+func (e *ChildExit) Error() string { return fmt.Sprintf("trial window exited %d", e.Code) }
+
 type NeedsTerminal struct {
 	Run   string
 	Cause error
@@ -92,9 +96,9 @@ func Generate(s store.Store, goos, exe, dir string, args []string) (string, stri
 		for _, a := range full {
 			quoted = append(quoted, psQuote(a))
 		}
-		body = "[IO.File]::WriteAllText(" + psQuote(started) + ", 'started')\n$ErrorActionPreference = 'Stop'\nSet-Location -LiteralPath " + psQuote(dir) + "\n$env:TRIALM_RUN_ID = " + psQuote(id) + "\n$env:TRIALM_HOME = " + psQuote(s.Dir) + "\nRemove-Item Env:CLAUDECODE,Env:CLAUDE_CODE_ENTRYPOINT -ErrorAction SilentlyContinue\ntry { & " + psQuote(exe) + " " + strings.Join(quoted, " ") + "\n$code = $LASTEXITCODE } catch { $code = 1; Write-Error $_ -ErrorAction Continue }\n[IO.File]::WriteAllText(" + psQuote(exit) + ", [string]$code)\nexit $code\n"
+		body = "[IO.File]::WriteAllText(" + psQuote(started) + ", [string]$PID)\n$ErrorActionPreference = 'Stop'\nSet-Location -LiteralPath " + psQuote(dir) + "\n$env:TRIALM_RUN_ID = " + psQuote(id) + "\n$env:TRIALM_HOME = " + psQuote(s.Dir) + "\nRemove-Item Env:CLAUDECODE,Env:CLAUDE_CODE_ENTRYPOINT -ErrorAction SilentlyContinue\ntry { & " + psQuote(exe) + " " + strings.Join(quoted, " ") + "\n$code = $LASTEXITCODE } catch { $code = 1; Write-Error $_ -ErrorAction Continue }\n[IO.File]::WriteAllText(" + psQuote(exit) + ", [string]$code)\nexit $code\n"
 	} else {
-		body = "#!/bin/sh\nprintf started > " + Quote(started) + "\ncd " + Quote(dir) + " || exit 1\nunset CLAUDECODE CLAUDE_CODE_ENTRYPOINT\nexport TRIALM_HOME=" + Quote(s.Dir) + "\nexport TRIALM_RUN_ID=" + Quote(id) + "\n" + Command(exe, full) + "\nstatus=$?\nprintf '%s' \"$status\" > " + Quote(exit) + "\nexit \"$status\"\n"
+		body = "#!/bin/sh\nprintf '%s' \"$$\" > " + Quote(started) + "\ncd " + Quote(dir) + " || exit 1\nunset CLAUDECODE CLAUDE_CODE_ENTRYPOINT\nexport TRIALM_HOME=" + Quote(s.Dir) + "\nexport TRIALM_RUN_ID=" + Quote(id) + "\nstatus=0\nfinish() { printf '%s' \"$status\" > " + Quote(exit) + "; }\ntrap finish 0\ntrap 'status=130; exit 130' HUP INT TERM\n" + Command(exe, full) + "\nstatus=$?\nprintf '%s' \"$status\" > " + Quote(exit) + "\nexit \"$status\"\n"
 	}
 	if e := os.WriteFile(script, []byte(body), 0700); e != nil {
 		return "", "", e
@@ -193,7 +197,10 @@ func (l Launcher) Run(ctx context.Context, s store.Store, args []string, w io.Wr
 				fmt.Fprintln(w, ReadMeter(s).String())
 			}
 			if n != 0 {
-				return fmt.Errorf("trial window exited %d", n)
+				if hasCard(s, id) {
+					return nil
+				}
+				return &ChildExit{n}
 			}
 			return nil
 		}
@@ -202,6 +209,16 @@ func (l Launcher) Run(ctx context.Context, s store.Store, args []string, w io.Wr
 			acknowledged = e == nil
 			if !acknowledged && time.Since(launched) > l.AckTimeout {
 				return &NeedsTerminal{fallback, errors.New("terminal did not start the trial script")}
+			}
+		}
+		if acknowledged {
+			b, _ := os.ReadFile(filepath.Join(s.Dir, "run", id+".started"))
+			pid, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+			if pid > 0 && !processAlive(pid) {
+				if hasCard(s, id) {
+					return nil
+				}
+				return fmt.Errorf("trial window closed before a summary was recorded")
 			}
 		}
 		select {
@@ -223,4 +240,14 @@ func Args(args []string) []string {
 		out = append(out, arg)
 	}
 	return out
+}
+
+func hasCard(s store.Store, id string) bool {
+	rows, _ := s.History()
+	for _, r := range rows {
+		if r.ID == id {
+			return true
+		}
+	}
+	return false
 }

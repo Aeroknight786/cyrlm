@@ -640,7 +640,7 @@ func cmdServe(args []string, try bool) error {
 	})
 	meterCtx, meterCancel := context.WithCancel(commandContext)
 	defer meterCancel()
-	windowui.Track(meterCtx, store.Default(), os.Getenv("TRIALM_RUN_ID"), max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct), func() trial.Report {
+	windowui.Track(meterCtx, store.Default(), os.Getenv("TRIALM_RUN_ID"), max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct), store.TrialEntry{At: trialAt, Model: m.OllamaTag, Quant: res.Quant.Name, Runtime: prof.ID}, func() trial.Report {
 		spend := -1.0
 		if spending != nil {
 			spend = spending.Spent()

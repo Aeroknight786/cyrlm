@@ -8,6 +8,7 @@ import (
 	keybind "charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
+	"github.com/aeroknight786/trialm/internal/figure"
 )
 
 func (m *Root) helpView() string {
@@ -39,7 +40,7 @@ func (m *Root) tableView() string {
 			mark = "❯ "
 		}
 		model := fmt.Sprintf("%s%d %s", mark, i+1, r.Model.Name)
-		file := r.Quant.Name + " · " + r.Runtime.ID
+		file := r.Quant.Name + " " + figure.Exact(float64(r.Quant.FileBytes)/1e9, "GB", figure.Simulated, "catalog:file").String() + " · " + r.Runtime.ID
 		turn := metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false).String()
 		cells := table.Row{model, file, fmt.Sprintf("%10s", turn)}
 		if m.width >= 90 {

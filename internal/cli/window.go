@@ -17,6 +17,10 @@ import (
 
 func runWindow(ctx context.Context, args []string, w io.Writer) error {
 	err := window.Run(ctx, store.Default(), args, w)
+	var child *window.ChildExit
+	if errors.As(err, &child) {
+		return &exitError{child.Code, child.Error()}
+	}
 	var need *window.NeedsTerminal
 	if errors.As(err, &need) {
 		_ = emit("needs_user", map[string]any{"needs": "terminal", "run": need.Run}, core.Next{Cmd: need.Run, Why: "open this in your terminal"})
