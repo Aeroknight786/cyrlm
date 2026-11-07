@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	runtime "github.com/aeroknight786/trialm/internal/engine"
 	"github.com/aeroknight786/trialm/internal/llm"
-	"github.com/aeroknight786/trialm/internal/runtime"
 	"github.com/aeroknight786/trialm/internal/tok"
 )
 

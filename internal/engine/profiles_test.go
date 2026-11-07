@@ -1,4 +1,4 @@
-package runtime
+package engine
 
 import "testing"
 
@@ -65,5 +65,21 @@ func TestResolve(t *testing.T) {
 	}
 	if got := ol.TunedSteps(65536)[0]; got != "Set the context length: OLLAMA_CONTEXT_LENGTH=65536 (or num_ctx in a Modelfile)" {
 		t.Errorf("tuned step %q", got)
+	}
+}
+
+func TestInstalledLlamaVersionRange(t *testing.T) {
+	for version, want := range map[string]bool{"b11499": false, "b11500": true, "b12182": true, "b12183": false, "unknown": false, "version: 0.9.0-dev (build 12182, commit fd27b2034)": true} {
+		if got := CompatibleLlama(version); got != want {
+			t.Errorf("%s compatible=%v, want %v", version, got, want)
+		}
+	}
+}
+
+func TestTemplateValuesRemainLiteralArguments(t *testing.T) {
+	values := map[string]string{"model": "literal-{ctx}-model", "name": "test", "ctx": "4096"}
+	argv, err := Args("lmstudio-load", values)
+	if err != nil || argv[2] != values["model"] {
+		t.Fatal(argv, err)
 	}
 }

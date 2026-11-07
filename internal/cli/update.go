@@ -10,6 +10,7 @@ import (
 
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/selfupdate"
+	"github.com/aeroknight786/trialm/internal/setup/proc"
 	"github.com/aeroknight786/trialm/internal/store"
 )
 
@@ -27,7 +28,7 @@ func homeUpdateNotice(ctx context.Context) {
 		return
 	}
 	cmd := exec.Command(exe, "update", "--check")
-	detachAttrs(cmd)
+	proc.DetachAttrs(cmd)
 	null, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if err != nil {
 		return

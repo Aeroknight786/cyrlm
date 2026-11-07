@@ -1,0 +1,627 @@
+{
+  "schema_version": 1,
+  "updated": "2026-11-06",
+  "note": "Runtime behaviour changes between releases. Every setting carries a confidence: high = documented and stable, medium = documented or widely reported but version-dependent, low = inferred or unverified. Low-confidence settings are shown to the user as assumptions.",
+  "profiles": [
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "versions": "0.12 - 0.13",
+      "engine": "llamacpp",
+      "formats": [
+        "gguf"
+      ],
+      "platforms": {
+        "darwin/arm64": [
+          "metal"
+        ],
+        "darwin/amd64": [
+          "cpu"
+        ],
+        "linux": [
+          "cuda",
+          "rocm",
+          "vulkan",
+          "cpu"
+        ],
+        "windows": [
+          "cuda",
+          "rocm",
+          "vulkan",
+          "cpu"
+        ]
+      },
+      "backend_preference": [
+        "cuda",
+        "metal",
+        "rocm",
+        "vulkan",
+        "cpu"
+      ],
+      "apis": [
+        "ollama",
+        "openai-chat",
+        "anthropic",
+        "responses"
+      ],
+      "port": 11434,
+      "defaults": {
+        "context": {
+          "vram_tiers": [
+            {
+              "below_gib": 24,
+              "tokens": 4096
+            },
+            {
+              "below_gib": 48,
+              "tokens": 32768
+            }
+          ],
+          "otherwise_tokens": 262144,
+          "confidence": "medium",
+          "source": "https://docs.ollama.com/context-length"
+        },
+        "honors_request_num_ctx": true,
+        "keep_alive_s": 300,
+        "slots": 1,
+        "kv_cache_type": "f16",
+        "flash_attention": true,
+        "overflow": "truncate_oldest",
+        "on_context_full": "shift",
+        "swa_rollback": "checkpoints",
+        "checkpoints": 4,
+        "ram_cache_gib": 0
+      },
+      "confidence": {
+        "keep_alive_s": "high",
+        "slots": "medium",
+        "kv_cache_type": "high",
+        "flash_attention": "low",
+        "overflow": "low",
+        "on_context_full": "medium",
+        "swa_rollback": "low",
+        "otherwise_tokens": "low"
+      },
+      "tuned": {
+        "context_tokens": 65536,
+        "keep_alive_s": -1,
+        "flash_attention": true,
+        "steps": [
+          "Set the context length: OLLAMA_CONTEXT_LENGTH={{ctx}} (or num_ctx in a Modelfile)",
+          "Keep the model loaded: OLLAMA_KEEP_ALIVE=-1",
+          "Enable flash attention: OLLAMA_FLASH_ATTENTION=1"
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: OLLAMA_KV_CACHE_TYPE=q8_0 (needs flash attention)"
+      },
+      "perf": {
+        "decode_mult": 0.95,
+        "prefill_mult": 0.95,
+        "load_overhead_s": 2.5,
+        "confidence": "low"
+      },
+      "notes": [
+        "The default context window is small on machines with less GPU memory; coding agents' system prompts often do not fit and are silently truncated.",
+        "Models unload after 5 idle minutes by default; the next request pays a reload and a full prefill.",
+        "One slot: background requests (title generation, subagents) evict the main conversation from the prompt cache."
+      ]
+    },
+    {
+      "id": "llamacpp",
+      "name": "llama.cpp (llama-server)",
+      "versions": "b7000+",
+      "engine": "llamacpp",
+      "formats": [
+        "gguf"
+      ],
+      "platforms": {
+        "darwin/arm64": [
+          "metal",
+          "cpu"
+        ],
+        "darwin/amd64": [
+          "cpu"
+        ],
+        "linux": [
+          "cuda",
+          "rocm",
+          "vulkan",
+          "sycl",
+          "cpu"
+        ],
+        "windows": [
+          "cuda",
+          "rocm",
+          "vulkan",
+          "sycl",
+          "cpu"
+        ]
+      },
+      "backend_preference": [
+        "cuda",
+        "metal",
+        "vulkan",
+        "sycl",
+        "rocm",
+        "cpu"
+      ],
+      "apis": [
+        "openai-chat",
+        "anthropic",
+        "responses"
+      ],
+      "port": 8080,
+      "defaults": {
+        "context": {
+          "fit_to_memory": true,
+          "confidence": "low",
+          "source": "recent builds size the context to free memory (--fit); older builds default to 4096"
+        },
+        "honors_request_num_ctx": false,
+        "keep_alive_s": -1,
+        "slots": 4,
+        "slot_similarity": 0.5,
+        "kv_cache_type": "f16",
+        "flash_attention": true,
+        "overflow": "error",
+        "on_context_full": "stop",
+        "swa_rollback": "checkpoints",
+        "checkpoints": 8,
+        "ram_cache_gib": 8
+      },
+      "confidence": {
+        "keep_alive_s": "high",
+        "slots": "medium",
+        "slot_similarity": "medium",
+        "kv_cache_type": "high",
+        "flash_attention": "medium",
+        "overflow": "high",
+        "on_context_full": "medium",
+        "swa_rollback": "medium",
+        "checkpoints": "low",
+        "ram_cache_gib": "medium"
+      },
+      "tuned": {
+        "context_tokens": 65536,
+        "flash_attention": true,
+        "steps": [
+          "llama-server -m <model.gguf> -c {{ctx}} -fa on --jinja",
+          "Optional: --slot-save-path to persist the harness prompt cache across restarts"
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: add -ctk q8_0 -ctv q8_0"
+      },
+      "perf": {
+        "decode_mult": 0.97,
+        "prefill_mult": 0.98,
+        "load_overhead_s": 1.5,
+        "confidence": "medium"
+      },
+      "notes": [
+        "Calibration baseline: the predictor's efficiencies were fitted on llama.cpp benchmarks.",
+        "Requests larger than the context return an error instead of being truncated.",
+        "Four slots share one KV cache; evicted prompts can be restored from a RAM cache.",
+        "Recent builds listen on port 9931 by default (older: 8080); triaLM's setup starts it on 8080 explicitly."
+      ]
+    },
+    {
+      "id": "lmstudio",
+      "name": "LM Studio (llama.cpp engine)",
+      "versions": "0.3.30 - 0.4.x",
+      "engine": "llamacpp",
+      "formats": [
+        "gguf"
+      ],
+      "platforms": {
+        "darwin/arm64": [
+          "metal"
+        ],
+        "linux": [
+          "cuda",
+          "vulkan",
+          "cpu"
+        ],
+        "windows": [
+          "cuda",
+          "vulkan",
+          "cpu"
+        ]
+      },
+      "backend_preference": [
+        "cuda",
+        "metal",
+        "vulkan",
+        "cpu"
+      ],
+      "apis": [
+        "openai-chat",
+        "responses",
+        "anthropic"
+      ],
+      "port": 1234,
+      "defaults": {
+        "context": {
+          "fixed_tokens": 4096,
+          "confidence": "medium",
+          "source": "LM Studio loads models with a 4096-token context unless changed; its Claude Code guide recommends raising it"
+        },
+        "honors_request_num_ctx": false,
+        "keep_alive_s": 3600,
+        "slots": 1,
+        "kv_cache_type": "f16",
+        "flash_attention": false,
+        "overflow": "truncate_middle",
+        "on_context_full": "stop",
+        "swa_rollback": "checkpoints",
+        "checkpoints": 4,
+        "ram_cache_gib": 0
+      },
+      "confidence": {
+        "keep_alive_s": "low",
+        "slots": "low",
+        "kv_cache_type": "high",
+        "flash_attention": "low",
+        "overflow": "low",
+        "on_context_full": "low",
+        "swa_rollback": "low"
+      },
+      "tuned": {
+        "context_tokens": 65536,
+        "flash_attention": true,
+        "keep_alive_s": -1,
+        "steps": [
+          "Load the model with Context Length {{ctx}} (lms load <model> --context-length {{ctx}})",
+          "Enable Flash Attention in the model's load settings",
+          "Disable idle auto-unload (JIT TTL) for the session"
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: set K and V cache quantization to Q8_0 in the load settings"
+      },
+      "perf": {
+        "decode_mult": 0.97,
+        "prefill_mult": 0.97,
+        "load_overhead_s": 2.0,
+        "confidence": "low"
+      },
+      "notes": [
+        "Default 4096-token context is far below coding-agent prompts; raise it before using an agent."
+      ]
+    },
+    {
+      "id": "lmstudio-mlx",
+      "name": "LM Studio (MLX engine)",
+      "versions": "0.3.30 - 0.4.x",
+      "engine": "mlx",
+      "formats": [
+        "mlx"
+      ],
+      "platforms": {
+        "darwin/arm64": [
+          "mlx"
+        ]
+      },
+      "backend_preference": [
+        "mlx"
+      ],
+      "apis": [
+        "openai-chat",
+        "responses",
+        "anthropic"
+      ],
+      "port": 1234,
+      "defaults": {
+        "context": {
+          "fixed_tokens": 4096,
+          "confidence": "medium",
+          "source": "same LM Studio load default as the llama.cpp engine"
+        },
+        "honors_request_num_ctx": false,
+        "keep_alive_s": 3600,
+        "slots": 1,
+        "kv_cache_type": "f16",
+        "flash_attention": true,
+        "overflow": "truncate_middle",
+        "on_context_full": "stop",
+        "swa_rollback": "free",
+        "checkpoints": 0,
+        "ram_cache_gib": 0
+      },
+      "confidence": {
+        "keep_alive_s": "low",
+        "slots": "low",
+        "overflow": "low",
+        "swa_rollback": "medium"
+      },
+      "tuned": {
+        "context_tokens": 65536,
+        "keep_alive_s": -1,
+        "steps": [
+          "Load the MLX model with Context Length {{ctx}}",
+          "Disable idle auto-unload (JIT TTL) for the session"
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: set KV cache quantization to 8-bit in the load settings"
+      },
+      "perf": {
+        "decode_mult": 1.0,
+        "prefill_mult": 1.0,
+        "load_overhead_s": 1.5,
+        "confidence": "low"
+      },
+      "notes": [
+        "MLX rolls the KV cache back to the shared prefix and recomputes the rest."
+      ]
+    },
+    {
+      "id": "mlx-lm",
+      "name": "mlx-lm server",
+      "versions": "0.26+",
+      "engine": "mlx",
+      "formats": [
+        "mlx"
+      ],
+      "platforms": {
+        "darwin/arm64": [
+          "mlx"
+        ]
+      },
+      "backend_preference": [
+        "mlx"
+      ],
+      "apis": [
+        "openai-chat"
+      ],
+      "port": 8080,
+      "defaults": {
+        "context": {
+          "native": true,
+          "confidence": "medium",
+          "source": "mlx-lm allocates the KV cache dynamically; the limit is memory"
+        },
+        "honors_request_num_ctx": false,
+        "keep_alive_s": -1,
+        "slots": 1,
+        "kv_cache_type": "f16",
+        "flash_attention": true,
+        "overflow": "error",
+        "on_context_full": "stop",
+        "swa_rollback": "free",
+        "checkpoints": 0,
+        "ram_cache_gib": 0
+      },
+      "confidence": {
+        "slots": "medium",
+        "overflow": "low",
+        "swa_rollback": "low"
+      },
+      "tuned": {
+        "steps": [
+          "mlx_lm.server --model <mlx-model>"
+        ],
+        "kv_q8_step": "Use an 8-bit KV cache to fit the longer context: --kv-bits 8"
+      },
+      "perf": {
+        "decode_mult": 1.0,
+        "prefill_mult": 1.0,
+        "load_overhead_s": 1.5,
+        "confidence": "low"
+      },
+      "notes": [
+        "OpenAI Chat Completions only: harnesses that need the Anthropic or Responses API need a translation layer."
+      ]
+    }
+  ],
+  "release": "b12182",
+  "source": "https://api.github.com/repos/ggml-org/llama.cpp/releases/437299306/assets",
+  "assets": {
+    "darwin/arm64/cpu": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/llama-b12182-bin-macos-arm64.tar.gz",
+      "sha256": "71cfee075e0c54852e225dafdc8dc79c32b26e8d45f052369b7d4f78d2ccf1a6",
+      "size": 16698597,
+      "root": "llama-b12182"
+    },
+    "darwin/arm64/metal": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/llama-b12182-bin-macos-arm64.tar.gz",
+      "sha256": "71cfee075e0c54852e225dafdc8dc79c32b26e8d45f052369b7d4f78d2ccf1a6",
+      "size": 16698597,
+      "root": "llama-b12182"
+    },
+    "linux/amd64/cpu": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/llama-b12182-bin-ubuntu-x64.tar.gz",
+      "sha256": "c1dbfdb9cbef7ee50b6ab08142d6424184d68b242906837770439ed118c57d99",
+      "size": 23058802,
+      "root": "llama-b12182"
+    },
+    "linux/amd64/vulkan": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/llama-b12182-bin-ubuntu-vulkan-x64.tar.gz",
+      "sha256": "48e5be53921e4213991b6210727941f8a0645c75099d6e1594a126d6d5428fcf",
+      "size": 35871160,
+      "root": "llama-b12182"
+    },
+    "linux/amd64/cuda": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/llama-b12182-bin-ubuntu-cuda-12.8-x64.tar.gz",
+      "sha256": "3493e2462532094eba7e5c6c06a02a66ea1c29fb43c5acea8329378e61a437ab",
+      "size": 188176289,
+      "root": "llama-b12182",
+      "support": [
+        {
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/cudart-llama-b12182-bin-ubuntu-cuda-12.8-x64.tar.gz",
+          "sha256": "18b4e7da34cde7b87a2857dfa835c3bb7d959663135a7a70c01f77bd09827cac",
+          "size": 594373636,
+          "root": "cudart-llama-b12182-bin-ubuntu-cuda-12.8-x64"
+        }
+      ]
+    },
+    "windows/amd64/cpu": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/llama-b12182-bin-win-cpu-x64.zip",
+      "sha256": "e068c483e2ea97bf09121ec0bbe085bd43470bb67d9062c7c66162164aea5834",
+      "size": 24749504,
+      "root": ""
+    },
+    "windows/amd64/cuda": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/llama-b12182-bin-win-cuda-12.4-x64.zip",
+      "sha256": "c4b42361400222d3b49a2bcdcd44bebcc0f0a98ccc38e17ee4928ba93c7b2650",
+      "size": 288724848,
+      "root": "",
+      "support": [
+        {
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12182/cudart-llama-bin-win-cuda-12.4-x64.zip",
+          "sha256": "8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6",
+          "size": 391443627,
+          "root": ""
+        }
+      ]
+    }
+  },
+  "templates": {
+    "llamacpp": [
+      "{binary}",
+      "-m",
+      "{model}",
+      "--alias",
+      "{name}",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}",
+      "-c",
+      "{ctx}",
+      "-ngl",
+      "{ngl}",
+      "--jinja",
+      "-fa",
+      "{fa}",
+      "-ctk",
+      "{kv}",
+      "-ctv",
+      "{kv}",
+      "--no-mmproj",
+      "-np",
+      "1"
+    ],
+    "ollama": [
+      "ollama",
+      "serve"
+    ],
+    "ollama-create": [
+      "ollama",
+      "create",
+      "{name}",
+      "-f",
+      "{config}"
+    ],
+    "lmstudio": [
+      "lms",
+      "server",
+      "start",
+      "--port",
+      "{port}"
+    ],
+    "lmstudio-load": [
+      "lms",
+      "load",
+      "{model}",
+      "--identifier",
+      "{name}",
+      "--context-length",
+      "{ctx}",
+      "-y"
+    ],
+    "mlx-lm": [
+      "mlx_lm.server",
+      "--model",
+      "{model}",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}",
+      "--max-tokens",
+      "{output}"
+    ],
+    "mlx-install": [
+      "uv",
+      "tool",
+      "install",
+      "mlx-lm"
+    ],
+    "mlx-remove": [
+      "uv",
+      "tool",
+      "uninstall",
+      "mlx-lm"
+    ],
+    "lmstudio-import": [
+      "lms",
+      "import",
+      "{model}",
+      "--copy",
+      "-y"
+    ],
+    "llamacpp-cpu": [
+      "{binary}",
+      "-m",
+      "{model}",
+      "--alias",
+      "{name}",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "{port}",
+      "-c",
+      "{ctx}",
+      "-ngl",
+      "{ngl}",
+      "--jinja",
+      "-fa",
+      "{fa}",
+      "-ctk",
+      "{kv}",
+      "--device",
+      "none",
+      "--no-op-offload",
+      "--no-kv-offload",
+      "--fit",
+      "off",
+      "-ctv",
+      "{kv}",
+      "--no-mmproj",
+      "-np",
+      "1"
+    ],
+    "mlx-kv": [
+      "--kv-bits",
+      "{kvbits}"
+    ]
+  },
+  "other_assets": {
+    "ollama/darwin/arm64": {
+      "url": "https://github.com/ollama/ollama/releases/download/v0.40.15/ollama-darwin.tgz",
+      "sha256": "607c79d5d6315ef9d896db83adde736a4c0057196329843544e79b95afb260a8",
+      "size": 185971671,
+      "entry": "ollama"
+    },
+    "ollama/linux/amd64": {
+      "url": "https://github.com/ollama/ollama/releases/download/v0.40.15/ollama-linux-amd64.tar.zst",
+      "sha256": "628c018404a4206493efd38e46251c154ede5141b8b8dc85c659b3b027c47379",
+      "size": 1543547172,
+      "entry": "bin/ollama"
+    },
+    "ollama/linux/arm64": {
+      "url": "https://github.com/ollama/ollama/releases/download/v0.40.15/ollama-linux-arm64.tar.zst",
+      "sha256": "7f699ead5cdb4ae1ed89b888b148a238af188708800871e1889ab9dcee95f247",
+      "size": 1600157086,
+      "entry": "bin/ollama"
+    },
+    "ollama/windows/amd64": {
+      "url": "https://github.com/ollama/ollama/releases/download/v0.40.15/ollama-windows-amd64.zip",
+      "sha256": "9ca74a7ab66ec86870b1eecac7df160df08dc4e3a291ab5d2d59bcf9310221c6",
+      "size": 1614941966,
+      "entry": "ollama.exe"
+    }
+  },
+  "lms_installer": {
+    "url": "https://lmstudio.ai/install.sh",
+    "sha256": "5004ee00a380f9751916b1da6a87c901fd099f3f4fb07e9aa947b34efaaec228",
+    "size": 18486,
+    "source": "#!/bin/sh\n# shellcheck shell=dash\n# shellcheck disable=SC2039  # local is non-POSIX\n#\n# Licensed under the MIT license\n# <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your\n# option. This file may not be copied, modified, or distributed\n# except according to those terms.\n\n# This runs on Unix shells like bash/dash/ksh/zsh. It uses the common `local`\n# extension. Note: Most shells limit `local` to 1 var per line, contra bash.\n\n# Some versions of ksh have no `local` keyword. Alias it to `typeset`, but\n# beware this makes variables global with f()-style function syntax in ksh93.\n# mksh has this alias by default.\nhas_local() {\n    # shellcheck disable=SC2034  # deliberately unused\n    local _has_local\n}\n\nhas_local 2>/dev/null || alias local=typeset\n\nset -u\n\n# lms config\nAPP_NAME=\"llmster\"\nAPP_VERSION=\"0.0.27-1\"\nAPP_VARIANT=\"full\"\nZIP_EXT=\".tar.gz\"\nCHECKSUM_EXT=\".sha512\"\nARTIFACT_DOWNLOAD_URL=\"llmster.lmstudio.ai/download\"\n\nif [ -n \"${LMS_PRINT_VERBOSE:-}\" ]; then\n    PRINT_VERBOSE=\"$LMS_PRINT_VERBOSE\"\nelse\n    PRINT_VERBOSE=${INSTALLER_PRINT_VERBOSE:-0}\nfi\nif [ -n \"${LMS_PRINT_QUIET:-}\" ]; then\n    PRINT_QUIET=\"$LMS_PRINT_QUIET\"\nelse\n    PRINT_QUIET=${INSTALLER_PRINT_QUIET:-0}\nfi\nif [ -n \"${LMS_NO_MODIFY_PATH:-}\" ]; then\n    NO_MODIFY_PATH=\"$LMS_NO_MODIFY_PATH\"\nelse\n    NO_MODIFY_PATH=${INSTALLER_NO_MODIFY_PATH:-0}\nfi\n\n# Some Linux distributions don't set HOME\n# https://github.com/astral-sh/uv/issues/6965#issuecomment-2915796022\nget_home() {\n    if [ -n \"${HOME:-}\" ]; then\n        echo \"$HOME\"\n        return\n    fi\n\n    if [ -n \"${USER:-}\" ]; then\n        if command -v getent > /dev/null 2>&1; then\n            getent passwd \"$USER\" | cut -d: -f6\n            return\n        fi\n        if command -v dscl > /dev/null 2>&1; then\n            dscl . -read \"/Users/$USER\" NFSHomeDirectory 2>/dev/null | awk '{print $2}'\n            return\n        fi\n    fi\n\n    if command -v getent > /dev/null 2>&1; then\n        getent passwd \"$(id -un)\" | cut -d: -f6\n        return\n    fi\n    if command -v dscl > /dev/null 2>&1; then\n        dscl . -read \"/Users/$(id -un)\" NFSHomeDirectory 2>/dev/null | awk '{print $2}'\n        return\n    fi\n\n    echo \"\"\n}\nINFERRED_HOME=$(get_home)\n\nusage() {\n    # print help (this cat/EOF stuff is a \"heredoc\" string)\n    cat <<EOF\nllmster-installer-$APP_VARIANT.sh\n\nThe installer for LM Studio daemon (llmster) v${APP_VERSION}\n\nThis script detects what platform you're on and fetches an appropriate archive from lmstudio.ai\nthen unpacks the binaries and installs them to\n\n    \\${HOME}/.lmstudio/bin (or \\${HOME}/.cache/lm-studio/bin)\n\nIt will then add that dir to PATH by adding the appropriate line to your shell profiles.\n\nUSAGE:\n    llmster-installer-$APP_VARIANT.sh [OPTIONS]\n\nOPTIONS:\n    -v, --verbose\n            Enable verbose output\n\n    -q, --quiet\n            Disable progress output\n\n        --no-modify-path\n            Don't configure the PATH environment variable\n\n    -h, --help\n            Print help information\nEOF\n}\n\ndownload_binary_and_run_installer() {\n    downloader --check\n    need_cmd uname\n    need_cmd mktemp\n    need_cmd chmod\n    need_cmd mkdir\n    need_cmd rm\n    need_cmd tar\n    need_cmd grep\n    need_cmd cat\n\n    for arg in \"$@\"; do\n        case \"$arg\" in\n            --help)\n                usage\n                exit 0\n                ;;\n            --quiet)\n                PRINT_QUIET=1\n                ;;\n            --verbose)\n                PRINT_VERBOSE=1\n                ;;\n            --no-modify-path)\n                NO_MODIFY_PATH=1\n                ;;\n            *)\n                OPTIND=1\n                if [ \"${arg%%--*}\" = \"\" ]; then\n                    err \"unknown option $arg\"\n                fi\n                while getopts :hvq sub_arg \"$arg\"; do\n                    case \"$sub_arg\" in\n                        h)\n                            usage\n                            exit 0\n                            ;;\n                        v)\n                            # user wants to skip the prompt --\n                            # we don't need /dev/tty\n                            PRINT_VERBOSE=1\n                            ;;\n                        q)\n                            # user wants to skip the prompt --\n                            # we don't need /dev/tty\n                            PRINT_QUIET=1\n                            ;;\n                        *)\n                            err \"unknown option -$OPTARG\"\n                            ;;\n                        esac\n                done\n                ;;\n        esac\n    done\n\n    if command -v check_llmster_is_not_running >/dev/null 2>&1; then\n        check_llmster_is_not_running\n    fi\n\n    # check that `libatomic` is installed (required on Linux for Node.js 25+)\n    if [ \"$(uname -s)\" = \"Linux\" ]; then\n        if ! check_cmd ldconfig; then\n            err \"\\\"ldconfig\\\" must be available on your PATH before installing.\n\nPlease ensure ldconfig is installed and in your PATH, then run this again.\"\n        fi\n        if ! ldconfig -p 2>/dev/null | awk '$1==\"libatomic.so.1\"{found=1} END{exit !found}'; then\n            err \"Missing required dependency: \\\"libatomic\\\" is not installed on your system.\n\nTo install it:\n\n    Debian/Ubuntu: sudo apt-get update && sudo apt-get install -y libatomic1\n    Fedora/RHEL:  sudo dnf install -y libatomic\n\nAfterwards, run this installer again.\"\n        fi\n    fi\n\n    local _release_name\n    _release_name=\"$(get_release_name)\" || return 1\n    local _artifact_name\n    _artifact_name=\"$_release_name$ZIP_EXT\"\n    _zip_ext=${ZIP_EXT}\n\n    # download the archive\n    local _url=\"$ARTIFACT_DOWNLOAD_URL/$_artifact_name\"\n    local _dir\n    _dir=\"$(ensure mktemp -d)\" || return 1\n    local _file=\"$_dir/input$_zip_ext\"\n\n    console_log \"Downloading $APP_NAME $APP_VERSION $(uname -sm)\" 1>&2\n    console_log_verbose \"  from $_url\" 1>&2\n    console_log_verbose \"  to $_file\" 1>&2\n\n    ensure mkdir -p \"$_dir\"\n\n    if ! downloader \"$_url\" \"$_file\"; then\n      console_log \"Failed to download llmster from '$_url'.\"\n      console_log \"Please check your network connection.\"\n      console_log \"\"\n      console_log \"If this problem persists, please feel free to open an issue\"\n      console_log \"in https://github.com/lmstudio-ai/lmstudio-bug-tracker\"\n      exit 1\n    fi\n\n    local _checksum_artifact_name=\"$_release_name$CHECKSUM_EXT\"\n    local _checksum_url=\"$ARTIFACT_DOWNLOAD_URL/$_checksum_artifact_name\"\n    local _checksum_file=\"$_dir/checksum\"\n    local _checksum_value\n\n    if downloader \"$_checksum_url\" \"$_checksum_file\" \"1\"; then\n        _checksum_value=$(cat \"$_checksum_file\")\n    fi\n\n    verify_checksum \"$_file\" \"$_checksum_value\"\n\n    # Install logging is handled in the installer; legacy path prints inside install()\n    ensure tar xf \"$_file\" -C \"$_dir\"\n\n    install \"$_dir\"\n    local _retval=$?\n    if [ \"$_retval\" != 0 ]; then\n        return \"$_retval\"\n    fi\n\n    ignore rm -rf \"$_dir\"\n\n    return \"$_retval\"\n}\n\nget_release_name() {\n    case \"$(uname -sm)\" in\n        \"Linux x86_64\")\n            local _bundle_suffix=\"\"\n            if [ \"$APP_VARIANT\" = \"full\" ]; then\n                _bundle_suffix=\"$(get_linux_x86_full_bundle_suffix)\"\n                echo \"${APP_VERSION}-linux-x64.full${_bundle_suffix}\"\n            else\n                echo \"${APP_VERSION}-linux-x64.${APP_VARIANT}\"\n            fi\n            return 0\n            ;;\n        \"Linux aarch64\"|\"Linux arm64\")\n            echo \"${APP_VERSION}-linux-arm64.${APP_VARIANT}\"\n            return 0\n            ;;\n        \"Darwin x86_64\")\n            echo \"${APP_VERSION}-darwin-x64.${APP_VARIANT}\"\n            return 0\n            ;;\n        \"Darwin arm64\")\n            echo \"${APP_VERSION}-darwin-arm64.${APP_VARIANT}\"\n            return 0\n            ;;\n    esac\n    err \"no compatible downloads were found for your platform $(uname -sm)\"\n}\n\nconsole_log() {\n    if [ \"0\" = \"$PRINT_QUIET\" ]; then\n        echo \"$1\"\n    fi\n}\n\nconsole_log_verbose() {\n    if [ \"1\" = \"$PRINT_VERBOSE\" ]; then\n        echo \"$1\"\n    fi\n}\n\nconsole_log_gray() {\n    local gray\n    local reset\n    # Prefer \"bright black\" (often gray) if supported; fall back to white.\n    gray=$(tput setaf 8 2>/dev/null || tput setaf 7 2>/dev/null || echo '')\n    reset=$(tput sgr0 2>/dev/null || echo '')\n    console_log \"${gray}$1${reset}\"\n}\n\nwarn() {\n    if [ \"0\" = \"$PRINT_QUIET\" ]; then\n        local red\n        local reset\n        red=$(tput setaf 1 2>/dev/null || echo '')\n        reset=$(tput sgr0 2>/dev/null || echo '')\n        console_log \"${red}WARN${reset}: $1\" >&2\n    fi\n}\n\nerr() {\n    if [ \"0\" = \"$PRINT_QUIET\" ]; then\n        local red\n        local reset\n        red=$(tput setaf 1 2>/dev/null || echo '')\n        reset=$(tput sgr0 2>/dev/null || echo '')\n        console_log \"${red}ERROR${reset}: $1\" >&2\n    fi\n    exit 1\n}\n\nneed_cmd() {\n    if ! check_cmd \"$1\"\n    then err \"need '$1' (command not found)\"\n    fi\n}\n\ncheck_cmd() {\n    command -v \"$1\" > /dev/null 2>&1\n    return $?\n}\n\nassert_nz() {\n    if [ -z \"$1\" ]; then err \"assert_nz $2\"; fi\n}\n\n# Run a command that should never fail. If the command fails execution\n# will immediately terminate with an error showing the failing\n# command.\nensure() {\n    if ! \"$@\"; then err \"command failed: $*\"; fi\n}\n\n# This is just for indicating that commands' results are being\n# intentionally ignored. Usually, because it's being executed\n# as part of error handling.\nignore() {\n    \"$@\"\n}\n\n# This wraps curl or wget. Try curl first, if not installed,\n# use wget instead.\ndownloader() {\n    # Check if we have a broken snap curl\n    # https://github.com/boukendesho/curl-snap/issues/1\n    _snap_curl=0\n    if command -v curl > /dev/null 2>&1; then\n      _curl_path=$(command -v curl)\n      if echo \"$_curl_path\" | grep \"/snap/\" > /dev/null 2>&1; then\n        _snap_curl=1\n      fi\n    fi\n\n    # Check if we have a working (non-snap) curl\n    if check_cmd curl && [ \"$_snap_curl\" = \"0\" ]\n    then _dld=curl\n    # Try wget for both no curl and the broken snap curl\n    elif check_cmd wget\n    then _dld=wget\n    # If we can't fall back from broken snap curl to wget, report the broken snap curl\n    elif [ \"$_snap_curl\" = \"1\" ]\n    then\n      console_log \"curl installed with snap cannot be used to install $APP_NAME\"\n      console_log \"due to missing permissions. Please uninstall it and\"\n      console_log \"reinstall curl with a different package manager (e.g., apt).\"\n      console_log \"See https://github.com/boukendesho/curl-snap/issues/1\"\n      exit 1\n    else _dld='curl or wget' # to be used in error message of need_cmd\n    fi\n\n    # Determine effective quiet mode - use 3rd argument if provided, otherwise use global setting\n    local _effective_quiet=\"$PRINT_QUIET\"\n    if [ -n \"${3:-}\" ]; then\n        _effective_quiet=\"$3\"\n    fi\n\n    local _curl_verbosity\n    if [ \"$_effective_quiet\" = \"1\" ]; then\n        _curl_verbosity=\"-s\"\n    else\n        _curl_verbosity=\"--progress-bar\"\n    fi\n\n    local _curl_columns_env=\"\"\n    if [ \"$_effective_quiet\" = \"0\" ]; then\n        _curl_columns_env=\"COLUMNS=60\"\n    fi\n\n    if [ \"$1\" = --check ]\n    then need_cmd \"$_dld\"\n    elif [ \"$_dld\" = curl ]; then\n        if [ \"$_curl_columns_env\" != \"\" ]; then\n            env \"$_curl_columns_env\" curl -SfL $_curl_verbosity \"$1\" -o \"$2\"\n        else\n            curl -SfL $_curl_verbosity \"$1\" -o \"$2\"\n        fi\n    elif [ \"$_dld\" = wget ]; then\n        wget \"$1\" -O \"$2\"\n    else err \"Unknown downloader\"   # should not reach here\n    fi\n}\n\nverify_checksum() {\n    local _file=\"$1\"\n    local _checksum_value=\"$2\"\n    local _calculated_checksum\n    local _checksum_cmd=\"\"\n\n    if [ -z \"$_checksum_value\" ]; then\n        return 0\n    fi\n\n    if check_cmd sha512sum; then\n        _checksum_cmd=\"sha512sum\"\n    elif check_cmd gsha512sum; then\n        _checksum_cmd=\"gsha512sum\"\n    elif check_cmd shasum; then\n        _checksum_cmd=\"shasum\"\n    fi\n    if [ -z \"$_checksum_cmd\" ] || ! check_cmd awk; then\n        console_log \"Skipping checksum verification (missing required commands)\"\n        return 0\n    fi\n\n    console_log \"Verifying checksum...\"\n    if [ \"$_checksum_cmd\" = \"shasum\" ]; then\n        _calculated_checksum=\"$(\"$_checksum_cmd\" -a 512 \"$_file\" | awk '{printf $1}')\"\n    else\n        _calculated_checksum=\"$(\"$_checksum_cmd\" -b \"$_file\" | awk '{printf $1}')\"\n    fi\n    if [ \"$_calculated_checksum\" != \"$_checksum_value\" ]; then\n        err \"checksum mismatch\n            want: $_checksum_value\n            got:  $_calculated_checksum\"\n    fi\n}\n\ndetect_nvidia_driver_version_first_row() {\n    # Skip detection without `timeout`. nvidia-smi can hang indefinitely in some\n    # driver states, so we only probe when we can guard it.\n    if ! check_cmd timeout; then\n        echo \"\"\n        return 0\n    fi\n    if ! check_cmd nvidia-smi; then\n        echo \"\"\n        return 0\n    fi\n\n    local _smi_output=\"\"\n    if _smi_output=\"$(timeout 5 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null)\"; then\n        : \"nvidia-smi succeeded\"\n    else\n        _smi_output=\"\"\n    fi\n\n    if [ -z \"$_smi_output\" ]; then\n        echo \"\"\n        return 0\n    fi\n\n    # Take the first line (multi-GPU systems return one line per GPU)\n    local _first_line=\"\"\n    IFS= read -r _first_line <<EOF\n$_smi_output\nEOF\n\n    # Trim leading/trailing spaces\n    while [ \"${_first_line# }\" != \"$_first_line\" ]; do _first_line=\"${_first_line# }\"; done\n    while [ \"${_first_line% }\" != \"$_first_line\" ]; do _first_line=\"${_first_line% }\"; done\n\n    if [ -z \"$_first_line\" ]; then\n        echo \"\"\n        return 0\n    fi\n\n    echo \"$_first_line\"\n}\n\nnormalize_driver_version() {\n    local _version=\"$1\"\n    # Trim leading/trailing spaces\n    while [ \"${_version# }\" != \"$_version\" ]; do _version=\"${_version# }\"; done\n    while [ \"${_version% }\" != \"$_version\" ]; do _version=\"${_version% }\"; done\n\n    if [ -z \"$_version\" ]; then\n        echo \"\"\n        return 0\n    fi\n\n    local _major=\"\"\n    _major=\"${_version%%.*}\"\n    local _rest=\"\"\n    _rest=\"${_version#*.}\"\n    if [ \"$_rest\" = \"$_version\" ]; then\n        echo \"\"\n        return 0\n    fi\n\n    local _minor=\"\"\n    _minor=\"${_rest%%.*}\"\n    local _patch=\"\"\n    if [ \"$_minor\" = \"$_rest\" ]; then\n        _patch=\"0\"\n    else\n        _patch=\"${_rest#*.}\"\n    fi\n\n    if [ \"${_patch#*.}\" != \"$_patch\" ]; then\n        echo \"\"\n        return 0\n    fi\n\n    case \"$_major\" in \"\"|*[!0-9]*) echo \"\"; return 0 ;; esac\n    case \"$_minor\" in \"\"|*[!0-9]*) echo \"\"; return 0 ;; esac\n    case \"$_patch\" in \"\"|*[!0-9]*) echo \"\"; return 0 ;; esac\n\n    echo \"${_major}.${_minor}.${_patch}\"\n}\n\ndriver_version_gte() {\n    local _version=\"$1\"\n    local _threshold=\"$2\"\n\n    if [ -z \"$_version\" ]; then\n        return 1\n    fi\n    if [ -z \"$_threshold\" ]; then\n        return 1\n    fi\n\n    local _version_major=\"\"\n    local _version_minor=\"\"\n    local _version_patch=\"\"\n    local _version_rest=\"\"\n    _version_major=\"${_version%%.*}\"\n    _version_rest=\"${_version#*.}\"\n    _version_minor=\"${_version_rest%%.*}\"\n    _version_patch=\"${_version_rest#*.}\"\n\n    local _threshold_major=\"\"\n    local _threshold_minor=\"\"\n    local _threshold_patch=\"\"\n    local _threshold_rest=\"\"\n    _threshold_major=\"${_threshold%%.*}\"\n    _threshold_rest=\"${_threshold#*.}\"\n    _threshold_minor=\"${_threshold_rest%%.*}\"\n    _threshold_patch=\"${_threshold_rest#*.}\"\n\n    if [ \"$_version_major\" -gt \"$_threshold_major\" ]; then\n        return 0\n    fi\n    if [ \"$_version_major\" -lt \"$_threshold_major\" ]; then\n        return 1\n    fi\n\n    if [ \"$_version_minor\" -gt \"$_threshold_minor\" ]; then\n        return 0\n    fi\n    if [ \"$_version_minor\" -lt \"$_threshold_minor\" ]; then\n        return 1\n    fi\n\n    if [ \"$_version_patch\" -ge \"$_threshold_patch\" ]; then\n        return 0\n    fi\n\n    return 1\n}\n\nsupports_cuda_12_4_or_newer() {\n    local _driver_version_raw=\"\"\n    _driver_version_raw=\"$(detect_nvidia_driver_version_first_row)\"\n    if [ -z \"$_driver_version_raw\" ]; then\n        return 1\n    fi\n\n    local _driver_version=\"\"\n    _driver_version=\"$(normalize_driver_version \"$_driver_version_raw\")\"\n    if [ -z \"$_driver_version\" ]; then\n        return 1\n    fi\n\n    local _minimum_driver_version=\"550.54.14\"\n    if driver_version_gte \"$_driver_version\" \"$_minimum_driver_version\"; then\n        return 0\n    fi\n\n    return 1\n}\n\nget_linux_x86_full_bundle_suffix() {\n    if supports_cuda_12_4_or_newer; then\n        echo \"+cuda12\"\n    else\n        echo \"\"\n    fi\n    return 0\n}\n\ninstall() {\n    local _src_dir=\"$1\"\n    local _bootstrap_binary=\"$_src_dir/llmster\"\n\n    if [ ! -x \"$_bootstrap_binary\" ]; then\n        err \"Bootstrap binary not found at $_bootstrap_binary\"\n    fi\n\n    console_log \"Installing llmster...\"\n\n    # check that `libgomp` is installed\n    if check_cmd ldconfig && check_cmd awk && [ \"$(uname -s)\" = \"Linux\" ]; then\n        ldconfig -p 2>/dev/null | awk '$1==\"libgomp.so.1\"{f=1} END{exit !f}'\n        local _awk_result=$?\n        if [ \"$_awk_result\" -ne 0 ]; then\n            console_log_gray \"Warning: Could not detect libgomp. You might need to install libgomp\"\n        fi\n    fi\n\n    LMS_BOOTSTRAP_INSTALL_SH=1 ensure \"$_bootstrap_binary\" bootstrap\n\n    # Best-effort PATH helper using the installed lms\n    local _lmstudio_home_ptr=\"$INFERRED_HOME/.lmstudio-home-pointer\"\n    local _lmstudio_home=\"$INFERRED_HOME/.lmstudio\"\n    if [ -f \"$_lmstudio_home_ptr\" ]; then\n        _lmstudio_home=$(cat \"$_lmstudio_home_ptr\")\n    fi\n    local _lms_installed_path=\"$_lmstudio_home/bin/lms\"\n\n    if [ \"0\" = \"$NO_MODIFY_PATH\" ] && [ -x \"$_lms_installed_path\" ]; then\n        \"$_lms_installed_path\" bootstrap -y > /dev/null 2>&1\n        local _bootstrap_result=$?\n        if [ \"$_bootstrap_result\" -eq 0 ]; then\n            local _lms_on_path\n            _lms_on_path=$(command -v lms 2>/dev/null || echo \"\")\n            if [ \"$_lms_on_path\" != \"$_lms_installed_path\" ]; then\n                console_log \"To add lms to your PATH, either restart your shell or run:\"\n                console_log \"    export PATH=\\\"${_lmstudio_home}/bin:\\$PATH\\\"\"\n            fi\n        else\n            console_log \"\"\n            console_log \"Could not add lms to your PATH\"\n            console_log \"lms install location: $_lms_installed_path\"\n        fi\n\n        if [ -n \"${GITHUB_PATH:-}\" ]; then\n            ensure echo \"${_lmstudio_home}/bin\" >> \"$GITHUB_PATH\"\n        fi\n    elif [ -x \"$_lms_installed_path\" ]; then\n        console_log \"lms install location: $_lms_installed_path\"\n    fi\n}\n\ndownload_binary_and_run_installer \"$@\" || exit 1\n\n"
+  },
+  "minimum_build": 11500,
+  "maximum_build": 12182,
+  "ollama_release": "v0.40.15"
+}

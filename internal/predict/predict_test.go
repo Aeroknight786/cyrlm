@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/aeroknight786/trialm/internal/catalog"
-	"github.com/aeroknight786/trialm/internal/runtime"
+	runtime "github.com/aeroknight786/trialm/internal/engine"
 )
 
 // Reference measurements from public llama.cpp benchmarks (research/

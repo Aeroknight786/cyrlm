@@ -132,7 +132,7 @@ func TestNDJSONContract(t *testing.T) {
 			if e["v"] != float64(1) {
 				t.Fatal(e)
 			}
-			valid := map[string]bool{"detect": true, "recipes": true, "plan": true, "step": true, "progress": true, "check": true, "needs_user": true, "result": true, "error": true}
+			valid := map[string]bool{"detect": true, "recipes": true, "plan": true, "setup_plan": true, "setup_step": true, "setup_progress": true, "setup_log": true, "setup_ready": true, "setup_paused": true, "setup_undone": true, "step": true, "progress": true, "check": true, "needs_user": true, "result": true, "error": true}
 			if !valid[e["type"].(string)] {
 				t.Fatal(e)
 			}

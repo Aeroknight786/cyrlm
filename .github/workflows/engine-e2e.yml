@@ -1,0 +1,25 @@
+name: engine-e2e
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  cpu:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Pinned engine setup, synthetic inference, undo
+        env:
+          TRIALM_ENGINE_E2E: '1'
+          # Coordinator can set TRIALM_E2E_REAL_READY and
+          # TRIALM_E2E_REAL_DOWNLOAD to 1 when both P2 agents merge.
+        run: go test -race ./internal/setup -run '^TestEngineE2E$' -count=1 -v -timeout 10m
