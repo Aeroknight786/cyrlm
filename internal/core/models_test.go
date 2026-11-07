@@ -32,7 +32,7 @@ func writeModelFixture(t *testing.T, path string, b []byte) {
 func TestCachedModelSources(t *testing.T) {
 	model, _ := catalog.Lookup("qwen3.5:9b")
 	q, _ := model.Quant("Q4_K_M")
-	for _, source := range []string{"hf", "hf-home", "lmstudio", "old-lmstudio", "ollama", "legacy", "broken"} {
+	for _, source := range []string{"hf", "hf-home", "lmstudio", "old-lmstudio", "ollama", "ollama-hf", "ollama-quant", "legacy", "legacy-quant", "broken"} {
 		t.Run(source, func(t *testing.T) {
 			home, root := t.TempDir(), t.TempDir()
 			t.Setenv("HOME", home)
@@ -76,14 +76,25 @@ func TestCachedModelSources(t *testing.T) {
 				}
 				want = filepath.Join(base, model.HFGGUFRepo, name)
 				writeModelFixture(t, want, data.Bytes())
-			case "ollama":
+			case "ollama", "ollama-hf", "ollama-quant":
 				want = filepath.Join(os.Getenv("OLLAMA_MODELS"), "blobs", "sha256-"+sum)
 				writeModelFixture(t, want, data.Bytes())
-				writeModelFixture(t, filepath.Join(os.Getenv("OLLAMA_MODELS"), "manifests", "registry.ollama.ai", "library", "qwen3.5", "9b"), []byte(fmt.Sprintf(`{"layers":[{"mediaType":"application/vnd.ollama.image.model","digest":"sha256:%s"}]}`, sum)))
-			case "legacy":
+				manifestPath := filepath.Join(os.Getenv("OLLAMA_MODELS"), "manifests", "registry.ollama.ai", "library", "qwen3.5", "9b")
+				if source == "ollama-hf" {
+					manifestPath = filepath.Join(os.Getenv("OLLAMA_MODELS"), "manifests", "hf.co", model.HFGGUFRepo, q.Name)
+				}
+				if source == "ollama-quant" {
+					manifestPath += "-q4_K_M"
+				}
+				writeModelFixture(t, manifestPath, []byte(fmt.Sprintf(`{"layers":[{"mediaType":"application/vnd.ollama.image.model","digest":"sha256:%s"}]}`, sum)))
+			case "legacy", "legacy-quant":
 				want = filepath.Join(home, "weights with spaces", name)
 				writeModelFixture(t, want, data.Bytes())
-				writeModelFixture(t, filepath.Join(root, "llamacpp", "qwen3.5-9b-cyrlm.sh"), []byte("#!/bin/sh\nexit 99\nllama-server -m \""+want+"\"\n"))
+				scriptName := "qwen3.5-9b-cyrlm.sh"
+				if source == "legacy-quant" {
+					scriptName = "qwen3.5-9b-q4_k_m-cyrlm.sh"
+				}
+				writeModelFixture(t, filepath.Join(root, "llamacpp", scriptName), []byte("#!/bin/sh\nexit 99\nllama-server -m \""+want+"\"\n"))
 			}
 			if got := cachedModel(home, root, model, q); got != want {
 				t.Fatalf("got %q want %q", got, want)

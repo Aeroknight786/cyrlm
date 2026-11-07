@@ -11,9 +11,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func wrap(s string, w int) string { return ansi.Wrap(s, max(1, w), "") }
-func strip(s string) string       { return ansi.Strip(s) }
-func clip(s string, w int) string { return ansi.Truncate(s, max(1, w), "") }
+func wrap(s string, w int) string      { return ansi.Wrap(s, max(1, w), "") }
+func strip(s string) string            { return ansi.Strip(s) }
+func clip(s string, w int) string      { return ansi.Truncate(s, max(1, w), "") }
+func estimated(f figure.Figure) string { return "~" + strings.TrimPrefix(f.String(), "~") }
 func metric(r predict.Result, v float64, unit string, reading bool) figure.Figure {
 	band := r.Accuracy.DecodePct
 	if reading {
@@ -60,7 +61,7 @@ func (m *Root) body() string {
 	case Home:
 		return m.launcher()
 	case Help:
-		return "Every key, one place\n\nLauncher\n  ↑↓ / j k select · enter run · tab cycle installed tools\n  t cloud trial · f find faster or smarter · / search\n  enter calibrate once · s skip forever\n\nRecipes\n  ↑↓ / j k select · enter trial · w trial in a window\n  s set up · n needs · d details · / search · c claims\n  ? figures and sources · space toggle boosts in details\n\nSetup and Ready\n  enter approve / open tool · d steps and logs · ctrl-c pause\n  u undo from Ready · q later\n\nCloud sign-in\n  enter browser / connect · p paste · esc back\n\nTrial summary\n  1 too slow · 2 fine · 3 great · s set up · t another\n\nChat · enter send · esc finish\nEverywhere · esc back · q quit · ctrl-c stop"
+		return "Every key, one place\n\nLauncher\n  ↑↓ / j k select · enter run · tab cycle installed tools\n  t cloud trial · f find faster or smarter · / search · c claims\n  enter calibrate once · s skip forever\n\nRecipes\n  ↑↓ / j k select · enter trial · w trial in a window\n  s set up · n / r needs · d details · / search · c claims\n  ? figures and sources · space toggle boosts in details\n\nSetup and Ready\n  enter / y approve · enter open tool · n / esc back\n  d steps and logs · ctrl-c pause\n  u undo from Ready · q later\n\nCloud sign-in\n  enter browser / connect · p paste · esc back\n\nTrial summary\n  1 too slow · 2 fine · 3 great · s set up · t another\n\nNeeds · ↑↓ / j k / tab row · ←→ / h l change · enter apply\nSearch · enter search · esc back\nClaims · ↑↓ / j k select · enter / ? open · ? source\nErrors · d raw details\nChat · enter send · esc finish\nEverywhere · esc back · q quit · ctrl-c stop"
 	case Gallery:
 		b := "Published claims · unverified by triaLM · never ranked\n"
 		for i, c := range Claims() {
@@ -93,7 +94,7 @@ func (m *Root) body() string {
 		if row, ok := m.row(); ok {
 			r := row.Result
 			f := metric(r, r.DecodeTPSDeep, "tok/s", false)
-			return fmt.Sprintf("Why these numbers?\n%s · %s\n%s\nRange %s to %s\nSource: %s\nWriting ±%d%% · reading ±%d%%\n%s", r.Model.Name, r.Runtime.Name, f.String(), figure.BandNumber(f.Lo, 26), figure.BandNumber(f.Hi, 26), f.Src, r.Accuracy.DecodePct, r.Accuracy.PrefillPct, strings.Join(r.Warnings, "\n"))
+			return fmt.Sprintf("Why these numbers?\n%s · %s\n%s\nRange %s to %s\nSource: %s\nWriting ±%d%% · reading ±%d%%\n%s", r.Model.Name, r.Runtime.Name, estimated(f), figure.BandNumber(f.Lo, 26), figure.BandNumber(f.Hi, 26), f.Src, r.Accuracy.DecodePct, r.Accuracy.PrefillPct, strings.Join(r.Warnings, "\n"))
 		}
 		return "Claims are source-reported figures, not triaLM measurements.\n" + Claims()[0].SourceURL
 	case Setup:
@@ -126,7 +127,7 @@ func (m *Root) recipes() string {
 			if i == m.selected {
 				mark = "❯ "
 			}
-			b += fmt.Sprintf("%s%d %s\n  %s · %s\n  turn %s\n", mark, i+1, r.Model.Name, r.Quant.Name, r.Runtime.ID, metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false).String())
+			b += fmt.Sprintf("%s%d %s\n  %s · %s\n  turn %s\n", mark, i+1, r.Model.Name, r.Quant.Name, r.Runtime.ID, estimated(metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false)))
 		}
 	}
 	for _, row := range m.listing.Rows {
@@ -152,11 +153,11 @@ func (m *Root) details() string {
 	r := row.Result
 	mem := r.Memory
 	b := r.Model.Name + " · " + r.Quant.Name + " · " + r.Runtime.Name + "\n"
-	b += "Memory " + m.progressBar(mem.TotalBytes/max(1, mem.BudgetBytes)) + "\n" + figure.Exact(mem.TotalBytes/(1<<30), "GB", figure.Simulated, "memory:plan").String() + " of " + figure.Exact(mem.BudgetBytes/(1<<30), "GB", figure.Measured, "hardware:budget").String() + " · " + mem.Level + "\n"
+	b += "Memory " + m.progressBar(mem.TotalBytes/max(1, mem.BudgetBytes)) + "\n" + estimated(figure.Exact(mem.TotalBytes/(1<<30), "GB", figure.Simulated, "memory:plan")) + " of " + figure.Exact(mem.BudgetBytes/(1<<30), "GB", figure.Measured, "hardware:budget").String() + " · " + mem.Level + "\n"
 	if r.Timing != nil {
 		read := r.Scenario.FollowUpTTFT.Seconds()
 		write := max(0, r.Scenario.FollowUpTurn.Seconds()-read)
-		b += "Turn " + metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false).String() + "\n" + m.split(read, write, 0)
+		b += "Turn " + estimated(metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false)) + "\n" + m.split(read, write, 0)
 	}
 	flash := "off"
 	if r.Settings.FlashAttention {

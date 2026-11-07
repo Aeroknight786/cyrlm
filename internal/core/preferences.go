@@ -116,3 +116,5 @@ func UpdateNotice(ctx context.Context, s store.Store, version string) string {
 	}
 	return ""
 }
+
+func IsClaimText(s string) bool { return strings.Contains(s, " -") || strings.Contains(s, "://") }

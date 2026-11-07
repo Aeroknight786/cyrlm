@@ -1,0 +1,18 @@
++----------------------------------------------------------------------------+
+| Set up Qwen3.6 35B-A3B for Codex                                           |
+| 13.2 GB download - 1 approval - no password                                |
+| Not touched - Codex config, shell profile, other models                    |
+|                                                                            |
+| - llama.cpp b12182                                                         |
+| - Qwen3.6-35B-A3B.gguf                                                     |
+| - Save owned launcher                                                      |
+| - llama-server :8080 - in-process bridge                                   |
+| - speed - greeting - tool call - follow-up                                 |
+| sha256 checked                                                             |
+| archive extracted                                                          |
+| download resumed                                                           |
+| range accepted                                                             |
+| 8.1 GB received                                                            |
++----------------------------------------------------------------------------+
+
+enter go  esc back  d details

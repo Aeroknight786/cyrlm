@@ -47,7 +47,6 @@ func (s Session) Models(ctx context.Context, o Options, t predict.Target, h harn
 		}
 		row := Row{}
 		row.Result.Model = model
-		row.Result.Quant.Name = j.Plan.Quant
 		for _, r := range listing.Rows {
 			if r.Result.Model.ID == model.ID {
 				row = r
@@ -220,8 +219,9 @@ func cachedModel(home, root string, m catalog.Model, q catalog.Quant) string {
 		if len(parts) < 2 {
 			return nil
 		}
-		named, ok := catalog.Lookup(parts[len(parts)-2] + ":" + parts[len(parts)-1])
-		if !ok || named.ID != m.ID {
+		modelTag := parts[len(parts)-2] + ":" + parts[len(parts)-1]
+		named, ok := catalog.Lookup(modelTag)
+		if (!ok || named.ID != m.ID) && !strings.HasPrefix(modelTag, m.OllamaTag+"-") && !strings.Contains(strings.ToLower(tag), strings.ToLower(m.HFGGUFRepo+"/")) {
 			return nil
 		}
 		b, _ := os.ReadFile(p)
@@ -253,7 +253,7 @@ func cachedModel(home, root string, m catalog.Model, q catalog.Quant) string {
 		scripts, _ := filepath.Glob(filepath.Join(base, "llamacpp", "*-cyrlm.sh"))
 		for _, script := range scripts {
 			name := strings.TrimSuffix(filepath.Base(script), "-cyrlm.sh")
-			if name != strings.ReplaceAll(m.OllamaTag, ":", "-") && name != m.ID {
+			if name != strings.ReplaceAll(m.OllamaTag, ":", "-") && name != m.ID && !strings.HasPrefix(name, strings.ReplaceAll(m.OllamaTag, ":", "-")+"-") {
 				continue
 			}
 			b, _ := os.ReadFile(script)

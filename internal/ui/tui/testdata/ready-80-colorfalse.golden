@@ -5,9 +5,9 @@
 | Writing at start            40 tok/s       ~44 tok/s                       |
 | Writing at 40K              31 tok/s       ~36 tok/s                       |
 | Reading                    660 tok/s      ~800 tok/s                       |
-| v Codex greeting                                                           |
-| v tool call                                                                |
-| v follow-up                                                                |
+| v Codex - harness                                                          |
+|                                                                            |
+| Slower than modeled at 40K - saved for future picks                        |
 +----------------------------------------------------------------------------+
 
 enter open Codex now  d details  q later

@@ -25,10 +25,10 @@ func (m *Root) tableView() string {
 		}
 		model := fmt.Sprintf("%s%d %s", mark, i+1, r.Model.Name)
 		file := r.Quant.Name + " " + figure.Exact(float64(r.Quant.FileBytes)/1e9, "GB", figure.Simulated, "catalog:file").String() + " · " + r.Runtime.ID
-		turn := metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false).String()
+		turn := estimated(metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false))
 		cells := table.Row{model, file, fmt.Sprintf("%10s", turn)}
 		if m.width >= 90 {
-			cells = table.Row{model, file, fmt.Sprintf("%12s", metric(r, r.DecodeTPSDeep, "t/s", false).String()), fmt.Sprintf("%10s", turn), fmt.Sprintf("%10s", metric(r, r.Scenario.ColdFirstReply.Seconds(), "s", true).String())}
+			cells = table.Row{model, file, fmt.Sprintf("%12s", estimated(metric(r, r.DecodeTPSDeep, "t/s", false))), fmt.Sprintf("%10s", turn), fmt.Sprintf("%10s", estimated(metric(r, r.Scenario.ColdFirstReply.Seconds(), "s", true)))}
 		}
 		rows = append(rows, cells)
 	}

@@ -40,7 +40,6 @@ type setupView struct {
 	events  chan setupEvent
 	cancel  context.CancelFunc
 	onDisk  bool
-	failed  bool // a finished run that did not reach Ready
 }
 
 func (m *Root) planSetup() tea.Cmd {
@@ -96,10 +95,9 @@ func (m *Root) setupEvent(v setupEvent) tea.Cmd {
 		if v.journal.Report != nil {
 			m.setup.report = v.journal.Report
 		}
-		m.setup.failed = v.err != nil
 		if v.err != nil {
 			m.fail("Setup needs another try. Press enter to resume or d for details.", v.err)
-		} else if v.journal.State == "ready" {
+		} else if v.journal.State == "ready" && v.journal.Report != nil && v.journal.Report.Ready {
 			m.replace(Ready)
 			m.sparkle = 0
 			return tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg { return sparkleMsg(1) })
@@ -108,7 +106,7 @@ func (m *Root) setupEvent(v setupEvent) tea.Cmd {
 	}
 	if v.err != nil {
 		m.busy = false
-		m.fail("Setup needs another try. Press enter to resume or d for details.", v.err)
+		m.fail("Setup could not be planned. Press esc to choose another model or d for details.", v.err)
 		return nil
 	}
 	switch v.event.Type {
@@ -237,12 +235,18 @@ func (m *Root) readyBody() string {
 	row(fmt.Sprintf("Writing at %dK", p.ContextTokens/1024), r.DecodeTPS[p.ContextTokens], p.Predicted.DecodeTPSTarget, p.DecodeErrorPct)
 	row("Reading", r.PrefillTPS, p.Predicted.PrefillTPS, p.PrefillErrorPct)
 	for _, c := range r.Checks {
-		if c.OK {
-			b += m.theme.good.Render("✓ "+c.Name) + "\n"
+		if c.OK && (c.Name == "harness" || m.expanded) {
+			b += m.theme.good.Render("✓ "+toolName(p.Harness)+" · "+c.Name) + "\n"
 		}
 	}
-	if len(r.Misses) > 0 {
-		b += "\n" + m.theme.dim.Render(clip(strings.Join(r.Misses, " · "), min(m.width, 80)-6)) + "\n"
+	warning := ""
+	if r.DecodeTPS[p.ContextTokens] < p.Predicted.DecodeTPSTarget {
+		warning = fmt.Sprintf("Slower than modeled at %dK · saved for future picks", p.ContextTokens/1024)
+	} else if r.PrefillTPS < p.Predicted.PrefillTPS {
+		warning = "Reading was slower than modeled · saved for future picks"
+	}
+	if warning != "" {
+		b += "\n" + m.theme.dim.Render(clip(warning, min(m.width, 80)-6)) + "\n"
 	}
 	if m.expanded {
 		b += "\n" + strings.Join(m.setup.logs, "\n")

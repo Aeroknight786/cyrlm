@@ -162,12 +162,11 @@ func New(cfg Config) *Root {
 	m.search = textinput.New()
 	m.search.Prompt = "Search models: "
 	m.search.CharLimit = 500
-	m.history, _ = cfg.Store.History()
 	m.makeFields()
 	if cfg.LocalPlan != nil {
 		m.setup = setupView{plan: *cfg.LocalPlan, states: map[int]string{}}
 	}
-	if cfg.Start == Recipes && isClaimText(cfg.Preferences.Model) {
+	if cfg.Start == Recipes && core.IsClaimText(cfg.Preferences.Model) {
 		m.replace(ClaimCard)
 		m.pendingClaim = true
 	}
@@ -182,13 +181,13 @@ func Run(cfg Config) error {
 	return terminalResult(err, m.Error)
 }
 func (m *Root) screen() Screen   { return m.stack[len(m.stack)-1] }
-func (m *Root) push(s Screen)    { m.stack = append(m.stack, s); m.message = "" }
-func (m *Root) replace(s Screen) { m.stack[len(m.stack)-1] = s; m.message = "" }
+func (m *Root) push(s Screen)    { m.stack = append(m.stack, s); m.message, m.rawError = "", "" }
+func (m *Root) replace(s Screen) { m.stack[len(m.stack)-1] = s; m.message, m.rawError = "", "" }
 func (m *Root) back() {
 	if len(m.stack) > 1 {
 		m.stack = m.stack[:len(m.stack)-1]
 	}
-	m.message = ""
+	m.message, m.rawError = "", ""
 }
 func (m *Root) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.tick()}
@@ -311,10 +310,9 @@ func (m *Root) child(argv []string) *exec.Cmd {
 		cmd = m.cfg.Process(m.cfg.Context, m.cfg.Executable, argv)
 	}
 	if cmd.Env == nil {
-		cmd.Env = core.ChildEnv(os.Environ())
-	} else {
-		cmd.Env = core.ChildEnv(cmd.Env)
+		cmd.Env = os.Environ()
 	}
+	cmd.Env = core.ChildEnv(cmd.Env)
 	return cmd
 }
 
@@ -380,7 +378,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fail("Could not read this machine. Press f to find a recipe or d for details.", v.err)
 			return m, nil
 		}
-		if m.screen() == Home {
+		if m.cfg.Start == "" || m.cfg.Start == Home {
 			return m, m.loadModels()
 		}
 		if m.screen() == Recipes {
@@ -430,8 +428,10 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.notice = string(v)
 	case windowDoneMsg:
 		if v.err != nil {
-			m.Error = v.err
-			return m, tea.Quit
+			m.busy = false
+			m.back()
+			m.fail("Could not open a trial window. Press q to exit or d for details.", v.err)
+			return m, nil
 		}
 		return m, func() tea.Msg { return childMsg{kind: Trial} }
 	case childMsg:
@@ -491,7 +491,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chat.input, cmd = m.chat.input.Update(v)
 			return m, cmd
 		}
-		if m.screen() == Search && !isClaimText(v.Content) {
+		if m.screen() == Search && !core.IsClaimText(v.Content) {
 			var cmd tea.Cmd
 			m.search, cmd = m.search.Update(v)
 			return m, cmd
@@ -514,6 +514,10 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chat.resize(m.width, m.height)
 		return m, nil
 	case chatResponseMsg:
+		m.message, m.rawError = "", ""
+		if v.err != nil {
+			m.fail("The reply stopped. Type a message to retry or press d for details.", v.err)
+		}
 		return m, m.chat.receive(v)
 	case tea.KeyPressMsg:
 		key := v.String()
@@ -541,6 +545,10 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.Error = context.Canceled
 			return m, tea.Interrupt
+		}
+		if key == "d" && (m.screen() == Home || m.screen() == Setup || m.screen() == Ready || m.rawError != "") {
+			m.expanded = !m.expanded
+			return m, nil
 		}
 		if m.screen() == Chat {
 			if key == "esc" {
@@ -580,7 +588,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if key == "enter" {
-				if isClaimText(m.search.Value()) {
+				if core.IsClaimText(m.search.Value()) {
 					m.replace(ClaimCard)
 					m.pendingClaim = true
 					return m, nil
@@ -593,15 +601,11 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.search, c = m.search.Update(msg)
 			return m, c
 		}
-		if key == "d" && (m.screen() == Home || m.screen() == Setup || m.screen() == Ready || m.rawError != "") {
-			m.expanded = !m.expanded
-			return m, nil
-		}
 		if key == "?" && m.screen() == Home {
 			m.push(Help)
 			return m, nil
 		}
-		if key == "q" {
+		if key == "q" && !m.busy {
 			return m, tea.Quit
 		}
 		if key == "esc" {
@@ -630,16 +634,14 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch key {
 			case "enter":
 				if e := m.cfg.Store.SavePreferences(m.cfg.Preferences); e != nil {
-					m.message = e.Error()
+					m.fail("Could not save that choice. Press enter to retry or d for details.", e)
 					return m, nil
 				}
 				m.push(Recipes)
 				return m, m.find()
 			case "up", "k":
-				m.fields[m.field].Blur()
 				m.field = (m.field + len(m.fields) - 1) % len(m.fields)
 			case "down", "j", "tab":
-				m.fields[m.field].Blur()
 				m.field = (m.field + 1) % len(m.fields)
 			case "left", "h", "right", "l":
 				_, cmd := m.fields[m.field].Update(changeKey(v))
@@ -747,13 +749,13 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "1", "2", "3":
 				m.last.Rating = int(key[0] - '0')
 				if e := m.cfg.Store.SaveTrial(m.last); e != nil {
-					m.message = e.Error()
+					m.fail("Could not save that choice. Press enter to retry or d for details.", e)
 					return m, nil
 				}
 				if key == "1" {
 					m.cfg.Preferences.Priority = store.TowardSpeed(m.cfg.Preferences.Priority)
 					if e := m.cfg.Store.SavePreferences(m.cfg.Preferences); e != nil {
-						m.message = e.Error()
+						m.fail("Could not save that choice. Press enter to retry or d for details.", e)
 						return m, nil
 					}
 					m.replace(Recipes)
@@ -816,8 +818,7 @@ func (m *Root) authorize(secret string) tea.Cmd {
 	return func() tea.Msg { return authorizedMsg{m.cfg.Authorize(m.cfg.Context, secret)} }
 }
 func (m *Root) makeFields() {
-	m.fields = nil
-	m.labels = nil
+	m.fields, m.labels = nil, nil
 	p := &m.cfg.Preferences
 	add := func(title string, value *string, options ...string) {
 		opts := make([]huh.Option[string], len(options))
@@ -920,7 +921,7 @@ func (m *Root) footer() string {
 }
 func (m *Root) View() tea.View {
 	body := m.body()
-	if m.busy && m.calibration == nil && m.screen() != Home && m.screen() != Trial && m.screen() != Setup {
+	if (m.busy || (m.screen() == Chat && m.chat.busy)) && m.calibration == nil && m.screen() != Home && m.screen() != Trial && m.screen() != Setup {
 		body += "\n" + m.waiting() + " Working…"
 	}
 	if m.message != "" {
@@ -976,5 +977,3 @@ func terminalResult(err, modelError error) error {
 	}
 	return modelError
 }
-
-func isClaimText(s string) bool { return strings.Contains(s, " -") || strings.Contains(s, "://") }

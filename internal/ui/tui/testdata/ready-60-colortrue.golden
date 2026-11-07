@@ -5,9 +5,9 @@
 [36m│[m Writing at start            40 tok/s       ~44 tok/s   [36m│[m
 [36m│[m Writing at 40K              31 tok/s       ~36 tok/s   [36m│[m
 [36m│[m Reading                    660 tok/s      ~800 tok/s   [36m│[m
-[36m│[m [32m✓ Codex greeting[m                                       [36m│[m
-[36m│[m [32m✓ tool call[m                                            [36m│[m
-[36m│[m [32m✓ follow-up[m                                            [36m│[m
+[36m│[m [32m✓ Codex · harness[m                                      [36m│[m
+[36m│[m                                                        [36m│[m
+[36m│[m [90mSlower than modeled at 40K · saved for future picks[m    [36m│[m
 [36m╰────────────────────────────────────────────────────────╯[m
 
 [90menter open Codex now  d details  q later[m

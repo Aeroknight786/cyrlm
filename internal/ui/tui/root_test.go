@@ -18,6 +18,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"encoding/json"
+	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/verify"
@@ -41,7 +43,7 @@ func fixture(t testing.TB) *Root {
 	opts := core.Options{Device: "Apple M5", RAM: 24, Runtime: "all", Tuned: true, Context: p.Context, Use: "agent", QualityFloor: p.QualityFloor}
 	cfg := SessionConfig(context.Background(), s, p, opts, 3, "test")
 	cfg.UpdateNotice = nil
-	cfg.Tools = []string{"Codex", "Claude Code"}
+	cfg.Tools = []string{"codex", "claude-code"}
 	m := New(cfg)
 	d, e := cfg.Detect(context.Background())
 	if e != nil {
@@ -63,7 +65,7 @@ func TestViewGoldens(t *testing.T) {
 	old := lipgloss.Writer.Profile
 	lipgloss.Writer.Profile = colorprofile.TrueColor
 	defer func() { lipgloss.Writer.Profile = old }()
-	screens := []Screen{First, Paste, "launcher-calibrating", "launcher-offer", "detecting", Help, Needs, Recipes, Details, Trial, Summary, Home, Gallery, ClaimCard, Search, Why, Setup, Chat, Ready, Launching, "setup-progress", "setup-paused", "launcher-details"}
+	screens := []Screen{First, Paste, "launcher-calibrating", "launcher-offer", "detecting", Help, Needs, Recipes, Details, Trial, Summary, Home, Gallery, ClaimCard, Search, Why, Setup, Chat, Ready, Launching, "setup-progress", "setup-paused", "error", "error-details", "setup-details", "ready-details", "setup-disk", "ready-sparkle"}
 	for _, screen := range screens {
 		for _, w := range []int{60, 80, 120} {
 			for _, plain := range []bool{false, true} {
@@ -91,7 +93,7 @@ func TestViewGoldens(t *testing.T) {
 						m.busy = true
 					}
 					switch screen {
-					case Setup, Ready, Launching, "setup-progress", "setup-paused", "launcher-details":
+					case Setup, Ready, Launching, "setup-progress", "setup-paused", "error":
 						setupFrame(m)
 					}
 					if screen == Setup {
@@ -109,11 +111,43 @@ func TestViewGoldens(t *testing.T) {
 						m.setup.journal.State = "paused"
 						m.message = "Setup paused. Enter resumes."
 					}
-					if screen == "launcher-details" {
+					if screen == "error" || screen == "error-details" {
 						m.stack = []Screen{Home}
-						m.expanded = true
+						m.fail("Could not open the tool. Press enter to retry or d for details.", errors.New("fixture handshake refused"))
+						m.expanded = screen == "error-details"
+					}
+					if screen == "setup-details" || screen == "setup-disk" {
+						m.stack = []Screen{Setup}
+						m.setup.update = setup.Update{}
+						m.setup.states = nil
+						m.setup.journal = setup.Journal{}
+						m.expanded = screen == "setup-details"
+						m.setup.onDisk = screen == "setup-disk"
+					}
+					if screen == "ready-details" || screen == "ready-sparkle" {
+						m.stack = []Screen{Ready}
+						m.expanded = screen == "ready-details"
+						if screen == "ready-sparkle" {
+							m.sparkle = 1
+						}
 					}
 					m.theme = newPalette(plain, false)
+					if plain && screen == "ready-sparkle" {
+						m.sparkle = 3
+					}
+					fraction := 0.0
+					if screen == "setup-progress" {
+						fraction = float64(m.setup.update.Progress.Done) / float64(m.setup.update.Progress.Total)
+					}
+					if screen == "launcher-calibrating" {
+						fraction = m.calibration.fraction
+					}
+					if fraction > 0 && !plain {
+						frame := m.bar.SetPercent(fraction)()
+						for i := 0; i < 120; i++ {
+							m.Update(frame)
+						}
+					}
 					m.started = time.Now().Add(-30 * time.Second)
 					m.password = huh.NewInput().Title("OpenRouter key").Value(&m.secret).EchoMode(huh.EchoModePassword)
 					m.password.Focus()
@@ -227,6 +261,10 @@ type driver struct{ root *Root }
 func (d *driver) Init() tea.Cmd  { return d.root.Init() }
 func (d *driver) View() tea.View { return d.root.View() }
 func (d *driver) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if v, ok := msg.(probeLauncher); ok {
+		v.ready <- !d.root.detecting && len(d.root.models) > 0
+		return d, nil
+	}
 	if v, ok := msg.(probePlan); ok {
 		v.ready <- d.root.setup.plan.ID != "" && !d.root.busy
 		return d, nil
@@ -265,20 +303,37 @@ func TestLauncherKeyCount(t *testing.T) {
 		t.Run(state, func(t *testing.T) {
 			t.Setenv("OPENROUTER_API_KEY", "")
 			m := fixture(t)
-			m.stack = []Screen{Home}
-			m.detecting = false
-			m.offer = state == "disk-first"
-			m.modelIndex = 0
-			if m.offer {
-				m.modelIndex = -1
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("TRIALM_HOME", m.cfg.Store.Dir)
+			t.Setenv("HF_HUB_CACHE", filepath.Join(home, "hf"))
+			t.Setenv("OLLAMA_MODELS", filepath.Join(home, "ollama"))
+			model, _ := catalog.Lookup("qwen3.5:9b")
+			file := filepath.Join(home, ".lmstudio", "models", model.HFGGUFRepo, "Qwen3.5-9B-Q4_K_M.gguf")
+			if e := os.MkdirAll(filepath.Dir(file), 0700); e != nil {
+				t.Fatal(e)
 			}
-			m.models = m.models[:1]
-			if state != "ready" {
-				m.models[0].Journal = nil
-				m.models[0].Row.LocalPath = "/fixture/model.gguf"
+			if e := os.WriteFile(file, []byte("UI cache fixture"), 0600); e != nil {
+				t.Fatal(e)
 			}
-			m.cfg.Detect = nil
-			m.cfg.Models = nil
+			if state != "disk-first" {
+				if e := m.choice("skipped"); e != nil {
+					t.Fatal(e)
+				}
+			}
+			if state == "ready" {
+				j := *m.models[0].Journal
+				j.Plan.Model, j.Plan.ModelName, j.Plan.Quant = model.ID, model.Name, "Q4_K_M"
+				path := filepath.Join(m.cfg.Store.Dir, "setups", j.Plan.Slug, "journal.json")
+				b, _ := json.Marshal(j)
+				if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+					t.Fatal(e)
+				}
+				if e := os.WriteFile(path, b, 0600); e != nil {
+					t.Fatal(e)
+				}
+			}
+			m = New(m.cfg)
 			approvals, launches := 0, 0
 			m.cfg.Plan = func(context.Context, core.Row, store.Preferences) (setup.Plan, error) {
 				return setup.Plan{ID: "approved", Slug: "local", Harness: "codex"}, nil
@@ -302,6 +357,18 @@ func TestLauncherKeyCount(t *testing.T) {
 			defer program.Kill()
 			keys := 0
 			waitScreen(t, program, Home)
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				ch := make(chan bool, 1)
+				program.Send(probeLauncher{ch})
+				if <-ch {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("launcher discovery did not complete")
+				}
+				time.Sleep(time.Millisecond)
+			}
 			if state == "disk-first" {
 				program.Send(key("s"))
 				keys++
@@ -346,6 +413,7 @@ func TestLauncherKeyCount(t *testing.T) {
 	}
 }
 
+type probeLauncher struct{ ready chan bool }
 type probePlan struct{ ready chan bool }
 type probeRows struct{ ready chan bool }
 
@@ -633,5 +701,132 @@ func TestUnparsedClaimNeverShowsCuratedSources(t *testing.T) {
 	view := m.View().Content
 	if m.screen() != ClaimCard || !strings.Contains(view, "claim parsing arrives in v0.6") || strings.Contains(view, "Strata") || strings.Contains(m.footer(), "sources") {
 		t.Fatal(view)
+	}
+}
+
+func TestDetectionCompletesWhileHelpIsOpen(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{Home}
+	m.Update(key("?"))
+	if m.screen() != Help {
+		t.Fatal(m.screen())
+	}
+	_, cmd := m.Update(detectedMsg{detection: m.detection})
+	if cmd == nil {
+		t.Fatal("discovery was lost behind help")
+	}
+	m.Update(cmd())
+	m.Update(key("esc"))
+	if m.screen() != Home || m.detecting || len(m.models) == 0 {
+		t.Fatal(m.screen(), m.detecting)
+	}
+}
+func TestLauncherKeysAndLazyCloudKey(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	m := fixture(t)
+	m.stack = []Screen{Home}
+	m.offer = false
+	m.modelIndex = 0
+	m.detecting = false
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.cfg.Preferences.Tool != "Claude Code" && m.cfg.Preferences.Tool != "claude-code" {
+		t.Fatal(m.cfg.Preferences.Tool)
+	}
+	m.Update(key("t"))
+	if m.screen() != First {
+		t.Fatal("trial did not offer the key", m.screen())
+	}
+	m.Update(key("esc"))
+	if m.screen() != Home {
+		t.Fatal(m.screen())
+	}
+	m.Update(key("f"))
+	if m.screen() != Recipes {
+		t.Fatal(m.screen())
+	}
+	m.busy = false
+	m.Update(key("n"))
+	if m.screen() != Needs {
+		t.Fatal(m.screen())
+	}
+}
+func TestErrorDetailsAndReducedMotion(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{Setup}
+	m.busy = true
+	m.Update(setupEvent{done: true, err: errors.New("fixture raw failure"), journal: setup.Journal{State: "failed"}})
+	if strings.Contains(m.View().Content, "fixture raw failure") || !strings.Contains(m.View().Content, "Press enter") {
+		t.Fatal(m.View().Content)
+	}
+	m.Update(key("d"))
+	if !strings.Contains(m.View().Content, "fixture raw failure") {
+		t.Fatal(m.View().Content)
+	}
+	m.push(Home)
+	if strings.Contains(m.View().Content, "fixture raw failure") {
+		t.Fatal("stale error")
+	}
+	m.theme = newPalette(true, false)
+	m.cfg.Detect = nil
+	m.cfg.Models = nil
+	m.cfg.UpdateNotice = nil
+	if m.tick() != nil {
+		t.Fatal("NO_COLOR spinner animates")
+	}
+	m.autoLaunch = false
+	m.stack = []Screen{Ready}
+	_, cmd := m.Update(sparkleMsg(1))
+	if cmd != nil || m.sparkle != 3 {
+		t.Fatal("NO_COLOR sparkle animates")
+	}
+}
+
+func TestCloudAuthorizationResumesSelectedTrial(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	m := fixture(t)
+	m.stack = []Screen{Home}
+	m.offer = false
+	m.detecting = false
+	m.modelIndex = 1
+	m.cfg.Headless = false
+	m.cfg.Authorize = func(ctx context.Context, key string) error { return m.cfg.Store.SaveKey("fixture-key") }
+	var selected string
+	m.cfg.TrialArgs = func(row core.Row, p store.Preferences) []string { selected = row.Result.Model.ID; return nil }
+	_, cmd := m.Update(key("t"))
+	if cmd != nil || m.screen() != First {
+		t.Fatal(m.screen())
+	}
+	_, cmd = m.Update(key("enter"))
+	_, cmd = m.Update(cmd())
+	if m.screen() != Trial || selected != m.models[1].Row.Result.Model.ID || cmd == nil {
+		t.Fatal(m.screen(), selected)
+	}
+	// Inspect the handoff without starting a cloud request.
+	if !strings.Contains(fmt.Sprintf("%T", cmd()), "execMsg") {
+		t.Fatal("no TTY handoff")
+	}
+}
+
+func TestWindowFailureKeepsLauncherUsable(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{Home, Trial}
+	m.busy = true
+	m.Update(windowDoneMsg{err: errors.New("fixture raw window failure")})
+	if m.busy || m.screen() != Home || strings.Contains(m.View().Content, "fixture raw window failure") {
+		t.Fatal(m.View().Content)
+	}
+	m.Update(key("d"))
+	if !strings.Contains(m.View().Content, "fixture raw window failure") {
+		t.Fatal(m.View().Content)
+	}
+}
+
+func TestCalibratedPredictionsKeepApproximationMarker(t *testing.T) {
+	m := fixture(t)
+	r := m.listing.Rows[0].Result
+	r.Accuracy.DecodePct = 10
+	r.Kind = "calibrated"
+	if f := metric(r, 21, "tok/s", false); estimated(f) != "~21.0 tok/s" || f.Kind != "calibrated" {
+		t.Fatal(f, estimated(f))
 	}
 }

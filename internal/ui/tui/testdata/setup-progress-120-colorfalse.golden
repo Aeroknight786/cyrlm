@@ -4,7 +4,7 @@
 | Not touched - Codex config, shell profile, other models                    |
 |                                                                            |
 | v llama.cpp b12182                                                         |
-| v Qwen3.6-35B-A3B.gguf                                                     |
+| ... Qwen3.6-35B-A3B.gguf                                                   |
 |                                                                            |
 | [======================--------------] 61%                                 |
 | 47.0 MB/s - ETA 109 s                                                      |

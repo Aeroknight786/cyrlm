@@ -87,9 +87,7 @@ func (c *chatModel) update(msg tea.KeyPressMsg) tea.Cmd {
 }
 func (c *chatModel) receive(v chatResponseMsg) tea.Cmd {
 	c.busy = false
-	if v.err != nil {
-		c.transcript = append(c.transcript, "Error: "+v.err.Error())
-	} else {
+	if v.err == nil {
 		c.messages = append(c.messages, llm.Message{Role: "assistant", Content: v.text})
 		c.transcript = append(c.transcript, "Model: "+v.text)
 	}

@@ -30,7 +30,10 @@ func (m *Root) launcher() string {
 	if m.detection.Target.Synthetic {
 		machine = "what-if " + machine
 	}
-	ram := figure.Exact(m.detection.Target.RAMBytes/(1<<30), "GB", figure.Measured, "hardware:ram").String()
+	ram := "RAM unknown"
+	if m.detection.Target.RAMBytes > 0 {
+		ram = figure.Exact(m.detection.Target.RAMBytes/(1<<30), "GB", figure.Measured, "hardware:ram").String()
+	}
 	header := m.theme.wordmark() + "    " + machine + " · " + ram + " · " + tool + " ✓"
 	if m.detecting {
 		header = m.theme.wordmark() + "    Let's get your models running"
@@ -51,7 +54,11 @@ func (m *Root) launcher() string {
 		elapsed := figure.Exact(time.Since(m.started).Seconds(), "s", figure.Measured, "clock").String()
 		b += "\n" + m.card(m.waiting()+" Calibrating this machine\n"+m.progressBar(m.calibration.fraction)+"\nElapsed "+elapsed+" · ETA "+m.calibration.eta) + "\n"
 	} else if m.offer {
-		b += "\n" + m.card(m.theme.selected.Bold(true).Render("✦ Calibrate this machine once · recommended")+"\n3–7 min · no downloads · enter start · s skip") + "\n"
+		label := "✦ Calibrate this machine once · recommended"
+		if m.detection.Target.OS == "darwin" {
+			label = "✦ Calibrate this Mac once · recommended"
+		}
+		b += "\n" + m.card(m.theme.selected.Bold(true).Render(label)+"\n3–7 min · no downloads · enter start · s skip") + "\n"
 	}
 	b += "\n  " + m.theme.selected.Bold(true).Render("Your models") + "\n"
 	for i, choice := range m.models {
