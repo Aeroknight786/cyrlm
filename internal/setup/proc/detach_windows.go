@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 // DetachAttrs starts the child without a console in its own process group,
@@ -18,4 +19,15 @@ func DetachAttrs(c *exec.Cmd) {
 
 func Terminate(p *os.Process) error {
 	return exec.Command("taskkill", "/PID", strconv.Itoa(p.Pid), "/T", "/F").Run()
+}
+
+// waitExit waits for p to exit: Windows keeps an engine's DLLs locked
+// until then, so undo could not remove the engine directory.
+func waitExit(p *os.Process, d time.Duration) {
+	done := make(chan struct{})
+	go func() { _, _ = p.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(d):
+	}
 }

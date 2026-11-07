@@ -119,6 +119,7 @@ func TestReadyMissingUsageAndSlowDepth(t *testing.T) {
 		_ = json.NewDecoder(r.Body).Decode(&b)
 		if b["stream"] == true {
 			w.Header().Set("Content-Type", "text/event-stream")
+			time.Sleep(3 * time.Millisecond) // a nonzero first-token time on Windows' coarse clock
 			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"hello world\"}}]}\n\n")
 			w.(http.Flusher).Flush()
 			time.Sleep(3 * time.Millisecond)

@@ -155,7 +155,9 @@ func Stop(path string) error {
 	}
 	p, err := os.FindProcess(r.PID)
 	if err == nil {
-		err = Terminate(p)
+		if err = Terminate(p); err == nil {
+			waitExit(p, 5*time.Second)
+		}
 		_ = p.Release()
 	}
 	if err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
