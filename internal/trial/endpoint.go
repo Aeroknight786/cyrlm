@@ -26,7 +26,7 @@ func Select(endpoints []openrouter.Endpoint, p Policy) (openrouter.Endpoint, err
 		if policy == "" {
 			policy = e.DataPolicy.DataCollection
 		}
-		if policy != "deny" || e.Tag == "" || e.ContextLength < p.Context || (p.ZDR && !(e.ZDR || e.DataPolicy.ZDR)) {
+		if policy != "deny" || e.Tag == "" || e.ContextLength < p.Context || (p.ZDR && (!(e.ZDR || e.DataPolicy.ZDR) || (e.SafetyRetention != nil && *e.SafetyRetention))) {
 			continue
 		}
 		if p.Provider != "" {

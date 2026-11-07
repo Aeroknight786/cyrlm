@@ -99,7 +99,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 		events = &ui.Renderer{Out: os.Stdout, Human: os.Stderr, JSON: jsonMode}
 	}
 	migrateHome()
-	if !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
+	if selectedMode == Interactive && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
 		if err := calibrationcli.MaybeOffer(argv[1:]); err != nil {
 			return finish(err)
 		}
@@ -142,6 +142,8 @@ func Main(ctx context.Context, argv []string, v string) int {
 		err = cmdKey(ctx, args)
 	case "update":
 		err = cmdUpdate(ctx, args)
+	case "data":
+		err = &exitError{4, "catalog data management arrives in v0.7; use trialm models"}
 	case "calibrate":
 		err = calibrationcli.Run(args)
 	case "detect":

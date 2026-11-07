@@ -8,7 +8,8 @@
 |---|---|---|
 | **P0a** rename + safety net | `main` = tag **v0.2.0** (released) | Done. Release assets and both installers are on `releases/latest`; installs checked on clean macOS and Linux runners; the old `ccr-db94bc6e-e47992` installers forward to triaLM. |
 | **P0b** harness fixes + M5 calibration | `trialm-refactor` (pushed, not released) | Done except the owner checks below. Not tagged v0.2.1 and not merged to `main` until those pass. |
-| P1a, P1b, P2 | — | Not started. |
+| **P1a** core + agent CLI + private trial | `p1a` (uncommitted patches) | Implemented and tested against local fakes; owner live checks pending. See [P1A_REPORT.md](P1A_REPORT.md). |
+| P1b, P2 | — | Not started. |
 
 ## P0b: what is done
 

@@ -6,17 +6,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/aeroknight786/trialm/internal/core"
-	"github.com/aeroknight786/trialm/internal/ui"
 	"net"
 	"os"
 	"path/filepath"
-
 	"time"
 
+	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/setup"
+	"github.com/aeroknight786/trialm/internal/ui"
 )
 
 // freePort returns from, or the next port up to from+20 nothing listens on.

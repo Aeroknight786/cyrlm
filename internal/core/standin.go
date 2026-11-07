@@ -30,7 +30,7 @@ func (s standIn) Describe() string {
 	return fmt.Sprintf("%s (found in %s)", s.Base, s.Source)
 }
 
-// findStandIn looks for the base model: GGUF general.base_model.* keys,
+// FindStandIn looks for the base model: GGUF general.base_model.* keys,
 // then the Hugging Face model card chain, then the closest catalog model of
 // the same architecture and size.
 func FindStandIn(ref string, f *gguf.File, s *gguf.Summary) standIn {

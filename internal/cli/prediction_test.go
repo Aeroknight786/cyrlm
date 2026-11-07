@@ -1,8 +1,9 @@
 package cli
 
 import (
-	"github.com/aeroknight786/trialm/internal/predict"
 	"testing"
+
+	"github.com/aeroknight786/trialm/internal/predict"
 )
 
 func TestPredictionJSONCarriesKind(t *testing.T) {

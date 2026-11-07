@@ -2,10 +2,11 @@ package ui
 
 import (
 	"fmt"
-	"github.com/aeroknight786/trialm/internal/predict"
-	"github.com/aeroknight786/trialm/internal/setup"
 	"io"
 	"strings"
+
+	"github.com/aeroknight786/trialm/internal/predict"
+	"github.com/aeroknight786/trialm/internal/setup"
 )
 
 func PrintPlan(output io.Writer, p setup.Plan, why string, res predict.Result) {

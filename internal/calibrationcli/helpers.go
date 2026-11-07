@@ -3,14 +3,15 @@ package calibrationcli
 import (
 	"context"
 	"flag"
+	"io"
+	"os"
+	"path/filepath"
+
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/hw"
 	"github.com/aeroknight786/trialm/internal/paths"
 	"github.com/aeroknight786/trialm/internal/predict"
-	"io"
-	"os"
-	"path/filepath"
 )
 
 var bandNumber = figure.BandNumber

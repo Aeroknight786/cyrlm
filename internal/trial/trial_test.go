@@ -211,3 +211,50 @@ func TestBudgetCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPublicEndpointPrivacyJoin(t *testing.T) {
+	endpoints, err := os.ReadFile("testdata/endpoints.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	zdr, err := os.ReadFile("testdata/zdr.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/models/test/model/endpoints":
+			_, _ = w.Write(endpoints)
+		case "/endpoints/zdr":
+			_, _ = w.Write(zdr)
+		default:
+			t.Error(r.URL)
+			w.WriteHeader(404)
+		}
+	}))
+	defer fake.Close()
+	eps, err := (openrouter.Client{BaseURL: fake.URL}).PrivateEndpoints(context.Background(), "test/model", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !eps[1].ZDR || eps[1].DataCollection != "deny" {
+		t.Fatal("published ZDR endpoint was not joined", eps[1])
+	}
+	if eps[0].DataPolicy.DataCollection != "allow" || eps[0].DataCollection != "" {
+		t.Fatal("logging policy overwritten", eps[0])
+	}
+	if eps[2].ZDR {
+		t.Fatal("safety retention promoted to ZDR", eps[2])
+	}
+	if eps[4].ZDR {
+		t.Fatal("wrong model joined", eps[4])
+	}
+	e, err := Select(eps, Policy{Tools: true, Context: 65536, ZDR: true, Provider: "logging/fp8"})
+	if err == nil {
+		t.Fatal("logging endpoint pinned", e)
+	}
+	e, err = Select(eps, Policy{Tools: true, Context: 65536, ZDR: true, Provider: "unknown/fp8"})
+	if err != nil || e.Tag != "unknown/fp8" {
+		t.Fatal(e, err)
+	}
+}

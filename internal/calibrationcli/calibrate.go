@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/aeroknight786/trialm/internal/terminal"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/runtime"
+	"github.com/aeroknight786/trialm/internal/terminal"
 )
 
 func Run(args []string) error {

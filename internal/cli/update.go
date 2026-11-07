@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/selfupdate"
 	"github.com/aeroknight786/trialm/internal/store"
-	"time"
 )
 
 func homeUpdateNotice(ctx context.Context) {

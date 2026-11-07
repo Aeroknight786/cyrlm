@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/gguf"
 	"github.com/aeroknight786/trialm/internal/hub"
-	"strings"
-	"time"
 )
 
 func IsGGUFRef(s string) bool {

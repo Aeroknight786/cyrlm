@@ -10,6 +10,7 @@ import (
 )
 
 type Report struct {
+	SpendKnown                                                                                   bool
 	Requests, CloudBound, Reloads, ContextPeak, Overflows                                        int
 	LocalSeconds, CloudSeconds, ReadingSeconds, WritingSeconds, LoadSeconds, BetweenTurnsSeconds float64
 	FirstTurn, TypicalTurn, SlowestTurn                                                          float64
@@ -19,7 +20,7 @@ type Report struct {
 }
 
 func Summarize(records []sim.Record, spend float64, fidelity string) Report {
-	r := Report{Requests: len(records), SpendUSD: spend, Fidelity: fidelity}
+	r := Report{Requests: len(records), SpendUSD: max(0, spend), SpendKnown: spend >= 0, Fidelity: fidelity}
 	var turns []float64
 	for i, s := range records {
 		local := max(0, s.TotalSec-s.CloudLagSec)
@@ -81,6 +82,27 @@ func (r Report) Plain(band int) string {
 		reuse = 100 * r.CachedTokens / r.PromptTokens
 	}
 	fmt.Fprintf(&b, "  cache reuse %d%% · loads %d · context peak %d tokens · overflows %d\n", reuse, r.Reloads, r.ContextPeak, r.Overflows)
-	fmt.Fprintf(&b, "  spend %s\n", measured(r.SpendUSD, "USD"))
+	if r.SpendKnown {
+		fmt.Fprintf(&b, "  spend %s\n", measured(r.SpendUSD, "USD"))
+	} else {
+		fmt.Fprintln(&b, "  spend unknown · no endpoint usage prices")
+	}
 	return b.String()
+}
+
+// EventData keeps observed cloud measurements separate from local simulation.
+func (r Report) EventData(band int) map[string]any {
+	local := func(v float64) figure.Figure {
+		return figure.Band(v, band, "s", figure.Simulated, "trial:local-schedule")
+	}
+	observed := func(v float64, unit string) figure.Figure {
+		return figure.Exact(v, unit, figure.Measured, "trial:observed")
+	}
+	d := map[string]any{"requests": observed(float64(r.Requests), "count"), "local_s": local(r.LocalSeconds), "cloud_s": observed(r.CloudSeconds, "s"), "cloud_bound": observed(float64(r.CloudBound), "count"), "reading_s": local(r.ReadingSeconds), "writing_s": local(r.WritingSeconds), "load_s": local(r.LoadSeconds), "between_turns_s": observed(r.BetweenTurnsSeconds, "s"), "first_turn_s": local(r.FirstTurn), "typical_turn_s": local(r.TypicalTurn), "slowest_turn_s": local(r.SlowestTurn), "slowest_cause": r.SlowestCause, "fidelity": r.Fidelity, "cache_reused_tokens": observed(float64(r.CachedTokens), "tokens"), "loads": observed(float64(r.Reloads), "count"), "context_peak_tokens": observed(float64(r.ContextPeak), "tokens"), "overflows": observed(float64(r.Overflows), "count"), "spend_known": r.SpendKnown}
+	if r.SpendKnown {
+		d["spend_usd"] = observed(r.SpendUSD, "USD")
+	} else {
+		d["spend_usd"] = nil
+	}
+	return d
 }

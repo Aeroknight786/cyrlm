@@ -218,10 +218,15 @@ func printRunning(extra string) {
 func serveUntilSignal(srv *server.Server) error {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigs)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve() }()
+	interrupted := false
 	select {
-	case <-sigs:
+	case sig := <-sigs:
+		interrupted = sig == os.Interrupt
+	case <-commandContext.Done():
+		interrupted = true
 	case err := <-errc:
 		if err != nil {
 			return err
@@ -232,6 +237,9 @@ func serveUntilSignal(srv *server.Server) error {
 	_ = srv.Shutdown(ctx)
 	fmt.Fprintln(out())
 	fmt.Fprint(out(), srv.Summary())
+	if interrupted {
+		return context.Canceled
+	}
 	return nil
 }
 

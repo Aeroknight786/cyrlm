@@ -2,6 +2,7 @@ package trial
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"sync"
@@ -49,6 +50,15 @@ func (b *Budget) Stream(ctx context.Context, req *llm.Request) (<-chan llm.Event
 	// Reserve prompt and request charges and clamp the generation to the
 	// affordable output. Usage remains the authority after every response.
 	prompt := tok.Render(req, tok.RenderOptions{}).Len()
+	// A token estimate can undercount the cloud tokenizer. Serialized request
+	// bytes give a conservative byte-token bound, including tool schemas and
+	// message framing. Do not spend the same room on prompt and completion.
+	wire, err := json.Marshal(req)
+	if err != nil {
+		release()
+		return nil, err
+	}
+	prompt = max(prompt, len(wire))
 	room := remaining - float64(prompt)*b.Rates.Prompt - b.Rates.Request
 	if room < 0 {
 		release()
@@ -82,6 +92,9 @@ func (b *Budget) Stream(ctx context.Context, req *llm.Request) (<-chan llm.Event
 			}
 		}()
 		for ev := range in {
+			if ev.Type == llm.EventDone && ev.Usage == nil {
+				ev = llm.Event{Type: llm.EventError, Err: fmt.Errorf("OpenRouter omitted usage; trial stopped because spend cannot be checked")}
+			}
 			if ev.Type == llm.EventDone && ev.Usage != nil {
 				u := ev.Usage
 				cached := max(0, min(u.CachedPromptTokens, u.PromptTokens))

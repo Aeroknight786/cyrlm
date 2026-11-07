@@ -189,7 +189,7 @@ func TestExitCodesAndQuery(t *testing.T) {
 		args []string
 		code int
 		flag string
-	}{{[]string{"unknown"}, 2, "help"}, {[]string{"find", "--bad"}, 2, "bad"}, {[]string{"try", "qwen3:8b", "--device", "RTX 4090", "--ram", "64", "--json"}, 3, "trialm key"}, {[]string{"try", "1", "--device", "RTX 4090", "--ram", "64"}, 3, "trialm find"}, {[]string{"setup", "missing-model"}, 1, "catalog"}} {
+	}{{[]string{"unknown"}, 2, "help"}, {[]string{"find", "--bad"}, 2, "bad"}, {[]string{"try", "--use", "chat", "--json"}, 3, "--serve"}, {[]string{"try", "qwen3:8b", "--device", "RTX 4090", "--ram", "64", "--json"}, 3, "trialm key"}, {[]string{"try", "1", "--device", "RTX 4090", "--ram", "64"}, 3, "trialm find"}, {[]string{"setup", "missing-model"}, 1, "catalog"}} {
 		_, errout, code := runCLI(t, t.TempDir(), tc.args...)
 		if code != tc.code || !strings.Contains(string(errout), tc.flag) {
 			t.Fatalf("%v: %d %s", tc.args, code, errout)

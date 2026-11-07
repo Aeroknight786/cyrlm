@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"flag"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -203,5 +206,47 @@ func TestTryLaunchAiderProtocolAndOwnedFiles(t *testing.T) {
 		if _, err := os.Stat(logPath); err != nil {
 			t.Error(err)
 		}
+	}
+}
+
+func TestTryInterruptExitCode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("os.Interrupt delivery uses POSIX signals")
+	}
+	home := t.TempDir()
+	raw, _ := json.Marshal([]string{"try", "qwen3:8b", "--device", "RTX 4090", "--ram", "64", "--runtime", "llamacpp", "--upstream", "mock", "--serve", "--port", "0", "--json"})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0])
+	cmd.Env = append(os.Environ(), goldenChildEnv+"="+string(raw), "HOME="+home, "TRIALM_HOME="+home, "TRIALM_OFFLINE=1")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stderr = io.Discard
+	if err = cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmd.Process.Kill()
+	sc := bufio.NewScanner(stdout)
+	ready := false
+	for sc.Scan() {
+		if strings.Contains(sc.Text(), `"type":"progress"`) {
+			ready = true
+			break
+		}
+	}
+	if !ready {
+		t.Fatal("trial did not become ready", sc.Err())
+	}
+	if err = cmd.Process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
+	}
+	// Drain the summary so a full stdout pipe cannot block process shutdown.
+	_, _ = io.Copy(io.Discard, stdout)
+	err = cmd.Wait()
+	exit, ok := err.(*exec.ExitError)
+	if !ok || exit.ExitCode() != 130 {
+		t.Fatal("interrupt exit", err)
 	}
 }

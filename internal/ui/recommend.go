@@ -2,10 +2,11 @@ package ui
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/predict"
-	"io"
 )
 
 func modeLabel(r *predict.Result) string {

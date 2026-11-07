@@ -3,9 +3,10 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"github.com/aeroknight786/trialm/internal/harness"
 	"os"
 	"testing"
+
+	"github.com/aeroknight786/trialm/internal/harness"
 )
 
 const goldenChildEnv = "GOLDEN_CHILD_ARGS"

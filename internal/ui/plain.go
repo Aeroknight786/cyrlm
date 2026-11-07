@@ -2,13 +2,13 @@ package ui
 
 import (
 	"fmt"
-	"github.com/aeroknight786/trialm/internal/core"
-	"github.com/aeroknight786/trialm/internal/figure"
 	"io"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/core"
+	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/hw"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/runtime"

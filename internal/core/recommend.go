@@ -3,18 +3,19 @@ package core
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
+	"time"
+
 	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/hw"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/runtime"
-	"sort"
-	"strings"
-	"time"
 )
 
-// ProfileIDsFor maps an Installed runtime to the simulation profiles that
-// Describe it, with a note when the mapping is approximate.
+// ProfileIDsFor maps an installed runtime to the simulation profiles that
+// describe it, with a note when the mapping is approximate.
 func ProfileIDsFor(ir hw.InstalledRuntime) ([]string, string) {
 	switch ir.ID {
 	case hw.RuntimeOllama:
@@ -91,13 +92,13 @@ func (in Installed) Describe(profileID string) string {
 // usable reports whether a prediction is a working setup for the scenario:
 // it fits in memory, the harness prompt fits the context, and it makes a
 // timing claim.
-func usable(Result predict.Result) bool {
-	return Result.Unsupported == "" &&
-		(Result.Memory.Level == predict.FitOK || Result.Memory.Level == predict.FitTight) &&
-		Result.Scenario.FitsInContext && !Result.Accuracy.NoClaim
+func usable(r predict.Result) bool {
+	return r.Unsupported == "" &&
+		(r.Memory.Level == predict.FitOK || r.Memory.Level == predict.FitTight) &&
+		r.Scenario.FitsInContext && !r.Accuracy.NoClaim
 }
 
-// Recommend returns the fastest working setup overall and among Installed
+// Recommend returns the fastest working setup overall and among installed
 // runtimes (nil when none qualifies), ranked by the scenario's task time.
 func Recommend(rs []predict.Result, in Installed, h harness.Harness) (best, bestInstalled *predict.Result) {
 	idx := make([]int, 0, len(rs))
@@ -140,7 +141,7 @@ func InstalledNames(in Installed) string {
 }
 
 // ChooseRuntime picks the runtime to simulate for serve/try: explicit
-// --runtime, else the best working setup among Installed runtimes, else the
+// --runtime, else the best working setup among installed runtimes, else the
 // best working setup overall.
 func ChooseRuntime(c Options, t predict.Target, m catalog.Model, sc predict.Scenario, h harness.Harness) (runtime.Profile, string, error) {
 	if c.Runtime != "" && c.Runtime != "all" {
@@ -160,9 +161,9 @@ func ChooseRuntime(c Options, t predict.Target, m catalog.Model, sc predict.Scen
 	case best != nil:
 		return best.Runtime, "the fastest working option here; not installed yet", nil
 	}
-	for _, Result := range rs {
-		if Result.Unsupported == "" {
-			return Result.Runtime, "no runtime gives a working setup with these settings; simulating anyway (try a smaller model or --ctx)", nil
+	for _, r := range rs {
+		if r.Unsupported == "" {
+			return r.Runtime, "no runtime gives a working setup with these settings; simulating anyway (try a smaller model or --ctx)", nil
 		}
 	}
 	return runtime.Profile{}, "", fmt.Errorf("no runtime profile supports this machine")
@@ -175,9 +176,9 @@ type Row struct {
 }
 
 // VerdictFor classifies how a setup feels in an agent session.
-func VerdictFor(Result predict.Result) (string, int) {
-	first := Result.Scenario.ColdFirstReply.Seconds()
-	turn := Result.Scenario.FollowUpTurn.Seconds()
+func VerdictFor(r predict.Result) (string, int) {
+	first := r.Scenario.ColdFirstReply.Seconds()
+	turn := r.Scenario.FollowUpTurn.Seconds()
 	switch {
 	case turn <= 20 && first <= 120:
 		return "comfortable", 0
@@ -239,37 +240,37 @@ func BestFileFor(c Options, m catalog.Model, t predict.Target, sc predict.Scenar
 		if pick == nil {
 			continue
 		}
-		v, Rank := VerdictFor(*pick)
-		cands = append(cands, Row{Result: *pick, Verdict: v, Rank: Rank})
+		v, rank := VerdictFor(*pick)
+		cands = append(cands, Row{Result: *pick, Verdict: v, Rank: rank})
 	}
 	if len(cands) == 0 {
 		return Row{}, false, nil
 	}
 	top := cands[0].Rank
-	for _, Result := range cands {
-		if Result.Rank < top {
-			top = Result.Rank
+	for _, r := range cands {
+		if r.Rank < top {
+			top = r.Rank
 		}
 	}
 	def := m.Quants[0]
 	var pick *Row
 	for i := range cands {
-		Result := &cands[i]
-		if Result.Rank != top {
+		r := &cands[i]
+		if r.Rank != top {
 			continue
 		}
-		if Result.Result.Quant.Name == def.Name || (def.Format == "gguf" && Result.Result.Quant.Format == "mlx" && Result.Result.Quant.FileBytes <= def.FileBytes*11/10) {
+		if r.Result.Quant.Name == def.Name || (def.Format == "gguf" && r.Result.Quant.Format == "mlx" && r.Result.Quant.FileBytes <= def.FileBytes*11/10) {
 			// The default file (or its MLX equivalent) reaches the top tier.
-			if pick == nil || pick.Result.Quant.FileBytes < def.FileBytes*9/10 || Result.Result.Scenario.Session < pick.Result.Scenario.Session {
-				pick = Result
+			if pick == nil || pick.Result.Quant.FileBytes < def.FileBytes*9/10 || r.Result.Scenario.Session < pick.Result.Scenario.Session {
+				pick = r
 			}
 			continue
 		}
-		if Result.Result.Quant.FileBytes > def.FileBytes {
+		if r.Result.Quant.FileBytes > def.FileBytes {
 			continue // bigger than the default: slower for a small quality gain
 		}
-		if pick == nil || (pick.Result.Quant.FileBytes < def.FileBytes*9/10 && Result.Result.Quant.FileBytes > pick.Result.Quant.FileBytes) {
-			pick = Result
+		if pick == nil || (pick.Result.Quant.FileBytes < def.FileBytes*9/10 && r.Result.Quant.FileBytes > pick.Result.Quant.FileBytes) {
+			pick = r
 		}
 	}
 	if pick == nil {
@@ -296,15 +297,15 @@ func PredictAll(c Options, m catalog.Model, t predict.Target, sc predict.Scenari
 	var out []predict.Result
 	for _, p := range profiles {
 		for _, tuned := range tunedModes {
-			Result := predict.Predict(predict.Input{
+			r := predict.Predict(predict.Input{
 				Model: m, QuantName: c.Quant, Runtime: p, Target: t, Tuned: tuned,
 				CtxOverride: c.Context, KVCacheType: c.KV, Scenario: sc, Calibrated: c.Probe && t.CPUOnly,
 				BackendOverride: c.Backend,
 			})
-			if Result.Unsupported != "" && (c.Runtime == "" || c.Runtime == "all") {
+			if r.Unsupported != "" && (c.Runtime == "" || c.Runtime == "all") {
 				continue // runtimes that can't run this model here are simply not listed
 			}
-			out = append(out, Result)
+			out = append(out, r)
 		}
 	}
 	return out, nil

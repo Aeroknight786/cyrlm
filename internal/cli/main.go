@@ -9,7 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/aeroknight786/trialm/internal/terminal"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -29,10 +29,10 @@ import (
 	"github.com/aeroknight786/trialm/internal/server"
 	"github.com/aeroknight786/trialm/internal/sim"
 	"github.com/aeroknight786/trialm/internal/store"
+	"github.com/aeroknight786/trialm/internal/terminal"
 	"github.com/aeroknight786/trialm/internal/tok"
 	"github.com/aeroknight786/trialm/internal/trial"
 	"github.com/aeroknight786/trialm/internal/upstream"
-	"math"
 )
 
 var version = "0.2.1-dev"
@@ -50,6 +50,8 @@ Flags: --plain --json. More: trialm help advanced
 const usageAll = `trialm — try a local model before you download it
 
 Usage:
+  trialm update                                install the latest sha256-checked release
+  trialm data                                  catalog data (arrives in v0.7)
   trialm calibrate [--quick|--status] [--json]  optional machine calibration
   trialm detect   [--probe] [--json]           what's in this machine and which runtimes are installed
   trialm models                                 models in the catalog
@@ -64,7 +66,7 @@ Usage:
   trialm bridge   [--endpoint URL] --harness h  translate a coding tool's API to a local runtime's Chat Completions
   trialm bg --log F --ready URL -- cmd …        start a server detached and wait until it answers
   trialm prompt   [--harness h]                 the message to paste into your coding agent
-  trialm login [--account] | logout | config    keys (OpenRouter by default; triaLM account later)
+  trialm login | logout | config               compatibility aliases (use trialm key)
   trialm share                                  opt-in sharing of results (needs an account server)
   trialm version
 
@@ -416,6 +418,9 @@ func cmdServe(args []string, try bool) error {
 	if *here {
 		*launch = true
 	}
+	if c.prefs.Use == "chat" && !*serve {
+		return needs("--serve", "built-in chat arrives in v0.4")
+	}
 	if *serve && *launch {
 		return &exitError{2, "choose --serve or --launch"}
 	}
@@ -501,7 +506,7 @@ func cmdServe(args []string, try bool) error {
 			m.TrialStandIn = ""
 		}
 		if uc.BaseURL == upstream.OpenRouterBaseURL {
-			endpoints, e := (openrouter.Client{Key: uc.APIKey}).Endpoints(commandContext, uc.Model)
+			endpoints, e := (openrouter.Client{Key: uc.APIKey}).PrivateEndpoints(commandContext, uc.Model, *zdr)
 			if e != nil {
 				return e
 			}
@@ -525,6 +530,12 @@ func cmdServe(args []string, try bool) error {
 	fmt.Fprintln(out(), "Trial fidelity:", fidelity)
 	if *pace == "p90" {
 		res.Timing = trial.Pessimistic(res.Timing, res.Accuracy.DecodePct, res.Accuracy.PrefillPct)
+		res.Scenario = predict.RunScenario(res.Timing, sc, res.Settings.ContextTokens)
+		res.DecodeTPS0 = res.Timing.DecodeTPS(512)
+		res.DecodeTPSDeep = res.Timing.DecodeTPS(res.Scenario.DecodeDepth)
+		res.PrefillTPS2k = res.Timing.PrefillTPS(0, 2048)
+		res.PrefillTPSP0 = res.Timing.PrefillTPS(0, sc.BasePromptTokens)
+		fmt.Fprintln(out(), "Pacing: p90 · pessimistic band edge.")
 	}
 	if try && currentVerb == "try" && !*launch && !*serve && paths.Getenv("DETACHED") == "" {
 		return needs("--serve or --here", "a trial needs a terminal or foreground server mode")
@@ -571,13 +582,16 @@ func cmdServe(args []string, try bool) error {
 	}
 	srv := server.New(server.Config{
 		TrialSummary: func(records []sim.Record) string {
-			spend := 0.0
+			spend := -1.0
+			if _, mock := client.(*upstream.Mock); mock {
+				spend = 0
+			}
 			if spending != nil {
 				spend = spending.Spent()
 			}
 			report := trial.Summarize(records, spend, fidelity)
 			if jsonMode {
-				_ = emit("result", report, core.Next{Cmd: "trialm setup " + m.OllamaTag + " --dry-run --json", Why: "review local setup"})
+				_ = emit("result", report.EventData(max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct)), core.Next{Cmd: "trialm setup " + m.OllamaTag + " --dry-run --json", Why: "review local setup"})
 			}
 			return report.Plain(max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct))
 		},

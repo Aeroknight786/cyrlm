@@ -87,6 +87,15 @@ func TestSourceBudgets(t *testing.T) {
 	if cliUI > 5500 {
 		t.Errorf("cli+ui %d > 5500", cliUI)
 	}
+	wire := 0
+	for pkg, n := range packages {
+		if strings.HasPrefix(pkg, "internal/api/") {
+			wire += n
+		}
+	}
+	if wire > 4400 {
+		t.Errorf("api wire lines %d > 4400", wire)
+	}
 	for pkg, n := range packages {
 		limit := 2500
 		if strings.HasPrefix(pkg, "internal/api/") {
