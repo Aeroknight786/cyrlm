@@ -157,18 +157,19 @@ type Fit struct {
 }
 
 type Calibration struct {
-	FittingVersion int         `json:"fitting_version"`
-	Backend        string      `json:"backend"`
-	Version        int         `json:"version"`
-	Fingerprint    Fingerprint `json:"fingerprint"`
-	Started        time.Time   `json:"started"`
-	WallSeconds    float64     `json:"wall_seconds"`
-	Complete       bool        `json:"complete"`
-	Quick          bool        `json:"quick"`
-	Rows           []Row       `json:"rows"`
-	Fits           []Fit       `json:"fits"`
-	Coverage       []string    `json:"coverage"`
-	Notes          []string    `json:"notes"`
+	FittingVersion int          `json:"fitting_version"`
+	Backend        string       `json:"backend"`
+	Version        int          `json:"version"`
+	Fingerprint    Fingerprint  `json:"fingerprint"`
+	Started        time.Time    `json:"started"`
+	WallSeconds    float64      `json:"wall_seconds"`
+	Complete       bool         `json:"complete"`
+	Quick          bool         `json:"quick"`
+	Rows           []Row        `json:"rows"`
+	Fits           []Fit        `json:"fits"`
+	Validations    []Validation `json:"validations,omitempty"`
+	Coverage       []string     `json:"coverage"`
+	Notes          []string     `json:"notes"`
 }
 
 func Load(home string) (*Calibration, error) {
@@ -510,58 +511,106 @@ func contains(ss []string, s string) bool {
 	return false
 }
 
-// Factor returns the speed multiplier and a residual-derived band. An absent
-// fit or an unidentifiable band leaves the original prediction in place.
+// directFactor returns only accepted evidence with an identifiable band.
 func (c *Calibration) directFactor(class, q string, depth, layers int, m string) (float64, int, bool) {
 	for _, f := range c.Fits {
 		if f.Class == class && f.Quant == q && f.Depth == DepthBucket(depth) && f.Mode == m && f.BandPct >= 0 && f.Rejected == "" {
 			den := f.Fixed + f.PerLayer*float64(layers)
 			num := f.BaseFixed + f.BaseLayer*float64(layers)
 			if den > 0 && num > 0 {
-				return num / den, f.band(layers), true
+				multiplier, band := num/den, f.band(layers)
+				if finite(multiplier) && multiplier > 0 && band >= 0 {
+					return multiplier, band, true
+				}
 			}
 		}
 	}
 	return 1, 0, false
 }
 
-// Factor composes the measured dense quant-kernel ratio with an architecture
-// fit when that exact architecture/quant pair was not in the time-limited grid.
-// Adding log-error radii is conservative without assuming independent errors.
+// FactorResult explains the accepted evidence used for one timing bucket.
+type FactorResult struct {
+	Multiplier float64
+	BandPct    int
+	Basis      string
+	Fallback   bool
+}
+
+// Factor retains the numeric interface for callers that do not display evidence.
 func (c *Calibration) Factor(class, q string, depth, layers int, m string) (float64, int, bool) {
-	// An explicit failed check cannot be bypassed by composing other fits.
+	f, ok := c.FactorEvidence(class, q, depth, layers, m)
+	return f.Multiplier, f.BandPct, ok
+}
+
+// FactorEvidence never substitutes for an explicitly rejected requested fit.
+// Missing dense transfer components can use the architecture reference alone.
+func (c *Calibration) FactorEvidence(class, q string, depth, layers int, m string) (FactorResult, bool) {
+	absent := FactorResult{Multiplier: 1}
 	for _, f := range c.Fits {
 		if f.Class == class && f.Quant == q && f.Depth == DepthBucket(depth) && f.Mode == m && f.Rejected != "" {
-			return 1, 0, false
+			return absent, false
 		}
 	}
-	if v, b, ok := c.directFactor(class, q, depth, layers, m); ok {
-		return v, b, true
-	}
-	if DepthBucket(depth) != 0 && !strings.HasPrefix(m, "verify") {
-		reference := referenceQuant(class)
-		shallow, sb, sok := c.Factor(class, q, 0, layers, m)
-		deep, db, dok := c.directFactor(class, reference, depth, layers, m)
-		base, bb, bok := c.directFactor(class, reference, 0, layers, m)
-		if sok && dok && bok {
-			return shallow * deep / base, composeBands(sb, db, bb), true
-		}
-		return 1, 0, false
+	if v, b, ok := c.directFactor(class, q, depth, layers, m); ok && b >= 0 {
+		return FactorResult{Multiplier: v, BandPct: b, Basis: fmt.Sprintf("direct %s/%s depth %d", class, q, DepthBucket(depth))}, true
 	}
 	if class == "dense" || class == "mla" || strings.HasPrefix(m, "verify") {
-		return 1, 0, false
+		return absent, false
 	}
 	reference := referenceQuant(class)
-	if reference == "" {
-		return 1, 0, false
+	if reference == "" || referenceQuantForKernel(q) == "" || q == reference {
+		return absent, false
 	}
 	architecture, ab, aok := c.directFactor(class, reference, depth, layers, m)
-	kernel, kb, kok := c.directFactor("dense", q, depth, 36, m)
-	base, bb, bok := c.directFactor("dense", reference, depth, 36, m)
-	if !aok || !kok || !bok {
-		return 1, 0, false
+	if !aok || ab < 0 {
+		return absent, false
 	}
-	return architecture * kernel / base, composeBands(ab, kb, bb), true
+	// The kernel ratio is measured at zero depth. Context costs come from the
+	// family's own reference, rather than transferring dense attention costs.
+	kernel, kb, kok := c.directFactor("dense", q, 0, 36, m)
+	base, bb, bok := c.directFactor("dense", reference, 0, 36, m)
+	basis := fmt.Sprintf("architecture(%s, %s, depth %d)", class, reference, DepthBucket(depth))
+	if kok && bok {
+		return FactorResult{Multiplier: architecture * kernel / base, BandPct: composeBands(ab, kb, bb), Basis: basis + fmt.Sprintf(" × kernel(dense, %s) / base(dense, %s) at depth 0", q, reference)}, true
+	}
+	// This is a policy envelope, not measured quant transfer. Retain at least
+	// the sparse-machine prior (60/70%) and any larger available component band,
+	// then compound it with architecture uncertainty. No real-model point fits it.
+	allowance := 60
+	if m == "prefill" {
+		allowance = 70
+	}
+	if kok && kb > allowance {
+		allowance = kb
+	}
+	if bok && bb > allowance {
+		allowance = bb
+	}
+	var missing []string
+	for _, component := range []struct {
+		name, quant string
+		ok          bool
+	}{{"kernel", q, kok}, {"base", reference, bok}} {
+		if !component.ok {
+			reason := "missing"
+			for _, f := range c.Fits {
+				if f.Class == "dense" && f.Quant == component.quant && f.Depth == 0 && f.Mode == m && f.Rejected != "" {
+					reason = "rejected: " + f.Rejected
+				}
+			}
+			missing = append(missing, fmt.Sprintf("%s(dense, %s) %s", component.name, component.quant, reason))
+		}
+	}
+	return FactorResult{Multiplier: architecture, BandPct: composeBands(ab, allowance), Fallback: true, Basis: basis + fmt.Sprintf(" alone; %s; unmeasured kernel ratio allowance ±%d%%", strings.Join(missing, ", "), allowance)}, true
+}
+
+// Limit architecture-only transfer to kernels represented by the probe grid.
+func referenceQuantForKernel(q string) string {
+	switch q {
+	case "Q4_K_M", "IQ3_XXS", "IQ4_XS", "MXFP4", "Q8_0":
+		return q
+	}
+	return ""
 }
 
 func referenceQuant(class string) string {

@@ -62,6 +62,7 @@ func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 	}}
 	if old, e := Load(o.Home); e == nil && old.Fingerprint.Hash == o.Fingerprint.Hash && old.Backend == o.Backend {
 		c.Rows = old.Rows
+		c.Validations = old.Validations
 		for _, note := range old.Notes {
 			if strings.HasPrefix(note, "mlock failed for ") && !contains(c.Notes, note) {
 				c.Notes = append(c.Notes, note)

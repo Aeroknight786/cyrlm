@@ -22,6 +22,18 @@ func TestSuccessfulBenchHelper(t *testing.T) {
 			values[a] = os.Args[i+1]
 		}
 	}
+	if mode := os.Getenv("TRIALM_CHECK_TEST_MODE"); mode != "" {
+		for k, v := range map[string]string{"-p": "512", "-n": "8", "-d": "0,32768", "-r": "3", "-o": "json", "-ngl": "99", "-fa": "on"} {
+			if values[k] != v {
+				fmt.Fprintln(os.Stderr, "incorrect check flags", k, values[k])
+				os.Exit(2)
+			}
+		}
+		if mode == "bad-json" {
+			fmt.Println("bad JSON")
+			os.Exit(0)
+		}
+	}
 	if file := os.Getenv("TRIALM_BENCH_CALLS"); file != "" {
 		f, e := os.OpenFile(file, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if e != nil {
@@ -54,6 +66,25 @@ func TestSuccessfulBenchHelper(t *testing.T) {
 			ns := cost * float64(g) * 1e9
 			rows = append(rows, BenchRow{Gen: g, Depth: d, Samples: []float64{ns * .99, ns, ns * 1.01}, GPU: "fake GPU", GPULayers: 99})
 		}
+	}
+	switch os.Getenv("TRIALM_CHECK_TEST_MODE") {
+	case "incomplete":
+		rows = rows[:1]
+	case "invalid":
+		rows[0].Samples[0] = -1
+	case "short-reps":
+		rows[0].Samples = rows[0].Samples[:2]
+	case "changed":
+		f, e := os.OpenFile(values["-m"], os.O_APPEND|os.O_WRONLY, 0600)
+		if e != nil {
+			os.Exit(2)
+		}
+		_, _ = f.WriteString("changed")
+		_ = f.Close()
+	case "cpu":
+		rows[0].GPULayers = 0
+	case "duplicate":
+		rows = append(rows, rows[0])
 	}
 	_ = json.NewEncoder(os.Stdout).Encode(rows)
 	os.Exit(0)
@@ -119,6 +150,10 @@ func TestRunMedianFallbackAndResume(t *testing.T) {
 					}
 				}
 			}
+			c.Validations = []Validation{{Model: "real-check", MeasuredTPS: 10}}
+			if e = c.Save(home); e != nil {
+				t.Fatal(e)
+			}
 			before, _ := os.ReadFile(calls)
 			// Resume must skip all groups, including those completed with mmap.
 			var events []Event
@@ -126,6 +161,9 @@ func TestRunMedianFallbackAndResume(t *testing.T) {
 			c, e = Run(context.Background(), options)
 			if e != nil || !c.Complete {
 				t.Fatal(e)
+			}
+			if len(c.Validations) != 1 || c.Validations[0].Model != "real-check" {
+				t.Fatal("resume lost external validation")
 			}
 			after, _ := os.ReadFile(calls)
 			if string(before) != string(after) {
