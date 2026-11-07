@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"testing"
 
@@ -118,7 +119,7 @@ func TestKeyFlowsAgainstFake(t *testing.T) {
 				if !os.IsNotExist(err) {
 					t.Fatal("env key was persisted")
 				}
-			} else if err != nil || info.Mode().Perm() != 0600 {
+			} else if err != nil || (goruntime.GOOS != "windows" && info.Mode().Perm() != 0600) {
 				t.Fatal("credentials must be 0600", info, err)
 			}
 			if calls[len(calls)-1] != "/api/v1/credits" {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"testing"
 )
 
@@ -26,7 +27,7 @@ func TestCredentialsAndPreferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	info, _ := os.Stat(filepath.Join(s.Dir, "credentials"))
-	if info.Mode().Perm() != 0600 {
+	if goruntime.GOOS != "windows" && info.Mode().Perm() != 0600 { // Windows has no Unix modes
 		t.Fatal(info.Mode())
 	}
 	t.Setenv("OPENROUTER_API_KEY", "env")
