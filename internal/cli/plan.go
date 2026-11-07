@@ -46,6 +46,11 @@ func cmdPlan(args []string) error {
 		return err
 	}
 	c.finish(fs)
+	if currentVerb == "setup" {
+		if err := c.validateRequirements(); err != nil {
+			return err
+		}
+	}
 	if len(pos) != 1 && currentVerb != "setup" {
 		return errors.New("usage: trialm plan <model> [--runtime r] [--defaults] [--harness h] [--quant q] [--ctx n] [--json]")
 	}

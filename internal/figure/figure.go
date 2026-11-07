@@ -70,5 +70,8 @@ func BandNumber(v float64, pct int) string {
 		scale := math.Pow(10, float64(digits-1-int(math.Floor(math.Log10(math.Abs(v))))))
 		rounded = math.Round(v*scale) / scale
 	}
+	if rounded != 0 {
+		decimals = max(0, digits-1-int(math.Floor(math.Log10(math.Abs(rounded)))))
+	}
 	return prefix + strconv.FormatFloat(rounded, 'f', decimals, 64)
 }

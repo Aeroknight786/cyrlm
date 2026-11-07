@@ -66,8 +66,24 @@ func numbers(v any, key string, kind figure.Kind) any {
 				kind = figure.Kind(k)
 			}
 		}
+		decode, _ := x["decode_error_range_pct"].(float64)
+		prefill, _ := x["prefill_error_range_pct"].(float64)
 		for k, item := range x {
-			x[k] = numbers(item, k, kind)
+			pct := 0
+			if strings.HasPrefix(k, "decode_tps") {
+				pct = int(decode)
+			}
+			if strings.HasPrefix(k, "prefill_tps") {
+				pct = int(prefill)
+			}
+			if strings.HasSuffix(k, "_s") && k != "cloud_session_s" {
+				pct = int(max(decode, prefill))
+			}
+			converted := numbers(item, k, kind)
+			if f, ok := converted.(figure.Figure); ok && pct > 0 {
+				converted = figure.Band(f.V, pct, f.Unit, f.Kind, "predict:"+k)
+			}
+			x[k] = converted
 		}
 		return x
 	case []any:

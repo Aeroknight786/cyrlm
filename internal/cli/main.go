@@ -130,6 +130,9 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	var pos []string
 	for {
 		if err := fs.Parse(args); err != nil {
+			if err == flag.ErrHelp {
+				return nil, err
+			}
 			return nil, &exitError{2, err.Error()}
 		}
 		rest := fs.Args()
@@ -144,6 +147,7 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 // common flags shared by predict/serve/try.
 type common struct {
 	prefs                                        store.Preferences
+	prefsErr                                     error
 	minTPS, maxTurn, minBits                     float64
 	runtime, quant, harness, device, kv, backend string
 	ctx                                          int
@@ -168,7 +172,7 @@ func (c *common) register(fs *flag.FlagSet, defaultRuntime string) {
 	fs.BoolVar(&c.jsonOut, "json", false, "JSON output")
 	fs.BoolVar(&c.verbose, "verbose", false, "show low-level details and assumptions")
 	// New requirement flags are aliases of the same values used by the old CLI.
-	c.prefs, _ = store.Default().Preferences()
+	c.prefs, c.prefsErr = store.Default().Preferences()
 	if currentVerb == "find" || currentVerb == "try" || currentVerb == "setup" {
 		c.harness = c.prefs.Tool
 		c.ctx = c.prefs.Context
@@ -318,7 +322,7 @@ func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scena
 	return core.ChooseRuntime(c.options(), t, m, sc, h)
 }
 func (c common) options() core.Options {
-	return core.Options{Runtime: c.runtime, Quant: c.quant, Context: c.ctx, KV: c.kv, Backend: c.backend, Probe: c.probe, Tuned: c.tuned, Device: c.device, RAM: c.ram, VRAM: c.vram, Use: c.prefs.Use, Priority: c.prefs.Priority, MaxDownloadGB: c.prefs.MaxDownloadGB, MinTPS: c.minTPS, MaxTurn: c.maxTurn, MinBits: c.minBits}
+	return core.Options{Runtime: c.runtime, Quant: c.quant, Context: c.ctx, KV: c.kv, Backend: c.backend, Probe: c.probe, Tuned: c.tuned, Device: c.device, RAM: c.ram, VRAM: c.vram, Engines: c.prefs.Engines, Boosts: c.prefs.Boosts, QualityFloor: c.prefs.QualityFloor, Use: c.prefs.Use, Priority: c.prefs.Priority, MaxDownloadGB: c.prefs.MaxDownloadGB, MinTPS: c.minTPS, MaxTurn: c.maxTurn, MinBits: c.minBits}
 }
 
 func cmdPredict(args []string) error {
@@ -415,7 +419,7 @@ func cmdServe(args []string, try bool) error {
 	if *serve && *launch {
 		return &exitError{2, "choose --serve or --launch"}
 	}
-	if try && !*serve && !*launch && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) {
+	if try && !*serve && !*launch && selectedMode == Interactive && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) {
 		*launch = true
 	}
 	portSet := false
@@ -489,6 +493,13 @@ func cmdServe(args []string, try bool) error {
 	var spending *trial.Budget
 	if uc, ok := client.(*upstream.OpenAICompat); ok {
 		fidelity = "custom endpoint · precision and privacy unverified"
+		if *zdr && uc.BaseURL != upstream.OpenRouterBaseURL {
+			return &exitError{4, "--zdr needs OpenRouter endpoint policy metadata; use --upstream openrouter"}
+		}
+		if uc.Model != m.OpenRouterID {
+			m.UpstreamUnverified = true
+			m.TrialStandIn = ""
+		}
 		if uc.BaseURL == upstream.OpenRouterBaseURL {
 			endpoints, e := (openrouter.Client{Key: uc.APIKey}).Endpoints(commandContext, uc.Model)
 			if e != nil {
@@ -637,8 +648,6 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 	acct := account.Load()
 	if kind == "auto" {
 		switch {
-		case acct.CanShare():
-			kind = "trialm"
 		case os.Getenv(nonEmptyStr(keyEnv, "OPENROUTER_API_KEY")) != "" || store.Default().Key() != "":
 			kind = "openrouter"
 		default:

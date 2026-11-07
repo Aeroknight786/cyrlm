@@ -63,6 +63,9 @@ func resolveRecipe(pos []string, c *common) (string, error) {
 	return name, nil
 }
 func (c *common) validateRequirements() error {
+	if c.prefsErr != nil {
+		return fmt.Errorf("read prefs.json: %w", c.prefsErr)
+	}
 	for _, v := range []struct {
 		name, value string
 		allowed     []string
@@ -80,6 +83,12 @@ func (c *common) validateRequirements() error {
 		if !ok {
 			return &exitError{2, fmt.Sprintf("%s must be %s", v.name, strings.Join(v.allowed, "|"))}
 		}
+	}
+	if c.prefs.ContextVia != "native" {
+		return &exitError{4, "opt-in YaRN arrives in v0.6; use --context-via native"}
+	}
+	if c.prefs.QualityFloor != "" && c.prefs.QualityFloor != "3bit-ok" && c.prefs.QualityFloor != "4bit+" {
+		return &exitError{2, "--quality-floor must be 3bit-ok|4bit+"}
 	}
 	return nil
 }

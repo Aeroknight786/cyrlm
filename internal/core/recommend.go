@@ -202,15 +202,30 @@ func BestFileFor(c Options, m catalog.Model, t predict.Target, sc predict.Scenar
 	}
 	var cands []Row
 	for _, qn := range quants {
+		floor := 0.
+		switch c.QualityFloor {
+		case "3bit-ok":
+			floor = 3
+		case "4bit+":
+			floor = 4
+		}
+		if floor > 0 && quantBits(qn) < floor {
+			continue
+		}
+
 		cq := c
 		cq.Quant = qn
-		rs, err := PredictAll(cq, m, t, sc, []bool{true})
+		modes := []bool{true}
+		if c.Boosts == "off" {
+			modes = []bool{false}
+		}
+		rs, err := PredictAll(cq, m, t, sc, modes)
 		if err != nil {
 			continue // this file does not exist for any runtime here
 		}
 		filtered := rs[:0]
 		for _, r := range rs {
-			if oops(c, r) {
+			if rejectCandidate(c, r) || (c.Engines == "installed" && !in.Has(r.Runtime.ID)) {
 				continue
 			}
 			filtered = append(filtered, r)
@@ -295,6 +310,19 @@ func PredictAll(c Options, m catalog.Model, t predict.Target, sc predict.Scenari
 	return out, nil
 }
 
-func oops(c Options, r predict.Result) bool {
+func rejectCandidate(c Options, r predict.Result) bool {
 	return (c.MaxDownloadGB > 0 && float64(r.Quant.FileBytes)/1e9 > c.MaxDownloadGB) || (c.MinTPS > 0 && r.DecodeTPSDeep < c.MinTPS) || (c.MaxTurn > 0 && r.Scenario.FollowUpTurn.Seconds() > c.MaxTurn) || (c.MinBits > 0 && r.Model.TotalParamsB > 0 && float64(r.Quant.FileBytes)*8/(r.Model.TotalParamsB*1e9) < c.MinBits)
+}
+
+func quantBits(q string) float64 {
+	q = strings.ToUpper(q)
+	if q == "BF16" || q == "F16" {
+		return 16
+	}
+	for _, r := range q {
+		if r >= '0' && r <= '9' {
+			return float64(r - '0')
+		}
+	}
+	return 0
 }

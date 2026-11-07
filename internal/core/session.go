@@ -33,12 +33,12 @@ func (s Session) Emit(kind string, data any, next ...Next) {
 }
 
 type Options struct {
-	Runtime, Quant, KV, Backend, Device     string
-	Use, Priority                           string
-	MaxDownloadGB, MinTPS, MaxTurn, MinBits float64
-	Context                                 int
-	RAM, VRAM                               float64
-	Probe, Tuned                            bool
+	Runtime, Quant, KV, Backend, Device          string
+	Engines, Boosts, QualityFloor, Use, Priority string
+	MaxDownloadGB, MinTPS, MaxTurn, MinBits      float64
+	Context                                      int
+	RAM, VRAM                                    float64
+	Probe, Tuned                                 bool
 }
 type Detection struct {
 	System   *hw.System            `json:"system"`
@@ -89,7 +89,7 @@ func (s Session) Find(ctx context.Context, o Options, t predict.Target, sc predi
 		if o.Use != "chat" && !m.Tools && hh.ID != "aider" {
 			continue
 		}
-		if query != "" && !strings.Contains(strings.ToLower(m.OllamaTag+" "+m.Name+" "+m.ID), strings.ToLower(query)) {
+		if query != "" && !queryMatches(m, query) {
 			continue
 		}
 		row, ok, err := BestFileFor(o, m, t, sc, out.Installed, hh)
@@ -101,6 +101,20 @@ func (s Session) Find(ctx context.Context, o Options, t predict.Target, sc predi
 		}
 	}
 	sort.SliceStable(out.Rows, func(i, j int) bool {
+		a, b := out.Rows[i].Result, out.Rows[j].Result
+		switch o.Priority {
+		case "speed":
+			return a.Scenario.Session < b.Scenario.Session
+		case "quality":
+			if a.Model.TotalParamsB != b.Model.TotalParamsB {
+				return a.Model.TotalParamsB > b.Model.TotalParamsB
+			}
+		case "long":
+			if a.Settings.ContextTokens != b.Settings.ContextTokens {
+				return a.Settings.ContextTokens > b.Settings.ContextTokens
+			}
+		}
+
 		if out.Rows[i].Rank != out.Rows[j].Rank {
 			return out.Rows[i].Rank < out.Rows[j].Rank
 		}
@@ -140,4 +154,11 @@ func suffix(sep, s string) string {
 		return ""
 	}
 	return sep + s
+}
+
+func queryMatches(m catalog.Model, q string) bool {
+	if named, ok := catalog.Lookup(q); ok {
+		return m.ID == named.ID
+	}
+	return strings.Contains(strings.ToLower(m.OllamaTag+" "+m.Name+" "+m.ID), strings.ToLower(q))
 }

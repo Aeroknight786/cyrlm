@@ -137,6 +137,8 @@ func Fidelity(m catalog.Model, q catalog.Quant, e openrouter.Endpoint) string {
 	p := strings.ToLower(e.Quantization)
 	label := "≈ sharper · declared " + p + " vs local " + q.Name
 	switch {
+	case m.TrialStandIn != "" && !m.Generated:
+		label = "≈ family · hosted sibling · quality unknown"
 	case m.TrialStandIn != "":
 		label = "≈ base · stand-in · quality unknown"
 	case m.UpstreamUnverified:

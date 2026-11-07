@@ -58,6 +58,7 @@ func out() io.Writer {
 }
 
 var jsonMode bool
+var selectedMode Mode
 var currentVerb string
 var events *ui.Renderer
 var commandContext = context.Background()
@@ -80,9 +81,12 @@ func Main(ctx context.Context, argv []string, v string) int {
 	jsonMode = false
 	events = nil
 	currentVerb = ""
+	selectedMode = SelectMode(argv[1:], terminal.IsTTY(os.Stdin), terminal.IsTTY(os.Stdout), os.Getenv)
 	args := append([]string(nil), argv[1:]...)
-	args, _, plain := takeFlag(args, "plain", false)
-	_ = plain
+	args, _, _ = takeFlag(args, "plain", false)
+	if len(args) > 1 && (args[0] == "--json" || args[0] == "--json=true") {
+		args = append(args[1:], "--json")
+	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "--json") {
 		currentVerb = "home"
 	} else {
@@ -91,7 +95,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 	}
 	newVerb := map[string]bool{"home": true, "find": true, "try": true, "setup": true, "launch": true, "key": true, "update": true}
 	if newVerb[currentVerb] {
-		jsonMode = SelectMode(args, terminal.IsTTY(os.Stdin), terminal.IsTTY(os.Stdout), os.Getenv) == JSON
+		jsonMode = selectedMode == JSON
 		events = &ui.Renderer{Out: os.Stdout, Human: os.Stderr, JSON: jsonMode}
 	}
 	migrateHome()
@@ -111,7 +115,14 @@ func Main(ctx context.Context, argv []string, v string) int {
 	switch currentVerb {
 	case "home":
 		if jsonMode {
-			err = emit("result", map[string]any{"version": v, "key_configured": store.Default().Key() != ""}, homeNext()...)
+			d, e := (core.Session{}).Detect(ctx, core.Options{})
+			if e != nil {
+				err = e
+				break
+			}
+			if err = emit("detect", d); err == nil {
+				err = emit("result", map[string]any{"version": v, "key_configured": store.Default().Key() != ""}, homeNext()...)
+			}
 		} else {
 			fmt.Fprint(out(), usage)
 			homeUpdateNotice(ctx)
@@ -188,6 +199,9 @@ func homeNext() []core.Next {
 }
 func finish(err error) int {
 	if err == nil {
+		if commandContext.Err() != nil {
+			return 130
+		}
 		if events != nil && events.Err != nil {
 			return 1
 		}

@@ -16,8 +16,8 @@ func PrintPlan(output io.Writer, p setup.Plan, why string, res predict.Result) {
 	fmt.Fprintf(output, "\nSetup plan: %s (%s, %s) with %s, %s\n", p.ModelName, p.Quant, gb(float64(p.DownloadBytes)), p.RuntimeName, mode)
 	fmt.Fprintf(output, "  runtime chosen: %s\n", why)
 	fmt.Fprintf(output, "  context %d tokens · %s · serves at %s as %q\n", p.ContextTokens, cacheLabel(p.KVCacheType), p.Endpoint, p.LocalModelName)
-	fmt.Fprintf(output, "  expected: first reply %s, then ~%s per turn, writing at %.0f tok/s\n",
-		dur(res.Scenario.ColdFirstReply), dur(res.Scenario.FollowUpTurn), res.DecodeTPSDeep)
+	fmt.Fprintf(output, "  expected: first reply %s, then ~%s per turn, writing at %s tok/s\n",
+		dur(res.Scenario.ColdFirstReply), dur(res.Scenario.FollowUpTurn), bandNumber(res.DecodeTPSDeep, res.Accuracy.DecodePct))
 	if p.Harness != "" {
 		mark := "✓"
 		if !p.HarnessCompatible {
