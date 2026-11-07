@@ -18,6 +18,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/openrouter"
+	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/ui/window"
 	"github.com/charmbracelet/colorprofile"
@@ -42,10 +43,16 @@ const (
 	Why         Screen = "why"
 	Setup       Screen = "setup"
 	Chat        Screen = "chat"
+	Ready       Screen = "ready"
+	Launching   Screen = "launch"
 )
 
 // Config uses application callbacks so no Charm types escape into the CLI/core.
 type Config struct {
+	LocalPlan       *setup.Plan
+	Plan            func(context.Context, core.Row, store.Preferences) (setup.Plan, error)
+	Apply           func(context.Context, setup.Plan, core.Sink) (setup.Journal, error)
+	ReadySetups     func(context.Context) ([]setup.Journal, error)
 	Context         context.Context
 	Store           store.Store
 	Preferences     store.Preferences
@@ -66,6 +73,7 @@ type Config struct {
 	Balance         func(context.Context) (figure.Figure, error)
 	Tools           []string
 }
+type readyMsg struct{ rows []setup.Journal }
 type detectedMsg struct {
 	detection core.Detection
 	err       error
@@ -94,6 +102,8 @@ type windowDoneMsg struct{ err error }
 // Root owns every screen and sub-model for the entire interactive session.
 type Root struct {
 	cfg             Config
+	setup           setupView
+	ready           []setup.Journal
 	stack           []Screen
 	width, height   int
 	theme           palette
@@ -145,6 +155,9 @@ func New(cfg Config) *Root {
 	m.history, _ = cfg.Store.History()
 	_ = cfg.Store.Read("credits.json", &m.balance)
 	m.makeFields()
+	if cfg.LocalPlan != nil {
+		m.setup = setupView{plan: *cfg.LocalPlan, states: map[int]string{}}
+	}
 	if cfg.Start == Recipes && isClaimText(cfg.Preferences.Model) {
 		m.replace(ClaimCard)
 		m.pendingClaim = true
@@ -178,6 +191,9 @@ func (m *Root) Init() tea.Cmd {
 			return tea.Batch(m.spin.Tick, m.execute(m.cfg.DirectArgs))
 		}
 		m.replace(First)
+	}
+	if m.cfg.ReadySetups != nil {
+		cmds = append(cmds, func() tea.Msg { rows, _ := m.cfg.ReadySetups(m.cfg.Context); return readyMsg{rows} })
 	}
 	if m.cfg.Detect != nil {
 		cmds = append(cmds, func() tea.Msg { d, e := m.cfg.Detect(m.cfg.Context); return detectedMsg{d, e} })
@@ -254,6 +270,10 @@ func (m *Root) execute(args []string) tea.Cmd {
 		return m.startChat(args)
 	}
 	argv := append([]string{"try", "--plain", "--here"}, args...)
+	cmd := m.child(argv)
+	return tea.ExecProcess(cmd, func(e error) tea.Msg { return childMsg{kind: Trial, err: e} })
+}
+func (m *Root) child(argv []string) *exec.Cmd {
 	cmd := exec.CommandContext(m.cfg.Context, m.cfg.Executable, argv...)
 	if m.cfg.Process != nil {
 		cmd = m.cfg.Process(m.cfg.Context, m.cfg.Executable, argv)
@@ -263,7 +283,7 @@ func (m *Root) execute(args []string) tea.Cmd {
 	} else {
 		cmd.Env = childEnv(cmd.Env)
 	}
-	return tea.ExecProcess(cmd, func(e error) tea.Msg { return childMsg{kind: Trial, err: e} })
+	return cmd
 }
 
 func childEnv(env []string) []string {
@@ -293,6 +313,13 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(v)
 		return m, cmd
+	case setupEvent:
+		return m, m.setupEvent(v)
+	case readyMsg:
+		m.ready = v.rows
+		if len(m.ready) > 0 && m.screen() == First {
+			m.replace(Home)
+		}
 	case detectedMsg:
 		m.detection = v.detection
 		if m.autoQuality {
@@ -374,6 +401,13 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg { return childMsg{kind: Trial} }
 	case childMsg:
 		m.busy = false
+		if (v.kind == Launching || v.kind == Setup) && v.err == nil {
+			m.replace(Home)
+			if m.cfg.ReadySetups != nil {
+				return m, func() tea.Msg { rows, _ := m.cfg.ReadySetups(m.cfg.Context); return readyMsg{rows} }
+			}
+			return m, nil
+		}
 		if v.err != nil {
 			m.message = v.err.Error()
 			m.back()
@@ -453,6 +487,11 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		key := v.String()
 		if key == "ctrl+c" {
+			if m.setup.cancel != nil {
+				m.setup.cancel()
+				m.message = "Pausing setup…"
+				return m, nil
+			}
 			if m.headless != nil {
 				m.headless.close()
 				m.headless = nil
@@ -558,6 +597,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.replace(Needs)
+				return m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 			}
 			if key == "enter" {
 				if e := m.choice("accepted"); e != nil {
@@ -590,6 +630,9 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 		case Home:
+			if key == "enter" && len(m.ready) > 0 {
+				return m, m.launchSetup(m.ready[0])
+			}
 			switch key {
 			case "f", "enter":
 				m.push(Needs)
@@ -618,7 +661,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.push(Details)
 				}
 			case "s":
-				m.push(Setup)
+				return m, m.planSetup()
 			case "r":
 				m.push(Needs)
 			case "/":
@@ -659,7 +702,22 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.replace(Recipes)
 				return m, m.find()
 			case "s":
-				m.push(Setup)
+				return m, m.planSetup()
+			}
+		case Setup:
+			if (key == "enter" || key == "y" || key == "Y") && m.setup.plan.ID != "" && m.cfg.Apply != nil {
+				return m, m.applySetup()
+			}
+			if key == "n" {
+				m.back()
+			}
+		case Ready:
+			if key == "u" {
+				m.busy = true
+				return m, tea.ExecProcess(m.child([]string{"setup", m.setup.journal.Plan.Slug, "--undo", "--plain"}), func(e error) tea.Msg { return childMsg{kind: Setup, err: e} })
+			}
+			if key == "enter" {
+				return m, m.launchSetup(m.setup.journal)
 			}
 		case Gallery:
 			if key == "down" || key == "j" {
@@ -756,6 +814,15 @@ func (m *Root) makeFields() {
 
 }
 func (m *Root) footer() string {
+	if m.screen() == Setup {
+		if m.busy {
+			return "ctrl-c pauses"
+		}
+		return "enter approve  n back  esc back"
+	}
+	if m.screen() == Ready {
+		return "enter launch  u undo  q later"
+	}
 	if m.busy || (m.screen() == Chat && m.chat.busy) {
 		return "ctrl-c stop"
 	}
@@ -768,7 +835,7 @@ func (m *Root) footer() string {
 	case Paste:
 		return "enter connect  esc back"
 	case Calibration:
-		return "enter calibrate  s skip  q quit"
+		return "enter calibrate  s defaults  q quit"
 	case Calibrating:
 		return "ctrl-c stop"
 	case Needs:
@@ -778,6 +845,9 @@ func (m *Root) footer() string {
 	case Details:
 		return "enter try  space boosts  s set up  ? why  esc back  q quit"
 	case Home:
+		if len(m.ready) > 0 {
+			return "enter launch  f needs  t history  q quit"
+		}
 		return "enter find  f needs  t history  c claims  / search  q quit"
 	case Summary:
 		return "1 too slow  2 fine  3 great  s set up  t another  q quit"
@@ -800,7 +870,7 @@ func (m *Root) footer() string {
 }
 func (m *Root) View() tea.View {
 	body := m.body()
-	if m.busy && m.screen() != Calibrating && m.screen() != Trial {
+	if m.busy && m.screen() != Calibrating && m.screen() != Trial && m.screen() != Setup {
 		body += "\n" + m.spin.View() + " Working…"
 	}
 	if m.message != "" {

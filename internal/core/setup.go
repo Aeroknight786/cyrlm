@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/paths"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/setup"
+	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/verify"
 )
 
@@ -111,7 +113,7 @@ func (s Session) SetupExecutor() (*setup.Executor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &setup.Executor{Root: root, Home: home, Event: func(kind string, data any) {
+	return &setup.Executor{Root: root, Home: home, Admin: s.Admin, Event: func(kind string, data any) {
 		s.Emit(kind, data, Next{Cmd: "trialm setup --json", Why: "read setup status or resume"})
 	}}, nil
 }
@@ -120,7 +122,11 @@ func (s Session) Apply(ctx context.Context, p setup.Plan, policy setup.Policy) (
 	if err != nil {
 		return setup.Journal{}, err
 	}
-	return e.Apply(ctx, p, policy)
+	j, err := e.Apply(ctx, p, policy)
+	if err == nil {
+		s.SetupResult(ctx, j)
+	}
+	return j, err
 }
 func (s Session) Status(ctx context.Context, slug string) (setup.Journal, error) {
 	e, err := s.SetupExecutor()
@@ -136,4 +142,41 @@ func (s Session) Status(ctx context.Context, slug string) (setup.Journal, error)
 		s.Emit("setup_status", j, Next{Cmd: "trialm setup --json", Why: "resume saved setup"})
 	}
 	return j, err
+}
+
+// SetupResult closes the agent contract after the journal reaches Ready.
+func (s Session) SetupResult(ctx context.Context, j setup.Journal) {
+	if j.State != "ready" || j.Report == nil || !j.Report.Ready {
+		return
+	}
+	p := j.Plan
+	enginePath := ""
+	for _, step := range p.Steps {
+		if step.Kind == setup.Start && step.ID != "bridge" && len(step.Argv) > 0 {
+			enginePath = step.Argv[0]
+			break
+		}
+	}
+	root, _ := paths.Home()
+	enginePath = strings.ReplaceAll(enginePath, "~/.trialm", root)
+	if err := calib.RecordReal(ctx, store.Default().Dir, enginePath, calib.RealMeasurement{Model: p.Model, Quant: p.Quant, Engine: p.Runtime, Decode: j.Report.DecodeTPS, Prefill: j.Report.PrefillTPS}); err == nil {
+		s.Emit("setup_calibrated", true)
+	} else {
+		s.Emit("setup_log", setup.Update{Lines: []string{"Calibration was not saved · " + err.Error()}})
+	}
+	s.Emit("result", map[string]any{"ready": true}, Next{Cmd: "trialm launch " + p.Harness, Why: "open this Ready setup"})
+}
+
+func (s Session) PlanRecipe(ctx context.Context, r predict.Result, o Options, tool string) (setup.Plan, error) {
+	h, err := harness.Get(tool)
+	if err != nil {
+		return setup.Plan{}, err
+	}
+	o.Runtime = r.Runtime.ID
+	o.Quant = r.Quant.Name
+	d, err := s.Detect(ctx, o)
+	if err != nil {
+		return setup.Plan{}, err
+	}
+	return s.Plan(ctx, PlanOptions{Options: o, Model: r.Model, Target: d.Target, Scenario: h.Scenario, Harness: h, WireHarness: true})
 }

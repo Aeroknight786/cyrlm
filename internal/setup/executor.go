@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/aeroknight786/trialm/internal/harness"
+	"github.com/aeroknight786/trialm/internal/server"
 	"github.com/aeroknight786/trialm/internal/setup/download"
 	"github.com/aeroknight786/trialm/internal/setup/proc"
+	"github.com/aeroknight786/trialm/internal/terminal"
 	"github.com/aeroknight786/trialm/internal/verify"
 )
 
@@ -186,6 +188,12 @@ func (e *Executor) Apply(ctx context.Context, p Plan, policy Policy) (Journal, e
 	if err = save(path, &j); err != nil {
 		return j, err
 	}
+	var bridge *server.Server
+	defer func() {
+		if bridge != nil {
+			_ = bridge.Close()
+		}
+	}()
 	for i, s := range p.Steps {
 		r := &j.Steps[i]
 		if r.State == "done" && s.Kind != Start && s.Kind != Check {
@@ -205,7 +213,24 @@ func (e *Executor) Apply(ctx context.Context, p Plan, policy Policy) (Journal, e
 			return j, err
 		}
 		e.emit("setup_step", u)
-		err = e.run(ctx, s, &j, i, path, u)
+		if s.Kind == Start && s.ID == "bridge" {
+			if r.Inverse.PIDFile != "" {
+				err = proc.Stop(r.Inverse.PIDFile)
+			}
+			if err == nil {
+				var port int
+				bridge, port, err = server.Local(j.effective(p.Endpoint), p.LocalModelName, p.RuntimeName, p.ContextTokens, 11535, io.Discard)
+				if err == nil {
+					go func() { _ = bridge.Serve() }()
+					if j.Addresses == nil {
+						j.Addresses = map[string]string{}
+					}
+					j.Addresses[p.CheckEndpoint] = fmt.Sprintf("http://127.0.0.1:%d", port)
+				}
+			}
+		} else {
+			err = e.run(ctx, s, &j, i, path, u)
+		}
 		if err != nil {
 			r.State = "failed"
 			r.Error = err.Error()
@@ -502,6 +527,9 @@ func (e *Executor) expandArgs(argv []string) []string {
 
 // OSAdmin is wired only by the interactive CLI. Tests leave Executor.Admin nil.
 func OSAdmin(ctx context.Context, argv []string) error {
+	if !terminal.IsTTY(os.Stdin) {
+		return &PasswordRequired{}
+	}
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr

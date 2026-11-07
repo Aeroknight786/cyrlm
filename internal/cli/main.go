@@ -45,7 +45,7 @@ const usage = `triaLM — try a local coding model before you download it
   trialm find [model]        ranked models for this machine
   trialm try [model]         a private, paced cloud trial
   trialm setup <model>       approve, install and verify a local setup
-  trialm launch [tool]       daily launch (arrives in v0.5)
+  trialm launch [tool]       open your coding tool on a Ready setup
   trialm key                 OpenRouter sign-in
 
 Flags: --plain --json. More: trialm help advanced
@@ -683,8 +683,8 @@ func cmdServe(args []string, try bool) error {
 			return lerr
 		}
 	}
-	printRunning(" — the session summary is printed on exit.")
-	return serveUntilSignal(srv)
+	server.PrintRunning(out(), " — the session summary is printed on exit.")
+	return server.Wait(commandContext, out(), srv)
 }
 
 func nonEmptyStr(a, b string) string {

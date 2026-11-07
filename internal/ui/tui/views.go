@@ -38,7 +38,7 @@ func (m *Root) body() string {
 		if m.detection.Target.Name != "" {
 			machine = m.detection.Target.Name + " · " + figure.Exact(m.detection.Target.GPUMemBytes/(1<<30), "GB for models", figure.Measured, "hardware:budget").String()
 		}
-		engine := "none yet (setup arrives in v0.5)"
+		engine := "none yet (setup installs one)"
 		if len(m.detection.Runtimes) > 0 {
 			engine = fmt.Sprintf("%d installed", len(m.detection.Runtimes))
 		}
@@ -49,7 +49,7 @@ func (m *Root) body() string {
 		}
 		return title + "\n" + m.authURL + "\n" + m.password.View()
 	case Calibration:
-		return title + credit + "\n\nCalibrate this machine · recommended\n≈3–7 min · no model downloads\nSynthetic files need about 6 GB of temporary disk.\nUses an installed llama-bench. Skip and browse if unavailable."
+		return title + credit + "\n\nCalibrate this machine · recommended\n≈3–7 min · no model downloads\nSynthetic files need about 6 GB of temporary disk.\nUses an installed llama-bench.\ns skips calibration and accepts these defaults." + fmt.Sprintf("\nDefaults · %s · %s · %dk native", m.cfg.Preferences.Tool, m.cfg.Preferences.Priority, m.cfg.Preferences.Context/1024)
 	case Calibrating:
 		elapsed := time.Since(m.started).Seconds()
 		fraction := 0.0
@@ -87,8 +87,19 @@ func (m *Root) body() string {
 		return partial + "Trial over · " + m.last.Model + " · " + m.last.Quant + " · " + m.last.Runtime + "\n" + r.Plain(m.last.Band) + split + "\nHow did it feel?"
 	case Home:
 		b := title + "  " + m.detection.Target.Name + credit + "\n"
-		// P2 owns verified ready setups; a trial is never labelled ready.
-		b += "Ready setups: none yet · setup arrives in v0.5\n❯ Find or try another\n\nTrials history\n"
+		for _, j := range m.ready {
+			state := "stopped"
+			for id, running := range j.Running {
+				if id != "bridge" && running {
+					state = "running"
+				}
+			}
+			b += "● " + j.Plan.ModelName + " · " + j.Plan.RuntimeName + " · ready (" + state + ")\n"
+		}
+		if len(m.ready) > 0 {
+			b += "❯ Launch " + m.cfg.Preferences.Tool + " with it  enter\n"
+		}
+		b += "Find or try another  f\n\nTrials history\n"
 		for i := len(m.history) - 1; i >= max(0, len(m.history)-5); i-- {
 			r := m.history[i]
 			b += fmt.Sprintf("  %s · %s · %s\n", r.At.Format("Jan 2"), r.Model, ratingWord(r.Rating))
@@ -134,7 +145,11 @@ func (m *Root) body() string {
 		}
 		return "Claims are source-reported figures, not triaLM measurements.\n" + Claims()[0].SourceURL
 	case Setup:
-		return "Set up locally\nSetup execution arrives in v0.5.\nReview the plan: trialm setup --dry-run\nNo engine or model has been installed."
+		return m.setupBody()
+	case Ready:
+		return m.readyBody()
+	case Launching:
+		return "Opening " + m.cfg.Preferences.Tool + " on the local model…"
 	case Trial:
 		return m.meter.String()
 	case Chat:

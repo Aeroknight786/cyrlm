@@ -72,6 +72,13 @@ func (r *Renderer) Handle(e core.Event) {
 		}
 	}
 	event := map[string]any{"v": 1, "type": e.Type, "data": payload}
+	if e.Type == "result" {
+		if data, ok := e.Data.(map[string]any); ok {
+			if ready, ok := data["ready"].(bool); ok {
+				event["ready"] = ready
+			}
+		}
+	}
 	if e.Type == "result" || strings.HasPrefix(e.Type, "setup_") {
 		event["next"] = next
 	}

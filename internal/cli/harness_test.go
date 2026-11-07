@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"github.com/aeroknight786/trialm/internal/server"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -61,7 +63,7 @@ func TestForegroundLogFlag(t *testing.T) {
 			t.Errorf("log flag: %v", err)
 		}
 	}
-	if err := cmdBridge([]string{"extra-argument", "--log", filepath.Join(t.TempDir(), "bridge.log")}); err == nil || !strings.Contains(err.Error(), "usage:") {
+	if err := server.CommandBridge(commandContext, out(), []string{"extra-argument", "--log", filepath.Join(t.TempDir(), "bridge.log")}); err == nil || !strings.Contains(err.Error(), "usage:") {
 		t.Errorf("bridge log flag: %v", err)
 	}
 }
@@ -250,3 +252,5 @@ func TestTryInterruptExitCode(t *testing.T) {
 		t.Fatal("interrupt exit", err)
 	}
 }
+
+var endpointLine = regexp.MustCompile(`Endpoints on (http://127\.0\.0\.1:\d+)`)

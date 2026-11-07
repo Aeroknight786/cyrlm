@@ -1,0 +1,13 @@
+✓ Ready · what-if: Apple M5 (10-core GPU), 24 GB unified
+memory
+                         predicted    measured    miss
+writing @ 0                   ~44 t/s       40 t/s     -10 %
+writing @ 40960               ~36 t/s       31 t/s     -13 %
+reading                      ~800 t/s      660 t/s     -18 %
+✓ Codex greeting · 
+✓ tool call · 
+✓ follow-up · 
+calibrated this Mac · re-ranked
+enter open codex now  later: trialm launch
+
+enter launch  u undo  q later

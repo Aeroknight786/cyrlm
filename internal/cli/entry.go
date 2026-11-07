@@ -13,6 +13,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/calibrationcli"
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/paths"
+	"github.com/aeroknight786/trialm/internal/server"
 	"github.com/aeroknight786/trialm/internal/setup/proc"
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/terminal"
@@ -103,7 +104,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 	if selectedMode == Interactive && (currentVerb == "home" || currentVerb == "find") {
 		return finish(runTUI(ctx, currentVerb, args))
 	}
-	if selectedMode == Interactive && currentVerb != "try" && currentVerb != "setup" && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
+	if selectedMode == Interactive && currentVerb != "try" && currentVerb != "setup" && currentVerb != "launch" && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
 		if err := calibrationcli.MaybeOffer(argv[1:]); err != nil {
 			return finish(err)
 		}
@@ -126,7 +127,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 			}
 			history, _ := store.Default().History()
 			if err = emit("detect", d); err == nil {
-				err = emit("result", map[string]any{"version": v, "key_configured": store.Default().Key() != "", "trials": ui.TrialCards(history)}, homeNext()...)
+				err = emit("result", map[string]any{"version": v, "key_configured": store.Default().Key() != "", "trials": ui.TrialCards(history), "ready_setups": readyHome(ctx)}, homeNext()...)
 			}
 		} else {
 			fmt.Fprint(out(), usage)
@@ -137,12 +138,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 	case "setup":
 		err = cmdPlan(args)
 	case "launch":
-		args, _, _ = takeFlag(args, "json", false)
-		text := "triaLM launch arrives in v0.5: start the saved engine and bridge, then open your coding tool."
-		fmt.Fprintln(out(), text)
-		if jsonMode {
-			err = emit("result", map[string]any{"ready": false, "message": text}, core.Next{Cmd: "trialm setup --dry-run", Why: "review a setup plan"})
-		}
+		err = cmdLaunch(args)
 	case "key":
 		err = cmdKey(ctx, args)
 	case "update":
@@ -164,7 +160,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 	case "try":
 		err = cmdServe(args, true)
 	case "bridge":
-		err = cmdBridge(args)
+		err = server.CommandBridge(commandContext, out(), args)
 	case "bg":
 		err = proc.Background(ctx, args, out())
 	case "inspect":
@@ -198,7 +194,11 @@ func Main(ctx context.Context, argv []string, v string) int {
 	}
 	return finish(err)
 }
+func readyHome(ctx context.Context) any { rows, _ := (core.Session{}).ReadySetups(ctx); return rows }
 func homeNext() []core.Next {
+	if rows, _ := (core.Session{}).ReadySetups(commandContext); len(rows) > 0 {
+		return []core.Next{{Cmd: "trialm launch " + rows[0].Plan.Harness, Why: "open a Ready setup"}}
+	}
 	if store.Default().Key() == "" {
 		return []core.Next{{Cmd: "trialm key", Why: "no OpenRouter key"}, {Cmd: "trialm find --json", Why: "find models without a key"}}
 	}

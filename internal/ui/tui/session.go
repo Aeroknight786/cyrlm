@@ -14,6 +14,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/selfupdate"
+	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/store"
 )
 
@@ -94,5 +95,26 @@ func SessionConfig(ctx context.Context, s store.Store, p store.Preferences, o co
 		}
 		return ""
 	}
+	cfg.ReadySetups = (core.Session{}).ReadySetups
+	cfg.Plan = func(ctx context.Context, row core.Row, p store.Preferences) (setup.Plan, error) {
+		opts := o
+		opts.Context = p.Context
+		return (core.Session{}).PlanRecipe(ctx, row.Result, opts, p.Tool)
+	}
+
+	cfg.Apply = func(ctx context.Context, p setup.Plan, sink core.Sink) (setup.Journal, error) {
+		session := core.Session{Sink: sink, Admin: func(ctx context.Context, argv []string) error {
+			done := make(chan error, 1)
+			sink(core.Event{Type: "setup_admin", Data: adminRequest{ctx, argv, done}})
+			select {
+			case err := <-done:
+				return err
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}}
+		return session.Apply(ctx, p, setup.Policy{PlanID: p.ID})
+	}
+
 	return cfg
 }

@@ -21,6 +21,8 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/aeroknight786/trialm/internal/core"
+	"github.com/aeroknight786/trialm/internal/setup"
+	"github.com/aeroknight786/trialm/internal/verify"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 
@@ -57,13 +59,14 @@ func fixture(t testing.TB) *Root {
 	m.last = store.TrialEntry{ID: "fixture", At: time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC), Model: "qwen3.6:35b-a3b", Quant: "IQ3_XXS", Runtime: "llamacpp", Band: 60, Report: trial.Report{Requests: 38, LocalSeconds: 840, CloudSeconds: 190, ReadingSeconds: 370, WritingSeconds: 294, BetweenTurnsSeconds: 176, FirstTurn: 10, TypicalTurn: 9.8, SlowestTurn: 41, SlowestCause: "reading", Fidelity: "fp8 (declared), no-logging; upper bound on quality", SpendKnown: true, SpendUSD: .21}}
 	m.history = []store.TrialEntry{m.last}
 	m.notice = "v0.6.1 available · trialm update"
+	setupFrame(m)
 	return m
 }
 func TestViewGoldens(t *testing.T) {
 	old := lipgloss.Writer.Profile
 	lipgloss.Writer.Profile = colorprofile.TrueColor
 	defer func() { lipgloss.Writer.Profile = old }()
-	screens := []Screen{First, Paste, Calibration, Calibrating, Needs, Recipes, Details, Trial, Summary, Home, Gallery, ClaimCard, Search, Why, Setup, Chat}
+	screens := []Screen{First, Paste, Calibration, Calibrating, Needs, Recipes, Details, Trial, Summary, Home, Gallery, ClaimCard, Search, Why, Setup, Chat, Ready, Launching, "setup-progress", "setup-paused", "home-running"}
 	for _, screen := range screens {
 		for _, w := range []int{60, 80, 120} {
 			for _, plain := range []bool{false, true} {
@@ -72,6 +75,29 @@ func TestViewGoldens(t *testing.T) {
 					m := fixture(t)
 					m.Update(tea.WindowSizeMsg{Width: w, Height: 24})
 					m.stack = []Screen{screen}
+					switch screen {
+					case Setup, Ready, Launching, "setup-progress", "setup-paused", "home-running":
+						setupFrame(m)
+					}
+					if screen == Setup {
+						m.setup.update = setup.Update{}
+						m.setup.states = nil
+						m.setup.logs = nil
+						m.setup.journal = setup.Journal{}
+					}
+					if screen == "setup-progress" {
+						m.stack = []Screen{Setup}
+						m.busy = true
+					}
+					if screen == "setup-paused" {
+						m.stack = []Screen{Setup}
+						m.setup.journal.State = "paused"
+						m.message = "Setup paused. Enter resumes."
+					}
+					if screen == "home-running" {
+						m.stack = []Screen{Home}
+						m.ready[0].Running = map[string]bool{"server": true}
+					}
 					m.theme = newPalette(plain, false)
 					m.started = time.Now().Add(-30 * time.Second)
 					m.password = huh.NewInput().Title("OpenRouter key").Value(&m.secret).EchoMode(huh.EchoModePassword)
@@ -186,6 +212,10 @@ type driver struct{ root *Root }
 func (d *driver) Init() tea.Cmd  { return d.root.Init() }
 func (d *driver) View() tea.View { return d.root.View() }
 func (d *driver) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if v, ok := msg.(probePlan); ok {
+		v.ready <- d.root.setup.plan.ID != "" && !d.root.busy
+		return d, nil
+	}
 	if v, ok := msg.(probeRows); ok {
 		v.ready <- len(d.root.listing.Rows) > 0 && !d.root.busy
 		return d, nil
@@ -269,6 +299,29 @@ func TestJourneyAKeyCount(t *testing.T) {
 		cmd.Env = append(os.Environ(), "TRIALM_TUI_HELPER=1", "TRIALM_TUI_ENDPOINT="+trialServer.URL, "TRIALM_HOME="+s.Dir)
 		return cmd
 	}
+	approvals := atomic.Int32{}
+	launches := atomic.Int32{}
+	cfg.Plan = func(ctx context.Context, row core.Row, p store.Preferences) (setup.Plan, error) {
+		return setup.Plan{ID: "approved-plan", Slug: "local", Harness: "codex"}, nil
+	}
+	cfg.Apply = func(ctx context.Context, p setup.Plan, sink core.Sink) (setup.Journal, error) {
+		if p.ID != "approved-plan" {
+			return setup.Journal{}, errors.New("wrong approval")
+		}
+		approvals.Add(1)
+		report := &verify.Report{Ready: true}
+		sink(core.Event{Type: "setup_ready", Data: report})
+		return setup.Journal{Plan: p, State: "ready", Report: report}, nil
+	}
+	trialProcess := cfg.Process
+	cfg.Process = func(ctx context.Context, exe string, args []string) *exec.Cmd {
+		cmd := trialProcess(ctx, exe, args)
+		if args[0] == "launch" {
+			launches.Add(1)
+			cmd.Env = append(cmd.Env, "TRIALM_TUI_LAUNCH=1")
+		}
+		return cmd
+	}
 	m := New(cfg)
 	program := tea.NewProgram(&driver{m}, tea.WithInput(nil), tea.WithOutput(io.Discard), tea.WithoutRenderer(), tea.WithColorProfile(colorprofile.Ascii))
 	done := make(chan error, 1)
@@ -280,9 +333,6 @@ func TestJourneyAKeyCount(t *testing.T) {
 	keys++
 	waitScreen(t, program, Calibration)
 	program.Send(key("s"))
-	keys++
-	waitScreen(t, program, Needs)
-	program.Send(key("enter"))
 	keys++
 	waitScreen(t, program, Recipes)
 	// Ranking completes asynchronously. Query the loop until the first row exists.
@@ -301,20 +351,46 @@ func TestJourneyAKeyCount(t *testing.T) {
 	program.Send(key("enter"))
 	keys++
 	waitScreen(t, program, Summary)
+	program.Send(key("s"))
+	keys++
+	waitScreen(t, program, Setup)
+	// The plan callback completes in the model loop before approval.
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		ready := make(chan bool, 1)
+		program.Send(probePlan{ready})
+		if <-ready {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("plan not shown")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	program.Send(key("enter"))
+	keys++
+	waitScreen(t, program, Ready)
+	program.Send(key("enter"))
+	keys++
+	waitScreen(t, program, Home)
 	program.Send(key("q"))
 	if e := <-done; e != nil {
 		t.Fatal(e)
 	}
-	if keys > 5 || clicks.Load() != 1 || requests.Load() != 1 {
+	if keys+1 > 7 || approvals.Load() != 1 || launches.Load() != 1 || clicks.Load() != 1 || requests.Load() != 1 {
 		t.Fatalf("keys=%d browser clicks=%d requests=%d", keys, clicks.Load(), requests.Load())
 	}
-	t.Logf("%d UI keys + 1 browser click to first request (5 including install paste)", keys)
+	t.Logf("%d keys including install paste, 1 approval, 1 browser click, 0 copy-paste. Fresh state, displayed defaults and calibration skipped.", keys+1)
 }
 
+type probePlan struct{ ready chan bool }
 type probeRows struct{ ready chan bool }
 
 func TestTrialHelper(t *testing.T) {
 	if os.Getenv("TRIALM_TUI_HELPER") != "1" {
+		return
+	}
+	if os.Getenv("TRIALM_TUI_LAUNCH") == "1" {
 		return
 	}
 	r, e := http.Post(os.Getenv("TRIALM_TUI_ENDPOINT"), "application/json", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
@@ -341,8 +417,11 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 	t.Setenv("TRIALM_HOME", m.cfg.Store.Dir)
 	t.Setenv("TRIALM_CALIBRATION_HELPER", "1")
 	m.stack = []Screen{Calibration}
-	m.Update(key("s"))
-	if m.screen() != Needs {
+	_, cmd := m.Update(key("s"))
+	if cmd != nil {
+		m.Update(cmd())
+	}
+	if m.screen() != Recipes {
 		t.Fatal(m.screen())
 	}
 	var prefs map[string]any
@@ -392,7 +471,7 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 }
 func TestFooterBindings(t *testing.T) {
 	m := fixture(t)
-	allowed := map[Screen][]string{First: {"enter browser", "p paste", "s skip", "q quit"}, Calibration: {"enter calibrate", "s skip", "q quit"}, Recipes: {"enter try", "s set up", "d details", "w window", "r needs", "/ search"}, Details: {"enter try", "space boosts", "s set up", "? why", "esc back", "q quit"}, Summary: {"1 too slow", "2 fine", "3 great", "s set up", "t another", "q quit"}}
+	allowed := map[Screen][]string{First: {"enter browser", "p paste", "s skip", "q quit"}, Calibration: {"enter calibrate", "s defaults", "q quit"}, Recipes: {"enter try", "s set up", "d details", "w window", "r needs", "/ search"}, Details: {"enter try", "space boosts", "s set up", "? why", "esc back", "q quit"}, Summary: {"1 too slow", "2 fine", "3 great", "s set up", "t another", "q quit"}}
 	for screen, want := range allowed {
 		m.stack = []Screen{screen}
 		if got := strings.Split(m.footer(), "  "); len(got) > 6 || strings.Join(got, "|") != strings.Join(want, "|") {

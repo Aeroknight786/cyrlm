@@ -24,7 +24,10 @@ type Event struct {
 	Next []Next
 }
 type Sink func(Event)
-type Session struct{ Sink Sink }
+type Session struct {
+	Sink  Sink
+	Admin func(context.Context, []string) error
+}
 
 func (s Session) Emit(kind string, data any, next ...Next) {
 	if s.Sink != nil {

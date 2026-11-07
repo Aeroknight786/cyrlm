@@ -1,0 +1,20 @@
+Set up Qwen3.6 35B-A3B · IQ3_XXS · llama.cpp
+1 approval · 0 OS password prompts · 13.2 GB download
+✓ install  llama.cpp b12182 · 31.0 MB · sha256 pinned
+✓ fetch    Qwen3.6-35B-A3B.gguf · 13200 MB · sha256 pinned
+  write    Save owned launcher
+  start    llama-server :8080 · in-process bridge
+  check    speed · greeting · tool call · follow-up
+Not touched · Codex config, shell profile, other models
+2 of 5 done, download 61%
+Downloading [======================--------------]
+61% · 8100 MB / 13200 MB · 47.0 MB/s · ETA 109 s
+sha256 checked                                                                
+archive extracted                                                             
+download resumed                                                              
+range accepted                                                                
+8.1 GB received                                                               
+Go? [Y/n]
+Setup paused. Enter resumes.
+
+enter approve  n back  esc back

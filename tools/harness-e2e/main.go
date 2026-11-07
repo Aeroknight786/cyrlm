@@ -122,6 +122,7 @@ func extract(out string) (string, string) {
 func main() { os.Exit(realMain()) }
 
 func realMain() int {
+	local := flag.Bool("local", false, "setup and launch a synthetic CPU llama.cpp model")
 	only := flag.String("only", "", "run one harness")
 	keep := flag.Bool("keep", false, "keep scratch directories")
 	latest := flag.Bool("latest", false, "install latest versions")
@@ -148,6 +149,14 @@ func realMain() int {
 	if e = run(context.Background(), repo, os.Environ(), filepath.Join(out, "build.log"), "go", "build", "-o", bin, "./cmd/trialm"); e != nil {
 		fmt.Fprintln(os.Stderr, "build failed:", e)
 		return 1
+	}
+	if *local {
+		fmt.Fprintln(os.Stderr, "Generating the synthetic 2-layer GGUF for CPU launch checks…")
+		if err := generateLocal(context.Background(), scratch); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		defer os.RemoveAll(filepath.Dir(localModel))
 	}
 	var results []result
 	found := false
@@ -189,7 +198,11 @@ func realMain() int {
 			}
 			helpCancel()
 		}
-		for _, path := range []string{"trial", "bridge"} {
+		paths := []string{"trial", "bridge"}
+		if *local {
+			paths = []string{"local"}
+		}
+		for _, path := range paths {
 			r := result{Harness: s.id, Path: path}
 			if err != nil {
 				r.Reason = "CLI installation failed: " + err.Error()
@@ -255,6 +268,9 @@ func exercise(repo, root, logs, bin string, en []string, s spec, path string) st
 	_ = os.MkdirAll(work, 0700)
 	fake := exec.Command("python3", filepath.Join(repo, "tools/harness-e2e/fake_upstream.py"), strconv.Itoa(fp), filepath.Join(logs, path+"-requests.jsonl"))
 	fake.Env = append(en, "FAKE_TOOL="+s.tool)
+	if path == "local" {
+		fake.Env = append(fake.Env, "FAKE_READY=1")
+	}
 	f, _ := os.Create(filepath.Join(logs, path+"-fake.log"))
 	defer f.Close()
 	fake.Stdout = f
@@ -270,6 +286,9 @@ func exercise(repo, root, logs, bin string, en []string, s spec, path string) st
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+	if path == "local" {
+		return exerciseLocal(root, logs, bin, en, s, fp)
 	}
 	args := []string{"bridge", "--endpoint", fmt.Sprintf("http://127.0.0.1:%d", fp), "--harness", s.id, "--background", "--port", strconv.Itoa(p)}
 	if path == "trial" {
