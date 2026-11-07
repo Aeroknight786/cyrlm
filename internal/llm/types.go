@@ -49,6 +49,8 @@ type Request struct {
 	// ToolChoice is an OpenAI-style tool_choice value ("auto", "none",
 	// "required", or {"type":"function","function":{"name":...}}), or nil.
 	ToolChoice json.RawMessage
+	// ResponseFormat is an OpenAI-style response_format (JSON object or schema).
+	ResponseFormat json.RawMessage
 	// MaxTokens is the client's output cap; 0 means unspecified.
 	MaxTokens   int
 	Temperature *float64

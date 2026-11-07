@@ -30,6 +30,7 @@ type chatRequest struct {
 	Messages            []chatMessage   `json:"messages"`
 	Tools               []chatTool      `json:"tools"`
 	Functions           []functionDef   `json:"functions"`
+	ResponseFormat      json.RawMessage `json:"response_format"`
 	ToolChoice          json.RawMessage `json:"tool_choice"`
 	FunctionCall        json.RawMessage `json:"function_call"`
 	MaxCompletionTokens *int            `json:"max_completion_tokens"`
@@ -100,6 +101,7 @@ func (f *Frontend) DecodeRequest(body []byte) (*llm.Request, error) {
 	var warn warnings
 	req := &llm.Request{
 		Model:           in.Model,
+		ResponseFormat:  in.ResponseFormat,
 		Temperature:     in.Temperature,
 		TopP:            in.TopP,
 		Stream:          in.Stream,

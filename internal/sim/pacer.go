@@ -2,6 +2,7 @@ package sim
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -191,6 +192,7 @@ func (d *Device) Pace(ctx context.Context, pl *Plan, p *Prepared, events <-chan 
 			if te.At.After(next) && res.GeneratedPieces > 0 {
 				res.CloudLag += te.At.Sub(next)
 			}
+			ev.Usage = sanePromptUsage(pl, ev.Usage)
 			res.Resp.Apply(ev)
 			if res.Resp.FinishReason == "" {
 				res.Resp.FinishReason = llm.FinishStop
@@ -237,6 +239,7 @@ loop:
 		}
 	}
 	if done != nil && done.Usage != nil {
+		done.Usage = sanePromptUsage(pl, done.Usage)
 		u := done.Usage
 		t := d.cfg.Timing
 		if u.PromptTokens > 0 && pl.PromptTokens > 0 {
@@ -317,4 +320,28 @@ func Timings(pl *Plan, r PaceResult) llm.Timings {
 		tm.Total = r.LastTokenAt.Sub(pl.Start)
 	}
 	return tm
+}
+
+// sanePromptUsage rejects provider counts that would distort prefill timing
+// and poison the next request's prompt calibration. Zero leaves the estimate
+// in use and prevents Commit from learning from a rejected count.
+func sanePromptUsage(pl *Plan, usage *llm.Usage) *llm.Usage {
+	if usage == nil || usage.PromptTokens == 0 {
+		return usage
+	}
+	estimate := pl.DepthPieces
+	if estimate <= 0 {
+		estimate = pl.PromptTokens
+	}
+	if estimate <= 0 {
+		return usage
+	}
+	ratio := float64(usage.PromptTokens) / float64(estimate)
+	if ratio >= 0.3 && ratio <= 3 {
+		return usage
+	}
+	pl.Notes = append(pl.Notes, fmt.Sprintf("upstream prompt_tokens=%d is outside 0.3–3× the tokenizer estimate (~%d); keeping the estimate", usage.PromptTokens, estimate))
+	copy := *usage
+	copy.PromptTokens, copy.CachedPromptTokens = 0, 0
+	return &copy
 }

@@ -29,6 +29,8 @@ type StreamMeta struct {
 	// PromptTokens is the best-known prompt token count at stream start
 	// (Anthropic's message_start carries input_tokens).
 	PromptTokens int
+	// CachedPromptTokens is the simulated cache read known at stream start.
+	CachedPromptTokens int
 	// IncludeUsage mirrors llm.Request.IncludeUsage.
 	IncludeUsage bool
 }

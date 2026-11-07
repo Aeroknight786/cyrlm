@@ -39,6 +39,8 @@ type OpenAICompat struct {
 	// so its decode time can be simulated. Sending reasoning parameters to
 	// other models can make OpenRouter find no provider.
 	Reasoning bool
+	// Ollama uses native /api/chat so num_ctx and format reach the runtime.
+	Ollama bool
 	// IdleTimeout ends a stream that sends nothing for this long
 	// (default 120 s), so a stalled provider can't block the device.
 	IdleTimeout time.Duration
@@ -64,6 +66,13 @@ func (c *OpenAICompat) BuildBody(req *llm.Request) map[string]any {
 		om := map[string]any{"role": m.Role}
 		switch m.Role {
 		case llm.RoleAssistant:
+			if m.Reasoning != "" {
+				key := "reasoning_content"
+				if c.isOpenRouter() {
+					key = "reasoning"
+				}
+				om[key] = m.Reasoning
+			}
 			if m.Content != "" || len(m.ToolCalls) == 0 {
 				om["content"] = m.Content
 			} else {
@@ -110,6 +119,9 @@ func (c *OpenAICompat) BuildBody(req *llm.Request) map[string]any {
 		if len(req.ToolChoice) > 0 {
 			body["tool_choice"] = req.ToolChoice
 		}
+	}
+	if len(req.ResponseFormat) > 0 {
+		body["response_format"] = req.ResponseFormat
 	}
 	if req.MaxTokens > 0 {
 		body["max_tokens"] = req.MaxTokens
@@ -208,6 +220,9 @@ func stripTrialmKeys(raw json.RawMessage) json.RawMessage {
 
 // Stream implements Client.
 func (c *OpenAICompat) Stream(ctx context.Context, req *llm.Request) (<-chan llm.Event, error) {
+	if c.Ollama {
+		return c.streamOllama(ctx, req)
+	}
 	b, err := json.Marshal(c.BuildBody(req))
 	if err != nil {
 		return nil, err
