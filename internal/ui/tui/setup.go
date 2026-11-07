@@ -157,7 +157,7 @@ func (m *Root) setupBody() string {
 	if p.ID == "" {
 		return "Planning local setup…"
 	}
-	b := fmt.Sprintf("Set up %s · %s · %s\n%d approval · %d OS password prompts · %s download\n", p.ModelName, p.Quant, p.RuntimeName, p.Prompts.Approvals, p.Prompts.Passwords, figure.Exact(float64(p.DownloadBytes)/1e9, "GB", figure.Measured, "setup:resolved-files").String())
+	b := fmt.Sprintf("Set up %s · %s · %s\n%d approval · %d OS password prompts · %s download\n", p.ModelName, p.Quant, p.RuntimeName, p.Prompts.Approvals, p.Prompts.Passwords, figure.Exact(float64(p.DownloadBytes-p.OnDisk())/1e9, "GB", figure.Measured, "setup:resolved-files").String())
 	if p.DownloadUnknown {
 		b += "Plus installer downloads of unknown size\n"
 	}

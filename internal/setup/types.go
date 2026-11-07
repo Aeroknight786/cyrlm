@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/aeroknight786/trialm/internal/catalog"
@@ -171,3 +172,24 @@ type Approval string
 func (a *Approval) String() string         { return string(*a) }
 func (a *Approval) Set(value string) error { *a = Approval(value); return nil }
 func (a *Approval) IsBoolFlag() bool       { return true }
+
+// OnDisk is how many of the plan's download bytes already sit on this
+// machine (Hugging Face cache, LM Studio, Ollama) at the right size; the
+// fetch step reuses them after checking the digest.
+func (p Plan) OnDisk() int64 {
+	home, _ := os.UserHomeDir()
+	var n int64
+	for _, s := range p.Steps {
+		if s.Kind != Fetch || s.Request == nil {
+			continue
+		}
+		repo, file := hfLocation(s.Request.URL)
+		for _, c := range download.Candidates(home, repo, file, s.Request.SHA256) {
+			if st, err := os.Stat(c); err == nil && st.Size() == s.Request.Size {
+				n += s.Request.Size
+				break
+			}
+		}
+	}
+	return n
+}
