@@ -141,7 +141,8 @@ func TestSpecFlagAndEnvironmentPlan(t *testing.T) {
 		count   int
 		seconds float64
 	}{
-		{"", nil, 27, 347}, {"", []string{"--quick"}, 6, 109}, {"", []string{"--spec"}, 54, 377}, {"1", []string{"--quick"}, 12, 116}, {"1", []string{"--spec=false", "--quick"}, 6, 109}, {"true", []string{"--quick"}, 6, 109},
+		// The sweep is on by default (the owner kept it: ~30 s for 27 steps).
+		{"", nil, 54, 377}, {"", []string{"--quick"}, 12, 116}, {"", []string{"--spec=false"}, 27, 347}, {"0", []string{"--quick"}, 6, 109}, {"0", []string{"--spec", "--quick"}, 12, 116}, {"1", []string{"--quick"}, 12, 116},
 	} {
 		t.Setenv("TRIALM_CALIBRATE_SPEC", tc.env)
 		f, err := os.CreateTemp(t.TempDir(), "plan")

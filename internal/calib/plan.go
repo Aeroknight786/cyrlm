@@ -72,3 +72,10 @@ func (s Step) Description() string {
 	}
 	return fmt.Sprintf("%s%s · %s", s.Probe.ID(), check, strings.Join(s.Args("probe.gguf", false)[2:], " "))
 }
+
+// Duration is a plan's estimated run time for people, e.g. "about 5–8 min";
+// the estimate comes from one machine, so it is a range, not a figure.
+func Duration(steps []Step) string {
+	m := math.Round(EstimatedSeconds(steps) / 60)
+	return fmt.Sprintf("about %.0f–%.0f min", math.Max(1, m-1), m+2)
+}

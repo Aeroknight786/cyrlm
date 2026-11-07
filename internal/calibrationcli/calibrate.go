@@ -22,7 +22,7 @@ import (
 func Run(args []string) error {
 	fs := flag.NewFlagSet("calibrate", flag.ContinueOnError)
 	quick := fs.Bool("quick", false, "the two default hybrid and sliding MoE picks")
-	spec := fs.Bool("spec", os.Getenv("TRIALM_CALIBRATE_SPEC") == "1", "include the speculative verify sweep")
+	spec := fs.Bool("spec", os.Getenv("TRIALM_CALIBRATE_SPEC") != "0", "include the speculative verify sweep (on by default; --spec=false or TRIALM_CALIBRATE_SPEC=0 skips it)")
 	plan := fs.Bool("plan", false, "print the grid and estimated M5 seconds without running a benchmark")
 	refit := fs.Bool("refit", false, "rebuild fits from saved raw rows without hardware or llama-bench")
 	check := fs.String("check", "", "check an existing local GGUF against calibration (about 1–2 min; no downloads)")
@@ -285,7 +285,7 @@ func MaybeOffer(args []string) error {
 	if !predictCalibrationMissing(home) {
 		return nil
 	}
-	fmt.Fprintf(os.Stderr, "Recommended: calibrate this machine once for tighter speed estimates (about %.0f min on the M5).\n", calib.EstimatedSeconds(calib.Plan(false, os.Getenv("TRIALM_CALIBRATE_SPEC") == "1"))/60)
+	fmt.Fprintf(os.Stderr, "Recommended: calibrate this machine once for tighter speed estimates (about %.0f min on the M5).\n", calib.EstimatedSeconds(calib.Plan(false, os.Getenv("TRIALM_CALIBRATE_SPEC") != "0"))/60)
 	fmt.Fprintln(os.Stderr, "triaLM writes synthetic models (random weights, real shapes) and runs llama-bench on them. No model downloads. It needs about 6 GB of free disk for temporary files, deleted as it goes, and keeps only calib.json and prefs.json under", home+".")
 	fmt.Fprint(os.Stderr, "Enter calibrates (recommended) · s or any other key skips: ")
 	key, e := terminal.Key(os.Stdin)

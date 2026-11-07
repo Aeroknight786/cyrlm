@@ -60,8 +60,7 @@ func (m *Root) launcher() string {
 		if m.detection.Target.OS == "darwin" {
 			label = "✦ Calibrate this Mac once · recommended"
 		}
-		estimate := figure.Band(calib.EstimatedSeconds(calib.Plan(false, os.Getenv("TRIALM_CALIBRATE_SPEC") == "1")), 25, "s", figure.Simulated, "calibration:plan").String()
-		b += "\n" + m.card(m.theme.selected.Bold(true).Render(label)+"\n"+estimate+" on M5 · no downloads · enter start · s skip") + "\n"
+		b += "\n" + m.card(m.theme.selected.Bold(true).Render(label)+"\n"+calib.Duration(calib.Plan(false, os.Getenv("TRIALM_CALIBRATE_SPEC") != "0"))+" · no downloads · enter start · s skip") + "\n"
 	}
 	b += "\n  " + m.theme.selected.Bold(true).Render("Your models") + "\n"
 	for i, choice := range m.models {
