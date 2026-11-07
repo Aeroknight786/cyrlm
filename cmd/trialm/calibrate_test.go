@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/aeroknight786/trialm/internal/calib"
@@ -98,5 +101,42 @@ func TestCalibrationPlanAndRefitNeedNoEngine(t *testing.T) {
 		if e = cmdCalibrate(args); e == nil {
 			t.Fatal("conflicting modes accepted", args)
 		}
+	}
+}
+
+func TestCalibrationCheckModes(t *testing.T) {
+	t.Setenv("TRIALM_HOME", t.TempDir())
+	for _, args := range [][]string{{"--check", "model.gguf", "--plan"}, {"--check", "model.gguf", "--refit"}, {"--check", "model.gguf", "--status"}, {"--check", "model.gguf", "--quick"}, {"--check"}, {"--check", ""}} {
+		if e := cmdCalibrate(args); e == nil {
+			t.Fatal("invalid mode accepted", args)
+		}
+	}
+	// A URL is rejected locally before hardware access or a benchmark.
+	if e := calibrationCheck(context.Background(), t.TempDir(), "absent-bench", "https://example.com/model.gguf", false); e == nil || !strings.Contains(e.Error(), "local GGUF") {
+		t.Fatal(e)
+	}
+}
+
+func TestCalibrationCheckPredictor(t *testing.T) {
+	r := predict.Result{Kind: "calibrated", Accuracy: predict.Accuracy{DecodePct: 80, PrefillPct: 90, Basis: "test path"}, Timing: &predict.Timing{EffBandwidth: 1e9, WeightsBytesPerTok: 5e9, DecodeMult: 1, PrefillMult: 1, MatmulSecPerTok: .01, AttnFLOPSEff: 1e12}}
+	for _, row := range []calib.BenchRow{{Gen: 8, Depth: 32768}, {Prompt: 512, Depth: 0}} {
+		p, e := calibrationCheckPredictor(r)(row)
+		if e != nil || p.Basis != "test path" {
+			t.Fatal(p, e)
+		}
+		want, band := 100., 90
+		if row.Gen > 0 {
+			want, band = .2, 80
+		}
+		if math.Abs(p.TPS-want) > 1e-8 || p.BandPct != band {
+			t.Fatal(p, want, band)
+		}
+	}
+	if _, e := calibrationCheckPredictor(r)(calib.BenchRow{}); e == nil {
+		t.Fatal("zero-token prediction")
+	}
+	r.Kind = "simulated"
+	if _, e := calibrationCheckPredictor(r)(calib.BenchRow{Gen: 8}); e == nil {
+		t.Fatal("uncalibrated validation")
 	}
 }

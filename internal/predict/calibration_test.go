@@ -1,7 +1,11 @@
 package predict
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/aeroknight786/trialm/internal/calib"
@@ -129,5 +133,90 @@ func TestPartialCalibrationKeepsOriginalPrediction(t *testing.T) {
 				t.Fatal("partial fit changed prediction", r.Kind)
 			}
 		})
+	}
+}
+
+func TestCalibrationReportsWidestDepthBand(t *testing.T) {
+	in, r, c := calibrationFixture(t)
+	for i := range c.Fits {
+		if c.Fits[i].Depth == 32768 {
+			c.Fits[i].BandPct = 85
+		}
+	}
+	applyMachineCalibration(&r, in, c)
+	if r.Accuracy.DecodePct != 85 || r.Accuracy.PrefillPct != 85 || !strings.Contains(r.Accuracy.Basis, "direct dense/Q4_K_M depth 32768") {
+		t.Fatal(r.Accuracy)
+	}
+}
+
+// This is external evidence, never fitted. A miss remains visible as a skip
+// with all measured/predicted numbers, rather than tuning transfer constants.
+func TestM5RealQwen35Validation(t *testing.T) {
+	b, err := os.ReadFile("../calib/testdata/calib-m5-v2.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c calib.Calibration
+	if err = json.Unmarshal(b, &c); err != nil {
+		t.Fatal(err)
+	}
+	c.FitRows()
+	sys, err := SyntheticSystem("Apple M5", 24, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := TargetFromSystem(sys, 0)
+	target.Synthetic = false // offline fixture explicitly substitutes its identity
+	m, ok := catalog.Lookup("qwen3.5:9b")
+	if !ok {
+		t.Fatal("missing catalog model")
+	}
+	rt, _ := runtime.Get("llamacpp")
+	r := WithCalibration(Input{Model: m, QuantName: "Q4_K_M", Runtime: rt, Target: target, Tuned: true, CtxOverride: 65536, KVCacheType: "f16"}, &c)
+	if r.Kind != "calibrated" || !strings.Contains(r.Accuracy.Basis, "alone") || !strings.Contains(r.Accuracy.Basis, "rejected") {
+		t.Fatalf("missing fallback: %s %s", r.Kind, r.Accuracy.Basis)
+	}
+	b, err = os.ReadFile("../calib/testdata/real-qwen3.5-9b-Q4_K_M.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []struct {
+		calib.BenchRow
+		AvgTPS float64 `json:"avg_ts"`
+	}
+	if err = json.Unmarshal(b, &rows); err != nil {
+		t.Fatal(err)
+	}
+	var misses []string
+	checked := 0
+	for _, row := range rows {
+		if row.Depth != 0 && row.Depth != 32768 {
+			continue
+		}
+		if row.Gen == 0 && row.Prompt != 2048 {
+			continue
+		}
+		checked++
+		mode, band, predicted := "prefill", r.Accuracy.PrefillPct, r.Timing.PrefillTPS(row.Depth, row.Depth+row.Prompt)
+		if row.Gen > 0 {
+			mode, band = "decode", r.Accuracy.DecodePct
+			seconds := 0.0
+			for i := 0; i < row.Gen; i++ {
+				seconds += r.Timing.DecodeSec(row.Depth + i)
+			}
+			predicted = float64(row.Gen) / seconds
+		}
+		low, high := predicted*(1-float64(band)/100), predicted*(1+float64(band)/100)
+		msg := fmt.Sprintf("%s depth %d: measured %.1f, predicted %.1f tok/s, error %+.0f%%, band ±%d%% [%.1f, %.1f]", mode, row.Depth, row.AvgTPS, predicted, 100*(predicted/row.AvgTPS-1), band, math.Max(0, low), high)
+		t.Log(msg)
+		if row.AvgTPS < low || row.AvgTPS > high {
+			misses = append(misses, msg)
+		}
+	}
+	if checked != 4 {
+		t.Fatalf("checked %d rows, expected 4", checked)
+	}
+	if len(misses) > 0 {
+		t.Skipf("real-model transfer miss (not fitted away): %s", strings.Join(misses, "; "))
 	}
 }

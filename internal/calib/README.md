@@ -13,6 +13,7 @@ trialm calibrate --plan --quick  # two default picks, including held-out checks
 trialm calibrate                 # run, or resume finished groups
 trialm calibrate --refit         # refit saved rows without engine/GPU access
 trialm calibrate --status
+trialm calibrate --check /path/to/model.gguf  # existing local file; no downloads
 ```
 
 All modes accept `--json`. Plan and refit need neither hardware detection nor an
@@ -190,12 +191,63 @@ depth penalty is considered noise and is not used as a speedup. Explicit deep
 measurements/checks, if present in old rows, take precedence over this transfer.
 
 For other unmeasured architecture/quants, compose the architecture reference
-multiplier with the dense target/reference ratio. Add log-error radii conservatively;
-these composed bands are usually wider. Unmeasured kernels, CPU offload, CPU-only
-machines and `--device` predictions keep the prior. Prediction integration requires
-both decode and prefill coverage at every timing depth bucket; a partial or rejected
-fit cannot silently mix corrected timing with an incorrect `calibrated` label.
-Changed OS, RAM, chip/GPU or engine build invalidates the fingerprint.
+multiplier at the requested depth with the dense target/reference ratio at depth
+zero. Context costs stay with the architecture, rather than importing dense
+attention costs. Add log-error radii conservatively. `Accuracy.Basis` names each
+path, operation and depth. Prediction reports the widest decode/prefill band over
+all three buckets, since a scenario and its headlines can use different buckets.
+
+If the dense base or target kernel fit is missing or rejected, keep the accepted
+family reference multiplier **alone**. Do not use the rejected multiplier. The
+unknown kernel ratio gets a policy allowance of at least **±60% decode / ±70%
+prefill**, or the larger band of an available dense component. Compound that
+allowance with the architecture band using the same log-radius rule; retain the
+original prediction's band if larger. This is an explicitly unmeasured transfer,
+not an empirical confidence level. The allowance uses the sparse-machine prior,
+not the Qwen validation point. It can produce bands exceeding 100%; these convey
+weak evidence and have no useful positive lower bound. A different accepted dense
+quant alone cannot identify the missing reference ratio, so this implementation
+does not substitute an unrelated denominator.
+
+An explicit rejection of the **requested** family/quant still blocks calibration.
+Missing architecture reference/depths, unknown kernels outside the probe grid,
+MLA, CPU offload, CPU-only machines and `--device` keep the prior. Prediction
+integration still requires both operations at every timing depth bucket. Changed
+OS, RAM, chip/GPU or engine build invalidates the fingerprint.
+
+**Check a real file already on disk**
+
+`trialm calibrate --check /path/to/model.gguf [--json]` requires an existing,
+current calibration and a unique catalog match. It reads the local GGUF header,
+matching architecture, layer/head/expert geometry and parameter count (within 5%
+of the catalog). The filename quant must agree with the header and catalog file.
+It uses the file's actual bytes and active tensor bytes for the prediction. URLs,
+ambiguous/unknown geometries, incomplete files and split GGUFs are rejected before
+benchmarking. Split-file accounting is not implemented for this command yet.
+
+The check uses the same calibration settings and default warm-up:
+
+```
+llama-bench -m /path/to/model.gguf -p 512 -n 8 -d 0,32768 \
+  -r 3 -o json -ngl 99 -fa on -lm mlock
+```
+
+Allow about 1–2 min on the M5; preparation at 32k and larger models can take longer.
+There is no download, engine installation or hard timeout. Ctrl-C cancels. Mlock
+warnings/failures discard that attempt and retry with mmap, recorded on each row.
+It needs GPU rows, all four depth/operation groups and three finite repetitions.
+
+A complete run appends four `validations` rows to `calib.json` atomically. They
+retain raw JSON, command arguments, catalog model/quant, local path, file size and
+mtime, load mode, predicted/median measured tok/s, repetition spread, band, signed
+error (`prediction / measurement - 1`), band inclusion and Basis. Prediction uses
+the same token interval as each benchmark row. Band inclusion uses the displayed
+speed interval `prediction * (1 ± band/100)` with a physical floor of zero. Misses
+are saved and printed as `MISSED band`; they are evidence, not command failures.
+Failed, interrupted or incomplete runs append nothing. Refit and synthetic-run
+resume retain validation rows but never include them in training. Checks do not
+change multipliers or tighten bands. JSON emits a `calibration_validation` event
+with the rows. `--check` is exclusive with status/plan/refit and rejects `--quick`.
 
 **Offline regression evidence**
 
@@ -212,7 +264,36 @@ the failed/noisy default-pick groups. Clean synthetic regression and fake-engine
 runs exercise the complete new grid, produce 10–30% bands, and verify median
 storage, mlock-warning fallback, depth transfer, cancellation and resume.
 
-**Verification on this M5, 2026-11-07**
+**First owner-run real-model check, 2026-11-07**
+
+`testdata/calib-m5-v2.json` and `real-qwen3.5-9b-Q4_K_M.json` are byte-for-byte
+copies of the owner-run calibration (192 s) and real-model JSON supplied under
+`/tmp/claude-501/p0b/calibdata/`. Build 11960, M5 24 GB, mlock, FA on, three
+repetitions. The prediction test refits the synthetic rows, predicts catalog
+`qwen3.5:9b` Q4_K_M and compares depth 0/32k decode (128 tokens) and prefill
+(2048 tokens) against the raw engine's `avg_ts`. Unlike `--check`'s robust median,
+this preserves the originally reported real-model figures.
+
+| Operation/depth | Measured tok/s | Calibrated tok/s | Error | Reported band |
+|---|---:|---:|---:|---:|
+| Decode / 0 | 14 | 20 | +38% | ±126% |
+| Decode / 32k | 9.4 | 16 | +69% | ±126% |
+| Prefill / 0 | 368 | 316 | −14% | ±154% |
+| Prefill / 32k | 162 | 288 | +78% | ±154% |
+
+All four points are inside these wide sensitivity bands. Decode uses the hybrid
+IQ3_XXS reference alone because dense IQ3_XXS failed its check; prefill uses the
+complete ratio. The remaining point error, especially deep prefill, means this
+**does not establish ±25% real-model accuracy**. No constants were fitted to this
+point. `TestM5RealQwen35Validation` logs every error and, if future changes miss
+the envelope, records an explicit skip with the numbers rather than fitting the
+fixture away. Focused unit tests separately enforce fallback and uncertainty
+rules. Run it with `go test ./internal/predict -run TestM5RealQwen35Validation -v`.
+The new `--check` runner is tested with the existing fake llama-bench engine,
+including stored misses and failure/cancellation paths; it has not run on a GPU
+in this sandbox.
+
+**Earlier sandbox verification on this M5, 2026-11-07**
 
 Homebrew llama-bench reports build 11960, commit `8642541b2`. The full CLI attempt
 used `/tmp/trialm-calib-src/real-run` as `TRIALM_HOME`. Generation plus the first
@@ -237,9 +318,9 @@ and after the failed calibration. Both outputs were identical and `simulated`:
 | gpt-oss:20b, MXFP4 | about 40 / 29 tok/s | about 730 tok/s | ±45% / ±55% |
 
 These are prior roofline outputs, **not measured model speeds**. Both memory
-checks said `no` because RAM detection was blocked. A calibrated comparison and
-a measured new-grid completion time remain outstanding. Run in a normal terminal with GPU
-and RAM access before interpreting these as a working setup.
+checks said `no` because RAM detection was blocked. Those sandbox attempts could not produce a calibrated comparison. The later
+owner-run fixture above supplies the first external comparison and actual run
+time; the sandbox still cannot perform a GPU check.
 
 `tools/m5-bench.sh` was syntax-checked, **never run**. It asks via `/dev/tty`
 before any model download, pins repository revisions, resumes `.part` downloads,

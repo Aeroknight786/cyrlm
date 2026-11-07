@@ -22,23 +22,36 @@ func cmdCalibrate(args []string) error {
 	quick := fs.Bool("quick", false, "about 2 min; the two default hybrid and sliding MoE picks")
 	plan := fs.Bool("plan", false, "print the grid and estimated M5 seconds without running a benchmark")
 	refit := fs.Bool("refit", false, "rebuild fits from saved raw rows without hardware or llama-bench")
+	check := fs.String("check", "", "check an existing local GGUF against calibration (about 1–2 min; no downloads)")
 	status := fs.Bool("status", false, "show calibration coverage and fingerprint status")
 	jsonOut := fs.Bool("json", false, "emit NDJSON events")
 	pos, e := parseInterspersed(fs, args)
 	if e != nil {
 		return e
 	}
+	checkSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "check" {
+			checkSet = true
+		}
+	})
+	if checkSet && *check == "" {
+		return errors.New("--check needs a local GGUF path")
+	}
 	if len(pos) > 0 {
-		return errors.New("usage: trialm calibrate [--quick] [--status | --plan | --refit] [--json]")
+		return errors.New("usage: trialm calibrate [--quick] [--status | --plan | --refit | --check model.gguf] [--json]")
 	}
 	selected := 0
-	for _, v := range []bool{*status, *plan, *refit} {
+	for _, v := range []bool{*status, *plan, *refit, *check != ""} {
 		if v {
 			selected++
 		}
 	}
 	if selected > 1 {
-		return errors.New("choose one of --status, --plan or --refit")
+		return errors.New("choose one of --status, --plan, --refit or --check")
+	}
+	if *quick && *check != "" {
+		return errors.New("--quick does not apply to --check")
 	}
 	home := trialmHome()
 	if *plan {
@@ -80,6 +93,12 @@ func cmdCalibrate(args []string) error {
 	engine, engineErr := calib.FindEngine(home)
 	if *status {
 		return calibrationStatus(ctx, home, engine, engineErr, *jsonOut)
+	}
+	if *check != "" {
+		if engineErr != nil {
+			return engineErr
+		}
+		return calibrationCheck(ctx, home, engine, *check, *jsonOut)
 	}
 	emit := func(ev calib.Event) {
 		if *jsonOut {
@@ -168,7 +187,16 @@ func calibrationStatus(ctx context.Context, home, engine string, engineErr error
 			reason = fe.Error()
 		} else if fp.Hash == c.Fingerprint.Hash {
 			state = "current"
-			reason = "Synthetic fit; real-model extrapolation awaits validation."
+			reason = "Synthetic fit; real-model coverage is not established. Use trialm calibrate --check with a local GGUF."
+			if len(c.Validations) > 0 {
+				misses := 0
+				for _, v := range c.Validations {
+					if !v.InsideBand {
+						misses++
+					}
+				}
+				reason = fmt.Sprintf("Synthetic fit; %d real-model validation rows saved (%d outside band). These checks do not establish general coverage.", len(c.Validations), misses)
+			}
 			if !c.Usable() {
 				state = "incomplete"
 				reason = "No usable fit yet. Run trialm calibrate --refit to inspect the held-out checks."

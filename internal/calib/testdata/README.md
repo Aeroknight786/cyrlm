@@ -9,3 +9,10 @@ The original quiet sliding/MXFP4 depth-zero decode fit had a 118% band; its
 hybrid/IQ3_XXS decode fit had a 42,389% band. The contended counterparts were
 244% and 140,190%. Quiet still includes severe outliers; regression tests must
 not pretend it is clean. See the parent README for the replacement derivation.
+
+`calib-m5-v2.json` and `real-qwen3.5-9b-Q4_K_M.json` are unmodified owner-run
+M5/build-11960 inputs from `/tmp/claude-501/p0b/calibdata/` (2026-11-07). The
+former took 192 seconds; the latter used Qwen3.5 9B Q4_K_M, mlock, FA on and
+three repetitions. See `../README.md` for the external validation result and
+its wide bands. These raw files include the source file path and machine
+identity needed to audit the benchmark; no weights are included.

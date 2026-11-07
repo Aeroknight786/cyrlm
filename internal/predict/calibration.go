@@ -34,6 +34,17 @@ func (t *Timing) calibrationFactor(mode string, depth int) float64 {
 	return t.calibration.prefill[i]
 }
 
+// WithCalibration predicts using supplied local evidence. The caller must verify
+// the machine/build fingerprint first; this also supports offline validation.
+func WithCalibration(in Input, c *calib.Calibration) Result {
+	baseline := in
+	baseline.Target.Synthetic = true // bypass automatic machine evidence lookup
+	r := Predict(baseline)
+	r.Target = in.Target
+	applyMachineCalibration(&r, in, c)
+	return r
+}
+
 // Cache by home, calibration mtime and engine mtime. Fingerprint checks run
 // once per process/cache change, rather than once per catalog prediction.
 var calibrationCache struct {
@@ -134,20 +145,39 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 	if sc.BasePromptTokens == 0 {
 		sc = DefaultScenario()
 	}
-	_, db, dec := c.Factor(class, q, sc.MidDepth, in.Model.Layers, "decode")
-	_, pb, pre := c.Factor(class, q, sc.BasePromptTokens/2, in.Model.Layers, "prefill")
-	if !dec || !pre {
-		return
-	}
 	factors := &timingCalibration{}
+	var db, pb int
+	var paths []string
 	for i, depth := range []int{0, 8192, 32768} {
-		// Timing can cross every bucket during a scenario. Partial coverage must
-		// keep the entire prediction simulated, including its uncertainty label.
-		var dok, pok bool
-		factors.decode[i], _, dok = c.Factor(class, q, depth, in.Model.Layers, "decode")
-		factors.prefill[i], _, pok = c.Factor(class, q, depth, in.Model.Layers, "prefill")
-		if !dok || !pok {
-			return
+		// Timing can cross every bucket. Report the widest used band for each
+		// operation so every headline and validation depth has honest coverage.
+		for _, mode := range []string{"decode", "prefill"} {
+			f, ok := c.FactorEvidence(class, q, depth, in.Model.Layers, mode)
+			if !ok {
+				return
+			}
+			band := f.BandPct
+			if f.Fallback {
+				prior := r.Accuracy.DecodePct
+				if mode == "prefill" {
+					prior = r.Accuracy.PrefillPct
+				}
+				if band < prior {
+					band = prior
+				}
+			}
+			if mode == "decode" {
+				factors.decode[i] = f.Multiplier
+				if band > db {
+					db = band
+				}
+			} else {
+				factors.prefill[i] = f.Multiplier
+				if band > pb {
+					pb = band
+				}
+			}
+			paths = append(paths, mode+": "+f.Basis)
 		}
 	}
 	r.Timing.calibration = factors
@@ -155,7 +185,7 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 	r.Accuracy.DecodePct = db
 	r.Accuracy.PrefillPct = pb
 	r.Accuracy.PrefillMeasureOnly = false
-	r.Accuracy.Basis = "calibrated on this machine; band from held-out synthetic layer error and repetition spread; context costs transfer per layer; real-model extrapolation awaits validation"
+	r.Accuracy.Basis = "calibrated on this machine; sensitivity band from synthetic checks and transfer allowances; context costs transfer per layer; real-model coverage is not established; " + strings.Join(paths, "; ")
 	r.DecodeTPS0 = r.Timing.DecodeTPS(512)
 	r.PrefillTPS2k = r.Timing.PrefillTPS(0, 2048)
 	r.PrefillTPSP0 = r.Timing.PrefillTPS(0, sc.BasePromptTokens)
