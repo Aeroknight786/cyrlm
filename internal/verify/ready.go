@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/llm"
+	"github.com/aeroknight786/trialm/internal/tok"
 	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
@@ -105,11 +108,13 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		depths = append(depths, o.ContextTokens)
 	}
 	for _, depth := range depths {
-		prompt := "Write a detailed explanation of a software cache."
-		if depth > 0 {
-			prompt = syntheticContext(max(1, depth-256)) + "\n" + prompt
-		}
-		m, _, e := measure(ctx, c, req(prompt, 32))
+		ask := "Write a detailed explanation of a software cache."
+		m, _, e := fitted(ctx, c, depth, func(n int) *llm.Request {
+			if n <= 0 {
+				return req(ask, 32)
+			}
+			return req(contextOf(n)+"\n"+ask, 32)
+		})
 		if e != nil || m.DecodeTPS <= 0 {
 			detail := "no decode timing"
 			if e != nil {
@@ -133,7 +138,7 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		n = min(n, max(1, o.ContextTokens-256))
 	}
 	text := syntheticContext(n)
-	m, reply, e := measure(ctx, c, req(text, 16))
+	m, reply, e := fitted(ctx, c, n+256, func(k int) *llm.Request { text = contextOf(max(1, k)); return req(text, 16) })
 	if e != nil || m.TTFTSec <= 0 {
 		detail := "no prompt timing"
 		if e != nil {
@@ -249,4 +254,45 @@ func toolCalls(ctx context.Context, o ReadyOptions) (bool, string) {
 		}
 	}
 	return true, "20 tool calls parsed"
+}
+
+// tooLong reads the token counts from a llama.cpp-style context error:
+// "request (1439 tokens) exceeds the available context size (512 tokens)".
+var tooLong = regexp.MustCompile(`\((\d+) tokens\)[^(]*\((\d+) tokens\)`)
+
+// fitted measures a prompt aimed at depth tokens. triaLM's token estimate
+// can be off for the engine's tokenizer, so it aims at 90% of the depth and,
+// when the engine reports the request as too long, rescales once from the
+// engine's own counts.
+func fitted(ctx context.Context, c upstream.Client, depth int, build func(n int) *llm.Request) (Measurement, string, error) {
+	n := 0
+	if depth > 0 {
+		n = max(1, min(depth-256, depth*9/10))
+	}
+	m, reply, e := measure(ctx, c, build(n))
+	for try := 0; try < 2 && e != nil && n > 1; try++ {
+		g := tooLong.FindStringSubmatch(e.Error())
+		if g == nil {
+			break
+		}
+		sent, avail := atoi(g[1]), atoi(g[2])
+		if sent <= 0 || avail <= 256 {
+			break
+		}
+		n = max(1, int(float64(n)*float64(avail-256)/float64(sent)*0.95))
+		m, reply, e = measure(ctx, c, build(n))
+	}
+	return m, reply, e
+}
+
+func atoi(s string) int { n, _ := strconv.Atoi(s); return n }
+
+// contextOf is synthetic code context cut to about n estimated tokens
+// (syntheticContext grows in whole ~150-token blocks).
+func contextOf(n int) string {
+	s := syntheticContext(n)
+	if c := tok.Count(s); c > n {
+		s = s[:len(s)*n/c]
+	}
+	return s
 }

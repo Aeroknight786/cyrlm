@@ -20,6 +20,7 @@ jobs:
       - name: Pinned engine setup, synthetic inference, undo
         env:
           TRIALM_ENGINE_E2E: '1'
-          # Coordinator can set TRIALM_E2E_REAL_READY and
-          # TRIALM_E2E_REAL_DOWNLOAD to 1 when both P2 agents merge.
+          # The real downloader (pinned ggml-org asset, sha256) and real Ready checks.
+          TRIALM_E2E_REAL_DOWNLOAD: '1'
+          TRIALM_E2E_REAL_READY: '1'
         run: go test -race ./internal/setup -run '^TestEngineE2E$' -count=1 -v -timeout 10m
