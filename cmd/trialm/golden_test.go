@@ -15,7 +15,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	goruntime "runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -99,7 +101,7 @@ func TestGolden(t *testing.T) {
 				if runErr != nil {
 					got += "\n[exit: " + runErr.Error() + "]\n[stderr]\n" + stderr.String()
 				}
-				got = strings.ReplaceAll(got, home, "$HOME")
+				got = normalizeFloats(strings.ReplaceAll(got, home, "$HOME"))
 				path := filepath.Join("testdata", "golden", fx.name, gc.name)
 				if *update {
 					if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -120,6 +122,22 @@ func TestGolden(t *testing.T) {
 			})
 		}
 	}
+}
+
+// longFloat matches floats printed with full precision (JSON output).
+var longFloat = regexp.MustCompile(`-?\d+\.\d{7,}`)
+
+// normalizeFloats rounds full-precision floats to 9 significant digits:
+// arm64 fuses multiply-adds and amd64 does not, so the last digits differ
+// between CI runners while every figure users see is identical.
+func normalizeFloats(s string) string {
+	return longFloat.ReplaceAllStringFunc(s, func(f string) string {
+		v, err := strconv.ParseFloat(f, 64)
+		if err != nil {
+			return f
+		}
+		return strconv.FormatFloat(v, 'g', 9, 64)
+	})
 }
 
 // goldenEnv is a minimal, deterministic environment: a fresh HOME, an empty
