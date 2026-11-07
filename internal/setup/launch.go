@@ -34,6 +34,12 @@ func (e *Executor) LaunchEngine(ctx context.Context, slug string, stop bool) (Jo
 	if err = e.validate(j.Plan); err != nil {
 		return j, err
 	}
+	if stop {
+		if err = proc.Stop(filepath.Join(e.Root, "run", slug+"-idle.pid")); err != nil {
+			return j, err
+		}
+		return j, e.stopEngine(ctx, j)
+	}
 	for i, s := range j.Plan.Steps {
 		if s.Kind == Admin && s.RebootReset && !stop {
 			current, readErr := exec.CommandContext(ctx, "sysctl", "-n", "iogpu.wired_limit_mb").Output()
@@ -49,7 +55,7 @@ func (e *Executor) LaunchEngine(ctx context.Context, slug string, stop bool) (Jo
 			if n < target {
 				e.emit("setup_log", Update{Lines: []string{"Re-apply wired limit · 1 OS password prompt after restart"}})
 				if e.Admin == nil {
-					return j, errors.New("wired limit needs 1 OS password prompt")
+					return j, &PasswordRequired{}
 				}
 				if err = e.Admin(ctx, s.Argv); err != nil {
 					return j, err
@@ -60,14 +66,11 @@ func (e *Executor) LaunchEngine(ctx context.Context, slug string, stop bool) (Jo
 			continue
 		}
 		pid := j.Steps[i].Inverse.PIDFile
-		if stop || s.ID == "bridge" {
+		if s.ID == "bridge" {
 			if pid != "" {
 				if err = proc.Stop(pid); err != nil {
 					return j, err
 				}
-			}
-			if stop && len(s.Inverse) > 0 {
-				err = e.command(ctx, s.Inverse, s.Env, filepath.Join(e.Root, "logs", slug, s.ID+"-stop.log"), Update{})
 			}
 		} else {
 			err = e.run(ctx, s, &j, i, path, Update{Index: i + 1, Total: len(j.Steps), Kind: Start, Title: s.Title})
@@ -81,3 +84,37 @@ func (e *Executor) LaunchEngine(ctx context.Context, slug string, stop bool) (Jo
 
 // Effective exposes the persisted address substitutions without changing the plan.
 func (j Journal) Effective(value string) string { return j.effective(value) }
+
+func (e *Executor) stopEngine(ctx context.Context, j Journal) error {
+	for i, s := range j.Plan.Steps {
+		if s.Kind != Start {
+			continue
+		}
+		if pid := j.Steps[i].Inverse.PIDFile; pid != "" {
+			if err := proc.Stop(pid); err != nil {
+				return err
+			}
+		}
+		if len(s.Inverse) == 0 {
+			continue
+		}
+		argv, env := j.effectiveArgs(s.Inverse), j.effectiveArgs(s.Env)
+		for i := range argv {
+			argv[i] = e.expand(argv[i])
+		}
+		for i := range env {
+			env[i] = e.expand(env[i])
+		}
+		if err := e.command(ctx, argv, env, filepath.Join(e.Root, "logs", j.Plan.Slug, s.ID+"-stop.log"), Update{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PasswordRequired keeps non-TTY agents from attempting an OS prompt.
+type PasswordRequired struct{}
+
+func (*PasswordRequired) Error() string   { return "1 OS password prompt needs an interactive terminal" }
+func (*PasswordRequired) NeedsUser() bool { return true }
+func (*ApprovalRequired) NeedsUser() bool { return true }

@@ -49,6 +49,7 @@ const (
 
 // Config uses application callbacks so no Charm types escape into the CLI/core.
 type Config struct {
+	LocalPlan       *setup.Plan
 	Plan            func(context.Context, core.Row, store.Preferences) (setup.Plan, error)
 	Apply           func(context.Context, setup.Plan, core.Sink) (setup.Journal, error)
 	ReadySetups     func(context.Context) ([]setup.Journal, error)
@@ -154,6 +155,9 @@ func New(cfg Config) *Root {
 	m.history, _ = cfg.Store.History()
 	_ = cfg.Store.Read("credits.json", &m.balance)
 	m.makeFields()
+	if cfg.LocalPlan != nil {
+		m.setup = setupView{plan: *cfg.LocalPlan, states: map[int]string{}}
+	}
 	if cfg.Start == Recipes && isClaimText(cfg.Preferences.Model) {
 		m.replace(ClaimCard)
 		m.pendingClaim = true
@@ -397,8 +401,11 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg { return childMsg{kind: Trial} }
 	case childMsg:
 		m.busy = false
-		if v.kind == Launching && v.err == nil {
+		if (v.kind == Launching || v.kind == Setup) && v.err == nil {
 			m.replace(Home)
+			if m.cfg.ReadySetups != nil {
+				return m, func() tea.Msg { rows, _ := m.cfg.ReadySetups(m.cfg.Context); return readyMsg{rows} }
+			}
 			return m, nil
 		}
 		if v.err != nil {
@@ -590,6 +597,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.replace(Needs)
+				return m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 			}
 			if key == "enter" {
 				if e := m.choice("accepted"); e != nil {
@@ -704,6 +712,10 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.back()
 			}
 		case Ready:
+			if key == "u" {
+				m.busy = true
+				return m, tea.ExecProcess(m.child([]string{"setup", m.setup.journal.Plan.Slug, "--undo", "--plain"}), func(e error) tea.Msg { return childMsg{kind: Setup, err: e} })
+			}
 			if key == "enter" {
 				return m, m.launchSetup(m.setup.journal)
 			}
@@ -809,7 +821,7 @@ func (m *Root) footer() string {
 		return "enter approve  n back  esc back"
 	}
 	if m.screen() == Ready {
-		return "enter launch  q later"
+		return "enter launch  u undo  q later"
 	}
 	if m.busy || (m.screen() == Chat && m.chat.busy) {
 		return "ctrl-c stop"
@@ -823,7 +835,7 @@ func (m *Root) footer() string {
 	case Paste:
 		return "enter connect  esc back"
 	case Calibration:
-		return "enter calibrate  s skip  q quit"
+		return "enter calibrate  s defaults  q quit"
 	case Calibrating:
 		return "ctrl-c stop"
 	case Needs:

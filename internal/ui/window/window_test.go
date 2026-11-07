@@ -161,3 +161,21 @@ func TestClosedWindowReturnsCheckpoint(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func TestLaunchVerbScript(t *testing.T) {
+	s := store.Store{Dir: t.TempDir()}
+	_, script, err := generate(s, "linux", "/tmp/trialm", "/tmp", "launch", []string{"codex", "--setup", "local"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "'launch' '--plain' '--here' 'codex' '--setup' 'local'") {
+		t.Fatal(string(b))
+	}
+	if strings.Contains(string(b), "'try'") {
+		t.Fatal(string(b))
+	}
+}

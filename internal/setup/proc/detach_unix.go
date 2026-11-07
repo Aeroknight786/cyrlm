@@ -15,3 +15,11 @@ func DetachAttrs(c *exec.Cmd) {
 }
 
 func Terminate(p *os.Process) error { return syscall.Kill(-p.Pid, syscall.SIGKILL) }
+
+func Alive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil || err == syscall.EPERM
+}

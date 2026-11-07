@@ -45,7 +45,7 @@ func TestIDESnippets(t *testing.T) {
 				model = row["model"].(string)
 				key = row["apiKey"].(string)
 			case "zed":
-				provider := cfg["language_models"].(map[string]any)["openai_compatible"].(map[string]any)["triaLM"].(map[string]any)
+				provider := cfg["language_models"].(map[string]any)["openai_compatible"].(map[string]any)["trialm"].(map[string]any)
 				base = provider["api_url"].(string)
 				model = provider["available_models"].([]any)[0].(map[string]any)["name"].(string)
 				if len(s.Env) != 1 || s.Env[0][0] != "TRIALM_API_KEY" {

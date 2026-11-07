@@ -57,6 +57,9 @@ func (o Options) ownedPath(rel string) string {
 		// must work when pasted into a terminal in a different directory.
 		home, _ = filepath.Abs(home)
 	}
+	if o.Namespace != "" {
+		rel = path.Join(o.Namespace, rel)
+	}
 	// Symbolic home paths are plan paths, not paths on the current host.
 	if strings.HasPrefix(home, "~/") {
 		return path.Join(home, "harness", rel)

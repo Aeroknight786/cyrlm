@@ -49,7 +49,7 @@ func (m *Root) body() string {
 		}
 		return title + "\n" + m.authURL + "\n" + m.password.View()
 	case Calibration:
-		return title + credit + "\n\nCalibrate this machine · recommended\n≈3–7 min · no model downloads\nSynthetic files need about 6 GB of temporary disk.\nUses an installed llama-bench. Skip and browse if unavailable."
+		return title + credit + "\n\nCalibrate this machine · recommended\n≈3–7 min · no model downloads\nSynthetic files need about 6 GB of temporary disk.\nUses an installed llama-bench.\ns skips calibration and accepts these defaults." + fmt.Sprintf("\nDefaults · %s · %s · %dk native", m.cfg.Preferences.Tool, m.cfg.Preferences.Priority, m.cfg.Preferences.Context/1024)
 	case Calibrating:
 		elapsed := time.Since(m.started).Seconds()
 		fraction := 0.0

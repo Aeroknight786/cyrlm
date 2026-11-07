@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aeroknight786/trialm/internal/setup/proc"
@@ -26,6 +28,9 @@ func (e *Executor) LaunchLease(slug, token string) (string, error) {
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return "", err
 	}
+	if err = proc.Stop(filepath.Join(e.Root, "run", slug+"-idle.pid")); err != nil {
+		return "", err
+	}
 	idle := filepath.Join(filepath.Dir(path), "idle")
 	if token == "" {
 		_ = os.Remove(idle)
@@ -33,7 +38,8 @@ func (e *Executor) LaunchLease(slug, token string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		err = f.Close()
+		_, err = f.WriteString(strconv.Itoa(os.Getpid()))
+		err = errors.Join(err, f.Close())
 		return filepath.Base(f.Name()), err
 	}
 	if token != filepath.Base(token) {
@@ -75,19 +81,23 @@ func (e *Executor) IdleStop(ctx context.Context, slug, token string, delay time.
 	if err != nil {
 		return err
 	}
-	if len(leases) > 0 {
-		return nil
+	for _, lease := range leases {
+		path := filepath.Join(filepath.Dir(path), "leases", lease.Name())
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+		if err != nil || proc.Alive(pid) {
+			return nil
+		}
+		if err = os.Remove(path); err != nil {
+			return err
+		}
 	}
 	j, err := e.Status(slug)
 	if err != nil {
 		return err
 	}
-	for _, r := range j.Steps {
-		if r.Inverse.PIDFile != "" {
-			if err = proc.Stop(r.Inverse.PIDFile); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return e.stopEngine(ctx, j)
 }

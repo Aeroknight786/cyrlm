@@ -195,9 +195,10 @@ type Options struct {
 	// Bridge selects real local runtime labels, also used by permanent setup.
 	Bridge bool
 	// Home overrides the triaLM home for plan generation; runtime paths are absolute.
-	Home  string
-	Port  int
-	Model string
+	Home      string
+	Namespace string
+	Port      int
+	Model     string
 	// Tuned adds harness-side settings that keep the local prompt cache
 	// working (e.g. Claude Code's attribution header).
 	Tuned bool

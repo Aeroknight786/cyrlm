@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -33,6 +32,15 @@ func cmdLaunch(args []string) error {
 	if err != nil {
 		return err
 	}
+	modes := 0
+	for _, enabled := range []bool{*printOnly, *serve, *stop, *check} {
+		if enabled {
+			modes++
+		}
+	}
+	if modes > 1 {
+		return &exitError{2, "choose one of --print, --serve, --stop or --check"}
+	}
 	if len(pos) > 1 {
 		return errors.New("usage: trialm launch [tool] [--setup slug] [--print|--serve|--stop|--check]")
 	}
@@ -63,9 +71,16 @@ func cmdLaunch(args []string) error {
 		return needs("trialm setup", "no Ready setup exists")
 	}
 
-	token := ""
+	selected := false
+	for _, j := range rows {
+		selected = selected || j.Plan.Slug == *slug
+	}
+	if !selected {
+		_ = emit("needs_user", map[string]any{"needs": "setup", "run": "trialm setup"})
+		return needs("trialm setup", "no Ready setup for "+*slug)
+	}
 	if !*printOnly && !*stop {
-		token, err = executor.LaunchLease(*slug, "")
+		token, err := executor.LaunchLease(*slug, "")
 		if err != nil {
 			return err
 		}
@@ -78,7 +93,7 @@ func cmdLaunch(args []string) error {
 			if e != nil {
 				return
 			}
-			c := proc.Options{Argv: []string{exe, "launch", "--setup", *slug, "--idle-token", generation}, Log: filepath.Join(executor.Root, "logs", *slug, "idle.log")}
+			c := proc.Options{Argv: []string{exe, "launch", "--setup", *slug, "--idle-token", generation}, Log: filepath.Join(executor.Root, "logs", *slug, "idle.log"), PIDFile: filepath.Join(executor.Root, "run", *slug+"-idle.pid")}
 			_ = proc.Timer(c)
 		}()
 	}
@@ -109,7 +124,7 @@ func cmdLaunch(args []string) error {
 		return emit("result", map[string]any{"stopped": true})
 	}
 	if l.Bridge != nil {
-		defer l.Bridge.Shutdown(context.Background())
+		defer l.Bridge.Close()
 	}
 	if *check {
 		fmt.Fprint(out(), l.Journal.Report.Plain())
@@ -142,6 +157,10 @@ func cmdLaunch(args []string) error {
 	if !*printOnly && !*serve && !*stop && !*check && !*here && (*win || autoWindow()) {
 		_ = emit("launch", map[string]any{"started": true, "engine": l.Journal.Plan.Runtime, "endpoint": l.Endpoint, "command": l.Wiring.Command, "env": l.Wiring.Env})
 		err = (window.Launcher{Verb: "launch"}).Run(commandContext, store.Default(), window.Args(args), out())
+		var child *window.ChildExit
+		if errors.As(err, &child) {
+			return &exitError{child.Code, child.Error()}
+		}
 		var need *window.NeedsTerminal
 		if errors.As(err, &need) {
 			_ = emit("needs_user", map[string]any{"needs": "terminal", "run": need.Run})

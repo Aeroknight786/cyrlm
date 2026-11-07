@@ -9,6 +9,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/terminal"
 	"github.com/aeroknight786/trialm/internal/ui"
+	"github.com/aeroknight786/trialm/internal/ui/tui"
 )
 
 func cmdPlan(args []string) error {
@@ -98,7 +99,7 @@ func cmdPlan(args []string) error {
 	if yes != "" && yes != "true" && string(yes) != plan.ID {
 		return &exitError{4, "setup plan changed; review trialm setup --dry-run and approve its new --yes=<plan_id>"}
 	}
-	if !c.jsonOut {
+	if !c.jsonOut && (selectedMode != Interactive || *dry || currentVerb == "plan") {
 		ui.PrintPlan(out(), plan)
 	}
 	if currentVerb == "plan" && c.jsonOut {
@@ -106,6 +107,9 @@ func cmdPlan(args []string) error {
 	}
 	if *dry || currentVerb == "plan" {
 		return emit("result", map[string]any{"plan_id": plan.ID, "ready": false})
+	}
+	if yes == "" && selectedMode == Interactive {
+		return tui.RunSetup(commandContext, plan)
 	}
 	if yes == "" {
 		if c.jsonOut || !terminal.IsTTY(os.Stdin) {
@@ -126,8 +130,8 @@ func cmdPlan(args []string) error {
 	return setupError(err)
 }
 func setupError(err error) error {
-	var approval *setup.ApprovalRequired
-	if errors.As(err, &approval) {
+	var approval interface{ NeedsUser() bool }
+	if errors.As(err, &approval) && approval.NeedsUser() {
 		return &exitError{3, err.Error()}
 	}
 	var ready *setup.NotReady

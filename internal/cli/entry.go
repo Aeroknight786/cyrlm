@@ -13,6 +13,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/calibrationcli"
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/paths"
+	"github.com/aeroknight786/trialm/internal/server"
 	"github.com/aeroknight786/trialm/internal/setup/proc"
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/terminal"
@@ -159,7 +160,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 	case "try":
 		err = cmdServe(args, true)
 	case "bridge":
-		err = cmdBridge(args)
+		err = server.CommandBridge(commandContext, out(), args)
 	case "bg":
 		err = proc.Background(ctx, args, out())
 	case "inspect":

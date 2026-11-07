@@ -197,3 +197,76 @@ func TestNoReady(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPrintCountsWiredPromptWithoutExecutingIt(t *testing.T) {
+	s, _, j := launchJournal(t)
+	step := setup.Step{ID: "wired-limit", Kind: setup.Admin, Argv: []string{"sudo", "sysctl", "iogpu.wired_limit_mb=20480"}, RebootReset: true}
+	j.Plan.Steps = append([]setup.Step{step}, j.Plan.Steps...)
+	j.Steps = append([]setup.Record{{State: "done"}}, j.Steps...)
+	j.Plan.Seal()
+	path := filepath.Join(os.Getenv("TRIALM_HOME"), "setups", j.Plan.Slug, "journal.json")
+	b, _ := json.Marshal(j)
+	_ = os.WriteFile(path, b, 0600)
+	l, err := s.Launch(context.Background(), LaunchOptions{Print: true, Tool: "codex", Admin: func(context.Context, []string) error { t.Fatal("admin ran during print"); return nil }})
+	if err != nil || l.Journal.Plan.Prompts.Passwords != 1 || l.Journal.Plan.Prompts.AfterRestart != "1 more after each restart" {
+		t.Fatalf("%+v %v", l.Journal.Plan.Prompts, err)
+	}
+}
+
+func TestIdleStopsNativeAdapter(t *testing.T) {
+	_, e, j := launchJournal(t)
+	marker := filepath.Join(e.Root, "native-stopped")
+	j.Plan.Steps[0].Inverse = []string{j.Plan.Steps[0].Argv[0], "-test.run=^TestNativeStopHelper$"}
+	j.Plan.Steps[0].Env = []string{"TRIALM_NATIVE_STOP=" + marker}
+	j.Plan.Seal()
+	j.Steps[0].Inverse.PIDFile = ""
+	b, _ := json.Marshal(j)
+	_ = os.WriteFile(filepath.Join(e.Root, "setups", j.Plan.Slug, "journal.json"), b, 0600)
+	token, err := e.LaunchLease(j.Plan.Slug, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err = e.LaunchLease(j.Plan.Slug, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = e.IdleStop(context.Background(), j.Plan.Slug, token, time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(marker); err != nil {
+		t.Fatal("native stop inverse did not run", err)
+	}
+}
+func TestNativeStopHelper(t *testing.T) {
+	if path := os.Getenv("TRIALM_NATIVE_STOP"); path != "" {
+		if err := os.WriteFile(path, []byte("stopped"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestPrintPreparesOwnedCLIConfigWithoutStarting(t *testing.T) {
+	s, _, j := launchJournal(t)
+	l, err := s.Launch(context.Background(), LaunchOptions{Print: true, Tool: "continue"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(l.Wiring.Files) != 1 {
+		t.Fatal(l.Wiring.Files)
+	}
+	for path, want := range l.Wiring.Files {
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != want {
+			t.Fatalf("print command config unavailable: %v", err)
+		}
+		if !strings.Contains(path, filepath.Join("harness", j.Plan.Slug, "continue")) {
+			t.Fatal(path)
+		}
+	}
+	if _, err = os.Stat(j.Steps[0].Inverse.PIDFile); !os.IsNotExist(err) {
+		t.Fatal("print started the engine")
+	}
+	if l.Bridge != nil {
+		t.Fatal("print started a bridge")
+	}
+}

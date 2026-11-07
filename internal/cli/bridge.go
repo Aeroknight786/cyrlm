@@ -3,17 +3,11 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
-	"github.com/aeroknight786/trialm/internal/server"
 	"github.com/aeroknight786/trialm/internal/setup/proc"
 )
-
-func cmdBridge(args []string) error             { return server.CommandBridge(commandContext, out(), args) }
-func printRunning(extra string)                 { server.PrintRunning(out(), extra) }
-func serveUntilSignal(srv *server.Server) error { return server.Wait(commandContext, out(), srv) }
 
 // ---------------------------------------------------------------- background
 
@@ -62,5 +56,3 @@ func startBackground(cmd string, args []string, logPath string) error {
 	}
 	return proc.Detach(commandContext, out(), append([]string{cmd}, args...), logPath, "", 90*time.Second, true)
 }
-
-var endpointLine = regexp.MustCompile(`Endpoints on (http://127\.0\.0\.1:\d+)`)

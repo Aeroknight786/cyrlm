@@ -683,8 +683,8 @@ func cmdServe(args []string, try bool) error {
 			return lerr
 		}
 	}
-	printRunning(" — the session summary is printed on exit.")
-	return serveUntilSignal(srv)
+	server.PrintRunning(out(), " — the session summary is printed on exit.")
+	return server.Wait(commandContext, out(), srv)
 }
 
 func nonEmptyStr(a, b string) string {

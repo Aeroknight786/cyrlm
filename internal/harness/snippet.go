@@ -18,7 +18,7 @@ func (h Harness) Snippet(o Options, endpoint string) (Setup, error) {
 		settings := map[string]any{"apiProvider": "openai", "openAiBaseUrl": base, "openAiModelId": o.Model, "openAiApiKey": "trialm", "openAiModelInfo": map[string]any{"contextWindow": o.ContextTokens, "supportsTools": true}}
 		return Setup{Files: map[string]string{o.ownedPath("cline/extension.json"): prettyJSON(settings)}}, nil
 	case "zed":
-		cfg := map[string]any{"language_models": map[string]any{"openai_compatible": map[string]any{"triaLM": map[string]any{"api_url": base, "available_models": []any{map[string]any{"name": o.Model, "display_name": o.Model, "max_tokens": o.ContextTokens, "capabilities": map[string]bool{"tools": true}}}}}}}
+		cfg := map[string]any{"language_models": map[string]any{"openai_compatible": map[string]any{"trialm": map[string]any{"api_url": base, "available_models": []any{map[string]any{"name": o.Model, "display_name": o.Model, "max_tokens": o.ContextTokens, "capabilities": map[string]bool{"tools": true}}}}}}}
 		return Setup{Files: map[string]string{o.ownedPath("zed/settings.json"): prettyJSON(cfg)}, Env: [][2]string{{"TRIALM_API_KEY", "trialm"}}, Command: []string{"zed"}}, nil
 	}
 	return Setup{}, fmt.Errorf("--serve needs cline, continue or zed")

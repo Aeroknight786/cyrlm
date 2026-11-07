@@ -18,6 +18,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/server"
 	"github.com/aeroknight786/trialm/internal/setup/download"
 	"github.com/aeroknight786/trialm/internal/setup/proc"
+	"github.com/aeroknight786/trialm/internal/terminal"
 	"github.com/aeroknight786/trialm/internal/verify"
 )
 
@@ -190,7 +191,7 @@ func (e *Executor) Apply(ctx context.Context, p Plan, policy Policy) (Journal, e
 	var bridge *server.Server
 	defer func() {
 		if bridge != nil {
-			_ = bridge.Shutdown(context.Background())
+			_ = bridge.Close()
 		}
 	}()
 	for i, s := range p.Steps {
@@ -526,6 +527,9 @@ func (e *Executor) expandArgs(argv []string) []string {
 
 // OSAdmin is wired only by the interactive CLI. Tests leave Executor.Admin nil.
 func OSAdmin(ctx context.Context, argv []string) error {
+	if !terminal.IsTTY(os.Stdin) {
+		return &PasswordRequired{}
+	}
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr

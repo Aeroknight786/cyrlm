@@ -19,3 +19,16 @@ func DetachAttrs(c *exec.Cmd) {
 func Terminate(p *os.Process) error {
 	return exec.Command("taskkill", "/PID", strconv.Itoa(p.Pid), "/T", "/F").Run()
 }
+
+func Alive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	handle, err := syscall.OpenProcess(0x00100000, false, uint32(pid))
+	if err != nil {
+		return false
+	}
+	defer syscall.CloseHandle(handle)
+	event, err := syscall.WaitForSingleObject(handle, 0)
+	return err == nil && event == 258
+}

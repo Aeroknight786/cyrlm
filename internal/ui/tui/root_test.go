@@ -299,7 +299,6 @@ func TestJourneyAKeyCount(t *testing.T) {
 		cmd.Env = append(os.Environ(), "TRIALM_TUI_HELPER=1", "TRIALM_TUI_ENDPOINT="+trialServer.URL, "TRIALM_HOME="+s.Dir)
 		return cmd
 	}
-	_ = s.Write("prefs.json", map[string]any{"calibration_offer": "accepted"})
 	approvals := atomic.Int32{}
 	launches := atomic.Int32{}
 	cfg.Plan = func(ctx context.Context, row core.Row, p store.Preferences) (setup.Plan, error) {
@@ -332,8 +331,8 @@ func TestJourneyAKeyCount(t *testing.T) {
 	waitScreen(t, program, First)
 	program.Send(key("enter"))
 	keys++
-	waitScreen(t, program, Needs)
-	program.Send(key("enter"))
+	waitScreen(t, program, Calibration)
+	program.Send(key("s"))
 	keys++
 	waitScreen(t, program, Recipes)
 	// Ranking completes asynchronously. Query the loop until the first row exists.
@@ -381,7 +380,7 @@ func TestJourneyAKeyCount(t *testing.T) {
 	if keys+1 > 7 || approvals.Load() != 1 || launches.Load() != 1 || clicks.Load() != 1 || requests.Load() != 1 {
 		t.Fatalf("keys=%d browser clicks=%d requests=%d", keys, clicks.Load(), requests.Load())
 	}
-	t.Logf("%d keys including install paste, 1 approval, 1 browser click, 0 copy-paste. Calibration already completed.", keys+1)
+	t.Logf("%d keys including install paste, 1 approval, 1 browser click, 0 copy-paste. Fresh state, displayed defaults and calibration skipped.", keys+1)
 }
 
 type probePlan struct{ ready chan bool }
@@ -418,8 +417,11 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 	t.Setenv("TRIALM_HOME", m.cfg.Store.Dir)
 	t.Setenv("TRIALM_CALIBRATION_HELPER", "1")
 	m.stack = []Screen{Calibration}
-	m.Update(key("s"))
-	if m.screen() != Needs {
+	_, cmd := m.Update(key("s"))
+	if cmd != nil {
+		m.Update(cmd())
+	}
+	if m.screen() != Recipes {
 		t.Fatal(m.screen())
 	}
 	var prefs map[string]any
@@ -469,7 +471,7 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 }
 func TestFooterBindings(t *testing.T) {
 	m := fixture(t)
-	allowed := map[Screen][]string{First: {"enter browser", "p paste", "s skip", "q quit"}, Calibration: {"enter calibrate", "s skip", "q quit"}, Recipes: {"enter try", "s set up", "d details", "w window", "r needs", "/ search"}, Details: {"enter try", "space boosts", "s set up", "? why", "esc back", "q quit"}, Summary: {"1 too slow", "2 fine", "3 great", "s set up", "t another", "q quit"}}
+	allowed := map[Screen][]string{First: {"enter browser", "p paste", "s skip", "q quit"}, Calibration: {"enter calibrate", "s defaults", "q quit"}, Recipes: {"enter try", "s set up", "d details", "w window", "r needs", "/ search"}, Details: {"enter try", "space boosts", "s set up", "? why", "esc back", "q quit"}, Summary: {"1 too slow", "2 fine", "3 great", "s set up", "t another", "q quit"}}
 	for screen, want := range allowed {
 		m.stack = []Screen{screen}
 		if got := strings.Split(m.footer(), "  "); len(got) > 6 || strings.Join(got, "|") != strings.Join(want, "|") {

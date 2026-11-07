@@ -3,15 +3,26 @@ package tui
 import (
 	"context"
 	"fmt"
+	"math"
+	"os/exec"
 	"strings"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/core"
+	"github.com/aeroknight786/trialm/internal/engine"
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/setup"
+	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/verify"
 )
+
+type adminRequest struct {
+	ctx  context.Context
+	argv []string
+	done chan error
+}
 
 type setupEvent struct {
 	event   core.Event
@@ -33,6 +44,13 @@ type setupView struct {
 
 func (m *Root) planSetup() tea.Cmd {
 	row, ok := m.row()
+	if m.screen() == Summary {
+		if model, found := catalog.Lookup(m.last.Model); found {
+			row.Result.Model = model
+			row.Result.Quant.Name = m.last.Quant
+			row.Result.Runtime, _ = engine.Get(m.last.Runtime)
+		}
+	}
 	if !ok || m.cfg.Plan == nil {
 		return nil
 	}
@@ -80,6 +98,9 @@ func (m *Root) setupEvent(v setupEvent) tea.Cmd {
 			m.message = v.err.Error()
 		} else if v.journal.State == "ready" {
 			m.replace(Ready)
+			if m.setup.calibrated {
+				return m.find()
+			}
 		}
 		return nil
 	}
@@ -89,6 +110,10 @@ func (m *Root) setupEvent(v setupEvent) tea.Cmd {
 		return nil
 	}
 	switch v.event.Type {
+	case "setup_admin":
+		request := v.event.Data.(adminRequest)
+		cmd := exec.CommandContext(request.ctx, request.argv[0], request.argv[1:]...)
+		return tea.ExecProcess(cmd, func(err error) tea.Msg { request.done <- err; return setupEvent{} })
 	case "setup_plan":
 		data, _ := v.event.Data.(map[string]any)
 		m.setup.plan, _ = data["plan"].(setup.Plan)
@@ -132,6 +157,9 @@ func (m *Root) setupBody() string {
 		return "Planning local setup…"
 	}
 	b := fmt.Sprintf("Set up %s · %s · %s\n%d approval · %d OS password prompts · %s download\n", p.ModelName, p.Quant, p.RuntimeName, p.Prompts.Approvals, p.Prompts.Passwords, figure.Exact(float64(p.DownloadBytes)/1e9, "GB", figure.Measured, "setup:resolved-files").String())
+	if p.DownloadUnknown {
+		b += "Plus installer downloads of unknown size\n"
+	}
 	if p.Prompts.AfterRestart != "" {
 		b += p.Prompts.AfterRestart + "\n"
 	}
@@ -183,7 +211,7 @@ func (m *Root) readyBody() string {
 		measured := figure.Band(actual, 20, "t/s", figure.Measured, "verify:ready").String()
 		miss := "—"
 		if predicted > 0 {
-			miss = figure.Exact(100*(actual/predicted-1), "%", figure.Measured, "verify:miss").String()
+			miss = figure.Band(math.Round(100*(actual/predicted-1)), 20, "%", figure.Measured, "verify:miss").String()
 			if actual >= predicted {
 				miss = "+" + miss
 			}
@@ -201,7 +229,26 @@ func (m *Root) readyBody() string {
 		b += mark + " " + c.Name + " · " + c.Detail + "\n"
 	}
 	if m.setup.calibrated {
-		b += "calibrated this Mac · re-ranked\n"
+		machine := "this machine"
+		if m.detection.Target.OS == "darwin" {
+			machine = "this Mac"
+		}
+		b += "calibrated " + machine + " · re-ranked\n"
 	}
 	return b + "enter open " + m.cfg.Preferences.Tool + " now  later: trialm launch"
+}
+
+func RunSetup(ctx context.Context, p setup.Plan) error {
+	s := store.Default()
+	prefs, _ := s.Preferences()
+	prefs.Context = p.ContextTokens
+	if p.Harness != "" {
+		prefs.Tool = p.Harness
+	}
+	cfg := SessionConfig(ctx, s, prefs, core.Options{}, 5, "")
+	cfg.Start = Setup
+	cfg.LocalPlan = &p
+	cfg.UpdateNotice = nil
+	cfg.Balance = nil
+	return Run(cfg)
 }

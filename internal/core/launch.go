@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/aeroknight786/trialm/internal/engine"
 	"github.com/aeroknight786/trialm/internal/harness"
@@ -57,7 +56,7 @@ func (s Session) ReadySetups(ctx context.Context) ([]setup.Journal, error) {
 			continue
 		}
 		j, readErr := e.Status(entry.Name())
-		if readErr != nil || j.State != "ready" || j.Report == nil || !j.Report.Ready {
+		if readErr != nil || j.Plan.Slug != entry.Name() || j.State != "ready" || j.Report == nil || !j.Report.Ready {
 			continue
 		}
 		info, readErr := os.Stat(filepath.Join(e.Root, "setups", entry.Name(), "journal.json"))
@@ -144,11 +143,9 @@ func (s Session) Launch(ctx context.Context, o LaunchOptions) (l Launch, err err
 	if err != nil {
 		return l, err
 	}
-	l.Wiring = h.SetupFor(harness.Options{Port: port, Model: p.LocalModelName, ContextTokens: p.ContextTokens, Tuned: p.Tuned, Protocol: protocol, Bridge: true, Home: e.Root})
+	l.Wiring = h.SetupFor(harness.Options{Port: port, Model: p.LocalModelName, ContextTokens: p.ContextTokens, Tuned: p.Tuned, Protocol: protocol, Bridge: true, Home: e.Root, Namespace: p.Slug})
 	l.Wiring.Unset = []string{"CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"}
-	if !o.Print {
-		err = l.Wiring.WriteFiles()
-	}
+	err = l.Wiring.WriteFiles()
 	if err == nil && o.Check {
 		report, checkErr := verify.Ready(ctx, verify.ReadyOptions{Endpoint: base, Model: p.LocalModelName, ContextTokens: p.ContextTokens, Predicted: p.Predicted, BitsPerWeight: p.BitsPerWeight, Harness: &h, APIs: apis})
 		l.Journal.Report = &report
@@ -158,20 +155,8 @@ func (s Session) Launch(ctx context.Context, o LaunchOptions) (l Launch, err err
 		}
 	}
 	if err != nil && l.Bridge != nil {
-		_ = l.Bridge.Shutdown(context.Background())
+		_ = l.Bridge.Close()
 	}
 	s.Emit("launch", map[string]any{"engine": p.Runtime, "endpoint": base, "command": l.Wiring.Command, "env": l.Wiring.Env})
 	return l, err
 }
-
-func (l Launch) PIDFiles() []string {
-	var files []string
-	for _, r := range l.Journal.Steps {
-		if r.Inverse.PIDFile != "" {
-			files = append(files, r.Inverse.PIDFile)
-		}
-	}
-	return files
-}
-
-func (l Launch) Command() string { return strings.TrimSpace(l.Wiring.Render()) }

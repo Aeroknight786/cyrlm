@@ -1,8 +1,10 @@
 package proc
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 // Timer detaches a self-contained idle-stop worker without waiting for health.
@@ -18,6 +20,15 @@ func Timer(o Options) error {
 	DetachAttrs(c)
 	if err = c.Start(); err != nil {
 		return err
+	}
+	if o.PIDFile != "" {
+		_ = os.MkdirAll(filepath.Dir(o.PIDFile), 0700)
+		b, _ := json.Marshal(Record{PID: c.Process.Pid, Argv: o.Argv, Log: o.Log})
+		if err = os.WriteFile(o.PIDFile, b, 0600); err != nil {
+			_ = Terminate(c.Process)
+			_ = c.Wait()
+			return err
+		}
 	}
 	go func() { _ = c.Wait() }()
 	return nil
