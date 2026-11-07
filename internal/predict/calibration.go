@@ -79,7 +79,7 @@ func machineCalibration() *calib.Calibration {
 	calibrationCache.key = key
 	calibrationCache.data = nil
 	c, e := calib.Load(home)
-	if e != nil || !c.Usable() {
+	if e != nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
@@ -153,6 +153,24 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 		// operation so every headline and validation depth has honest coverage.
 		for _, mode := range []string{"decode", "prefill"} {
 			f, ok := c.FactorEvidence(class, q, depth, in.Model.Layers, mode)
+			speed, realBand, real := c.RealSpeed(in.Model.ID, r.Quant.Name, in.Runtime.ID, mode, depth)
+			if real {
+				baseline := r.Timing.DecodeTPS(depth)
+				if mode == "prefill" {
+					baseline = r.Timing.PrefillTPS(depth, depth+512)
+				}
+				if baseline > 0 {
+					band := realBand
+					if band < 0 {
+						band = r.Accuracy.DecodePct
+						if mode == "prefill" {
+							band = r.Accuracy.PrefillPct
+						}
+					}
+					f = calib.FactorResult{Multiplier: speed / baseline, BandPct: band, Basis: "real-model measurement"}
+					ok = true
+				}
+			}
 			if !ok {
 				return
 			}
@@ -185,7 +203,7 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 	r.Accuracy.DecodePct = db
 	r.Accuracy.PrefillPct = pb
 	r.Accuracy.PrefillMeasureOnly = false
-	r.Accuracy.Basis = "calibrated on this machine; sensitivity band from synthetic checks and transfer allowances; context costs transfer per layer; real-model coverage is not established; " + strings.Join(paths, "; ")
+	r.Accuracy.Basis = "calibrated on this machine; sensitivity band from synthetic checks and transfer allowances; context costs transfer per layer; " + strings.Join(paths, "; ")
 	r.DecodeTPS0 = r.Timing.DecodeTPS(512)
 	r.PrefillTPS2k = r.Timing.PrefillTPS(0, 2048)
 	r.PrefillTPSP0 = r.Timing.PrefillTPS(0, sc.BasePromptTokens)
