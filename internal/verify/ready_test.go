@@ -60,7 +60,7 @@ func TestReadyFake(t *testing.T) {
 			if len(r.Misses) != 2 || !strings.Contains(r.Plain(), "spec_verify") {
 				t.Fatal(r)
 			}
-			if len(r.SpecVerifySecs) != 4 || r.SpecVerifySecs[0] != .002 {
+			if len(r.SpecVerifySecs) != 0 || !strings.Contains(r.Plain(), "inconclusive") {
 				t.Fatal(r.SpecVerifySecs)
 			}
 		})
@@ -111,4 +111,56 @@ func TestRealEngine(t *testing.T) {
 		t.Fatalf("%+v %v", r, err)
 	}
 	t.Logf("decode=%v prefill=%g followup=%g spec=%v", r.DecodeTPS, r.PrefillTPS, r.FollowUpTTFT, r.SpecVerifySecs)
+}
+
+func TestReadyMissingUsageAndSlowDepth(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var b map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&b)
+		if b["stream"] == true {
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"hello world\"}}]}\n\n")
+			w.(http.Flusher).Flush()
+			time.Sleep(3 * time.Millisecond)
+			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\" more words\"}}]}\n\ndata: [DONE]\n\n")
+			return
+		}
+		fmt.Fprint(w, `{}`)
+	}))
+	defer s.Close()
+	r, err := Ready(context.Background(), ReadyOptions{Endpoint: s.URL, ContextTokens: 512, Predicted: Predicted{DecodeTPSTarget: 1e9}})
+	if err != nil || r.Ready || r.Failing != "spill" || !strings.Contains(r.Plain(), "below 50%") || !strings.Contains(r.Plain(), "estimated") || !strings.Contains(r.Plain(), "cache unknown") || !strings.Contains(r.Plain(), "inconclusive") {
+		t.Fatalf("%+v %v", r, err)
+	}
+}
+
+func TestSweepCountsAndCache(t *testing.T) {
+	for _, cache := range []int{0, 7} {
+		t.Run(fmt.Sprint(cache), func(t *testing.T) {
+			n := 0
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var b map[string]any
+				_ = json.NewDecoder(r.Body).Decode(&b)
+				if b["stream"] == true {
+					w.Header().Set("Content-Type", "text/event-stream")
+					fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\n")
+					w.(http.Flusher).Flush()
+					time.Sleep(time.Millisecond)
+					fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":\" world\"}}],\"usage\":{\"prompt_tokens\":128,\"completion_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":%d}}}\n\ndata: [DONE]\n\n", cache)
+					return
+				}
+				n++
+				fmt.Fprintf(w, `{"timings":{"prompt_n":%d,"cache_n":64,"prompt_ms":2}}`, n)
+			}))
+			defer s.Close()
+			r, err := Ready(context.Background(), ReadyOptions{Endpoint: s.URL})
+			want := "cache reused"
+			if cache == 0 {
+				want = "cache not reused"
+			}
+			if err != nil || !r.Ready || len(r.SpecVerifySecs) != 4 || !strings.Contains(r.Plain(), want) {
+				t.Fatalf("%+v %v", r, err)
+			}
+		})
+	}
 }

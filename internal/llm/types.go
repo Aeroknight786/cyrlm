@@ -155,10 +155,11 @@ type Event struct {
 
 // Usage reports token counts.
 type Usage struct {
-	PromptTokens       int `json:"prompt_tokens"`
-	CompletionTokens   int `json:"completion_tokens"`
-	ReasoningTokens    int `json:"reasoning_tokens,omitempty"`
-	CachedPromptTokens int `json:"cached_prompt_tokens,omitempty"`
+	PromptTokens       int  `json:"prompt_tokens"`
+	CompletionTokens   int  `json:"completion_tokens"`
+	ReasoningTokens    int  `json:"reasoning_tokens,omitempty"`
+	CachedPromptTokens int  `json:"cached_prompt_tokens,omitempty"`
+	CacheKnown         bool `json:"cache_known,omitempty"`
 }
 
 // Timings are the simulated local-runtime timings of one request. Frontends

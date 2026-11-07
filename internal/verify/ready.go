@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"time"
 
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/harness"
@@ -120,7 +119,11 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 			return r, nil
 		}
 		r.DecodeTPS[depth] = m.DecodeTPS
-		r.add(o, "decode", true, fmt.Sprintf("writing %s tok/s at %d tokens", figure.BandNumber(m.DecodeTPS, 20), depth))
+		detail := fmt.Sprintf("writing %s tok/s at %d tokens", figure.BandNumber(m.DecodeTPS, 20), depth)
+		if m.TokensEstimated {
+			detail += " (token count estimated)"
+		}
+		r.add(o, "decode", true, detail)
 	}
 	n := o.UBatch
 	if n <= 0 {
@@ -140,7 +143,11 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		return r, nil
 	}
 	r.PrefillTPS = float64(m.PromptTokens) / m.TTFTSec
-	r.add(o, "prefill", true, fmt.Sprintf("reading %s tok/s", figure.BandNumber(r.PrefillTPS, 20)))
+	detail := fmt.Sprintf("reading %s tok/s", figure.BandNumber(r.PrefillTPS, 20))
+	if m.TokensEstimated {
+		detail += " (token count estimated)"
+	}
+	r.add(o, "prefill", true, detail)
 	follow := req(text, 8)
 	follow.Messages = append(follow.Messages, llm.Message{Role: llm.RoleAssistant, Content: reply}, llm.Message{Role: llm.RoleUser, Content: "Continue briefly."})
 	fm, _, e := measure(ctx, c, follow)
@@ -153,31 +160,44 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		return r, nil
 	}
 	r.FollowUpTTFT = fm.TTFTSec
-	r.add(o, "follow_up", true, fmt.Sprintf("first token in %s s", figure.BandNumber(fm.TTFTSec, 20)))
-	// Warm the common prefix before measuring each short extension.
+	cache := "unknown"
+	if fm.CacheKnown {
+		cache = "not reused (warning)"
+		if fm.CachedTokens > 0 {
+			cache = "reused"
+		}
+	}
+	r.add(o, "follow_up", true, fmt.Sprintf("first token in %s s; cache %s", figure.BandNumber(fm.TTFTSec, 20), cache))
+	// Each measurement must report both newly processed and cached tokens.
 	prefix := strings.Repeat("cache ", 64)
 	_, _, e = measure(ctx, c, req(prefix, 1))
+	reason := ""
 	if e != nil {
-		r.add(o, "spec_verify", false, e.Error())
-		return r, nil
+		reason = e.Error()
 	}
-	for i := 1; i <= 4; i++ {
+	for i := 1; i <= 4 && reason == ""; i++ {
 		body := map[string]any{"model": o.Model, "messages": []any{map[string]any{"role": "user", "content": prefix + strings.Repeat(" x", i)}}, "max_tokens": 1, "stream": false, "temperature": 0}
-		start := time.Now()
 		out, err := postJSON(ctx, strings.TrimRight(o.Endpoint, "/")+"/v1/chat/completions", o.APIKey, body)
-		elapsed := time.Since(start).Seconds()
 		if err != nil {
-			r.add(o, "spec_verify", false, err.Error())
-			return r, nil
+			reason = err.Error()
+			break
 		}
-		if t, ok := out["timings"].(map[string]any); ok {
-			if ms, ok := t["prompt_ms"].(float64); ok && ms > 0 {
-				elapsed = ms / 1000
-			}
+		t, _ := out["timings"].(map[string]any)
+		n, nok := t["prompt_n"].(float64)
+		cached, cok := t["cache_n"].(float64)
+		ms, mok := t["prompt_ms"].(float64)
+		if !nok || !cok || !mok || cached <= 0 || n != float64(i) || ms <= 0 {
+			reason = fmt.Sprintf("engine did not confirm %d new tokens and cache reuse", i)
+			break
 		}
-		r.SpecVerifySecs = append(r.SpecVerifySecs, elapsed)
+		r.SpecVerifySecs = append(r.SpecVerifySecs, ms/1000)
 	}
-	r.add(o, "spec_verify", true, "measured batches 1–4")
+	if reason != "" {
+		r.SpecVerifySecs = nil
+		r.add(o, "spec_verify", true, "inconclusive: "+reason)
+	} else {
+		r.add(o, "spec_verify", true, "measured batches 1–4; engine confirmed new token counts")
+	}
 	if o.Harness != nil {
 		h := HarnessCheckRun(ctx, o.Endpoint, o.Model, o.APIKey, *o.Harness, o.APIs)
 		detail := h.Path

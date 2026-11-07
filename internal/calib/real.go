@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"os"
 )
 
 // RealMeasurement contains the speed samples from one Ready report. Model,
@@ -15,7 +16,7 @@ type RealMeasurement struct {
 	Prefill              float64
 }
 
-// RecordReal appends a run to the existing fingerprinted calibration. A stale
+// RecordReal appends a run, creating a fingerprinted calibration if needed. A stale
 // store is rejected rather than combining evidence from different machines.
 func RecordReal(ctx context.Context, home, enginePath string, m RealMeasurement) error {
 	if m.Model == "" || m.Quant == "" || m.Engine == "" {
@@ -26,7 +27,9 @@ func RecordReal(ctx context.Context, home, enginePath string, m RealMeasurement)
 		return err
 	}
 	c, err := Load(home)
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
+		c = &Calibration{Version: GeneratorVersion, FittingVersion: FittingVersion, Fingerprint: f}
+	} else if err != nil {
 		return err
 	}
 	if c.Fingerprint.Hash != f.Hash {

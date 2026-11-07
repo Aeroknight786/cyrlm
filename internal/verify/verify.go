@@ -47,6 +47,7 @@ type Options struct {
 type Measurement struct {
 	PromptTokens     int     `json:"prompt_tokens"`
 	CachedTokens     int     `json:"cached_tokens,omitempty"`
+	CacheKnown       bool    `json:"cache_known,omitempty"`
 	CompletionTokens int     `json:"completion_tokens"`
 	TTFTSec          float64 `json:"ttft_s"`
 	DecodeTPS        float64 `json:"decode_tps"`
@@ -197,6 +198,9 @@ func measure(ctx context.Context, c upstream.Client, req *llm.Request) (Measurem
 	m.TotalSec = end.Sub(start).Seconds()
 	if !first.IsZero() {
 		m.TTFTSec = first.Sub(start).Seconds()
+	}
+	if usage != nil {
+		m.CachedTokens, m.CacheKnown = usage.CachedPromptTokens, usage.CacheKnown
 	}
 	if usage != nil && usage.PromptTokens > 0 {
 		m.PromptTokens, m.CompletionTokens, m.CachedTokens = usage.PromptTokens, usage.CompletionTokens, usage.CachedPromptTokens
