@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/hw"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,20 +138,7 @@ func (s Session) SetupResult(ctx context.Context, j setup.Journal) {
 		return
 	}
 	p := j.Plan
-	enginePath := ""
-	for _, step := range p.Steps {
-		if step.Kind == setup.Start && step.ID != "bridge" && len(step.Argv) > 0 {
-			enginePath = step.Argv[0]
-			break
-		}
-	}
-	root, _ := paths.Home()
-	enginePath = strings.ReplaceAll(enginePath, "~/.trialm", root)
-	if err := calib.RecordReal(ctx, store.Default().Dir, enginePath, calib.RealMeasurement{Model: p.Model, Quant: p.Quant, Engine: p.Runtime, Decode: j.Report.DecodeTPS, Prefill: j.Report.PrefillTPS, Samples: j.Report.Samples}); err == nil {
-		s.Emit("setup_calibrated", true)
-	} else {
-		s.Emit("setup_log", setup.Update{Lines: []string{"Calibration was not saved · " + err.Error()}})
-	}
+	s.recordReal(ctx, j)
 	s.Emit("result", map[string]any{"ready": true}, Next{Cmd: "trialm launch " + p.Harness, Why: "open this Ready setup"})
 }
 
@@ -170,4 +158,27 @@ func (s Session) PlanRecipe(ctx context.Context, r predict.Result, o Options, to
 		file = local[0]
 	}
 	return s.Plan(ctx, PlanOptions{LocalModel: file, Options: o, Model: r.Model, Target: d.Target, Scenario: h.Scenario, Harness: h, WireHarness: true})
+}
+
+// recordReal saves a Ready report's speeds as this machine's measurements,
+// unless Low Power Mode would make them wrong (then it says so in the report).
+func (s Session) recordReal(ctx context.Context, j setup.Journal) {
+	p := j.Plan
+	enginePath := ""
+	for _, step := range p.Steps {
+		if step.Kind == setup.Start && step.ID != "bridge" && len(step.Argv) > 0 {
+			enginePath = step.Argv[0]
+			break
+		}
+	}
+	root, _ := paths.Home()
+	enginePath = strings.ReplaceAll(enginePath, "~/.trialm", root)
+	if hw.MacPower(ctx).LowPower {
+		j.Report.Misses = append(j.Report.Misses, "measured in Low Power Mode, so not saved as this Mac's speed; turn it off and run trialm launch --check")
+		s.Emit("setup_log", setup.Update{Lines: []string{"Calibration was not saved · Low Power Mode is on"}})
+	} else if err := calib.RecordReal(ctx, store.Default().Dir, enginePath, calib.RealMeasurement{Model: p.Model, Quant: p.Quant, Engine: p.Runtime, Decode: j.Report.DecodeTPS, Prefill: j.Report.PrefillTPS, Samples: j.Report.Samples}); err == nil {
+		s.Emit("setup_calibrated", true)
+	} else {
+		s.Emit("setup_log", setup.Update{Lines: []string{"Calibration was not saved · " + err.Error()}})
+	}
 }

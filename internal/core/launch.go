@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/hw"
 	"io"
 	"net/url"
 	"os"
@@ -152,6 +153,12 @@ func (s Session) Launch(ctx context.Context, o LaunchOptions) (l Launch, err err
 		err = checkErr
 		if err == nil && !report.Ready {
 			err = &setup.NotReady{Check: report.Failing}
+		}
+		if err == nil { // the launcher shows the fresh speed, never a Low Power one
+			s.recordReal(ctx, l.Journal)
+			if !hw.MacPower(ctx).LowPower {
+				err = e.SaveReport(p.Slug, report)
+			}
 		}
 	}
 	if err != nil && l.Bridge != nil {

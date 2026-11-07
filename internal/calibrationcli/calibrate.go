@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/hw"
 	"github.com/aeroknight786/trialm/internal/paths"
 	"os"
 	"os/signal"
@@ -142,6 +143,9 @@ func Run(args []string) error {
 		return fail(errors.New("synthetic GPU calibration needs a detected GPU; use trialm detect --probe for CPU bandwidth"))
 	}
 	baseline, backend := baselineFor(t)
+	if hw.MacPower(ctx).LowPower {
+		return fail(errors.New("Low Power Mode is on: it slows the GPU, so this calibration would record the wrong speed for this Mac. Turn it off in System Settings → Battery, then run trialm calibrate"))
+	}
 	_, e = calib.Run(ctx, calib.RunOptions{Backend: backend, Home: home, Engine: engine, Fingerprint: fp, Quick: *quick, Spec: *spec, Baseline: baseline, Event: emit})
 	if errors.Is(e, context.Canceled) {
 		return fail(fmt.Errorf("calibration interrupted; finished rows kept: %w", e))

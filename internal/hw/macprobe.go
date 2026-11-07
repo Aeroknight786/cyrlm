@@ -26,8 +26,8 @@ var macSysctlOptional = []string{
 
 func (d detector) detectDarwin(ctx context.Context, s *System) {
 	var (
-		base, opt, sp, swv, vm []byte
-		baseErr, spErr         error
+		base, opt, sp, swv, vm, pm, batt []byte
+		baseErr, spErr                   error
 	)
 	parallel(
 		func() { base, baseErr = d.r.Run(ctx, "/usr/sbin/sysctl", macSysctlBase...) },
@@ -35,7 +35,10 @@ func (d detector) detectDarwin(ctx context.Context, s *System) {
 		func() { sp, spErr = d.r.Run(ctx, "/usr/sbin/system_profiler", "SPDisplaysDataType", "-json") },
 		func() { swv, _ = d.r.Run(ctx, "/usr/bin/sw_vers", "-productVersion") },
 		func() { vm, _ = d.r.Run(ctx, "/usr/bin/vm_stat") },
+		func() { pm, _ = d.r.Run(ctx, "/usr/bin/pmset", "-g") },
+		func() { batt, _ = d.r.Run(ctx, "/usr/bin/pmset", "-g", "batt") },
 	)
+	s.Power = parsePower(string(pm), string(batt))
 
 	kv := parseSysctl(string(base))
 	if len(kv) == 0 {

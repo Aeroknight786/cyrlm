@@ -149,13 +149,13 @@ func runResponsesCheck(ctx context.Context, hc *HarnessCheck, url, model string)
 
 func runChatCheck(ctx context.Context, hc *HarnessCheck, url, model, key string) {
 	sys := map[string]any{"role": "system", "content": "You are a coding agent. Be brief."}
-	out, err := postJSON(ctx, url, key, map[string]any{"model": model, "max_tokens": 2048, "stream": true, "stream_options": map[string]any{"include_usage": true},
+	out, err := postJSON(ctx, url, key, map[string]any{"model": model, "max_tokens": 512, "stream": true, "stream_options": map[string]any{"include_usage": true},
 		"messages": []any{sys, map[string]any{"role": "user", "content": "Reply with the single word OK."}}})
 	if err != nil {
 		hc.Greeting, hc.Error = checkFail, "greeting: "+err.Error()
 		return
 	}
-	if text, _ := chatMessage(out)["content"].(string); strings.TrimSpace(text) == "" {
+	if !answered(chatMessage(out)) {
 		hc.Greeting, hc.Error = checkFail, "greeting: no message"
 		return
 	}
@@ -190,12 +190,12 @@ func runChatCheck(ctx context.Context, hc *HarnessCheck, url, model, key string)
 	}
 	msgs = append(msgs, assistant,
 		map[string]any{"role": "tool", "tool_call_id": c0["id"], "content": "recorded"})
-	if out, err = postJSON(ctx, url, key, map[string]any{"model": model, "max_tokens": 2048, "stream": true, "stream_options": map[string]any{"include_usage": true}, "tools": tools, "tool_choice": "auto", "messages": msgs}); err != nil {
+	if out, err = postJSON(ctx, url, key, map[string]any{"model": model, "max_tokens": 512, "stream": true, "stream_options": map[string]any{"include_usage": true}, "tools": tools, "tool_choice": "auto", "messages": msgs}); err != nil {
 		hc.FollowUp, hc.Error = checkFail, "follow-up: "+err.Error()
 		return
 	}
-	if text, _ := chatMessage(out)["content"].(string); strings.TrimSpace(text) == "" {
-		hc.FollowUp, hc.Error = checkFail, "follow-up: no text"
+	if !answered(chatMessage(out)) {
+		hc.FollowUp, hc.Error = checkFail, "follow-up: no reply"
 		return
 	}
 	hc.FollowUp = checkPass
@@ -494,4 +494,14 @@ func readOllamaCheckStream(r io.Reader) (map[string]any, error) {
 		return nil, err
 	}
 	return nil, fmt.Errorf("Ollama stream ended before done")
+}
+
+// answered reports whether the model produced anything: text, a thinking
+// trace (thinking models can spend a short budget before any text) or a
+// tool call. The check proves the route, not the model's answer.
+func answered(msg map[string]any) bool {
+	text, _ := msg["content"].(string)
+	thought, _ := msg["reasoning_content"].(string)
+	calls, _ := msg["tool_calls"].([]any)
+	return strings.TrimSpace(text+thought) != "" || len(calls) > 0
 }

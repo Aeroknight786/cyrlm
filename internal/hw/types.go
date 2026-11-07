@@ -67,6 +67,8 @@ type System struct {
 	// GPUWiredLimitBytes is the macOS GPU wired-memory limit
 	// (sysctl iogpu.wired_limit_mb) when explicitly set; 0 = macOS default.
 	GPUWiredLimitBytes uint64 `json:"gpu_wired_limit_bytes,omitempty"`
+	// Power is the Mac's power state (Low Power Mode, battery).
+	Power Power `json:"power,omitzero"`
 	// Notes are human-readable detection caveats.
 	Notes []string `json:"notes,omitempty"`
 }

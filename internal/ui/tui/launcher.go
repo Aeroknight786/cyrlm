@@ -41,6 +41,9 @@ func (m *Root) launcher() string {
 		header = m.theme.wordmark() + "    Let's get your models running"
 	}
 	b := m.card(header) + "\n"
+	if m.detection.System != nil && m.detection.System.Power.LowPower {
+		b += m.theme.caveat.Render("  Low Power Mode is on: local models run about 3× slower. Turn it off in System Settings → Battery.") + "\n"
+	}
 	if m.detecting {
 		lines := []string{"machine", "coding tools", "engines", "models on disk"}
 		for i, line := range lines {

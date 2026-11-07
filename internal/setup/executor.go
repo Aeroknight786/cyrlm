@@ -603,3 +603,22 @@ func (e *Executor) Running(ctx context.Context, j Journal) map[string]bool {
 	}
 	return running
 }
+
+// SaveReport stores a fresh Ready report on a setup's journal (launch --check).
+func (e *Executor) SaveReport(slug string, r verify.Report) error {
+	path, err := e.journalPath(slug)
+	if err != nil {
+		return err
+	}
+	unlock, err := lock(path)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	j, err := e.Status(slug)
+	if err != nil {
+		return err
+	}
+	j.Report = &r
+	return save(path, &j)
+}

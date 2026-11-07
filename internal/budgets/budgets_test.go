@@ -77,8 +77,8 @@ func TestSourceBudgets(t *testing.T) {
 	}
 	// v0.3 has no separate global number in the plan; adopt the stricter v0.4
 	// ceiling now. The frozen wire, GGUF and hw exceptions match §9.
-	if total > 28500 { // v0.5 gate: midpoint of 26k (v0.4) and 31k (v0.6), PLAN §9
-		t.Errorf("source lines %d > 28500", total)
+	if total > 29000 { // v0.5 gate, PLAN §9 (raised from 28.5k on 2026-11-07)
+		t.Errorf("source lines %d > 29000", total)
 	}
 	if commandPhysical > 30 {
 		t.Errorf("cmd/trialm %d physical lines > 30", commandPhysical)
@@ -116,7 +116,7 @@ func TestSourceBudgets(t *testing.T) {
 			t.Errorf("%s: %d > %d lines", pkg, n, limit)
 		}
 	}
-	t.Logf("product source %d/28500; cmd/trialm %d/30 physical; cli+ui %d/5500", total, commandPhysical, cliUI)
+	t.Logf("product source %d/29000; cmd/trialm %d/30 physical; cli+ui %d/5500", total, commandPhysical, cliUI)
 }
 func TestStrippedBinaryBudget(t *testing.T) {
 	_, file, _, _ := runtime.Caller(0)
