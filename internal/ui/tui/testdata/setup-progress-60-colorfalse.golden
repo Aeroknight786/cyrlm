@@ -1,14 +1,14 @@
-+--------------------------------------------------------+
-| Set up Qwen3.6 35B-A3B for Codex                       |
-| 13.2 GB download - 1 approval - no password            |
-| Not touched - Codex config, shell profile, other       |
-| models                                                 |
-|                                                        |
-| v llama.cpp b12182                                     |
-| ... Qwen3.6-35B-A3B.gguf                               |
-|                                                        |
-| [======================--------------] 61%             |
-| 47.0 MB/s - ETA 109 s                                  |
-+--------------------------------------------------------+
+╭────────────────────────────────────────────────────────╮
+│ Set up Qwen3.6 35B-A3B for Codex                       │
+│ 13.2 GB download · 1 approval · no password            │
+│ Not touched · Codex config, shell profile, other       │
+│ models                                                 │
+│                                                        │
+│ ✓ llama.cpp b12182                                     │
+│ ... Qwen3.6-35B-A3B.gguf                               │
+│                                                        │
+│ [======================--------------] 61%             │
+│ 47.0 MB/s · ETA 109 s                                  │
+╰────────────────────────────────────────────────────────╯
 
 ctrl-c pauses  d details

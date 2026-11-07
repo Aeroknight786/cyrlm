@@ -1,14 +1,14 @@
-+--------------------------------------------------------+
-| Set up Qwen3.6 35B-A3B for Codex                       |
-| 13.2 GB download - 1 approval - no password            |
-| Not touched - Codex config, shell profile, other       |
-| models                                                 |
-|                                                        |
-|                                                        |
-| [======================--------------] 61%             |
-| 47.0 MB/s - ETA 109 s                                  |
-| 2 of 5 done, download 61%                              |
-+--------------------------------------------------------+
+╭────────────────────────────────────────────────────────╮
+│ Set up Qwen3.6 35B-A3B for Codex                       │
+│ 13.2 GB download · 1 approval · no password            │
+│ Not touched · Codex config, shell profile, other       │
+│ models                                                 │
+│                                                        │
+│                                                        │
+│ [======================--------------] 61%             │
+│ 47.0 MB/s · ETA 109 s                                  │
+│ 2 of 5 done, download 61%                              │
+╰────────────────────────────────────────────────────────╯
 Setup paused. Enter resumes.
 
 enter go  esc back  d details

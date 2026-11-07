@@ -19,7 +19,6 @@ import (
 
 type calibrationEventMsg struct {
 	message string
-	at      time.Time
 	done    bool
 	err     error
 	event   calib.Event
@@ -71,7 +70,7 @@ func newCalibration(parent context.Context, exe string) *calibrationJob {
 			var ev calib.Event
 			if json.Unmarshal(sc.Bytes(), &ev) == nil {
 				select {
-				case job.events <- calibrationEventMsg{message: ev.Message, event: ev, at: time.Now()}:
+				case job.events <- calibrationEventMsg{message: ev.Message, event: ev}:
 				case <-ctx.Done():
 				}
 			}

@@ -3,11 +3,11 @@ Qwen3.6 35B-A3B on what-if: 8-core x86 CPU (CPU only), 32 GB RAM
 Scenario: Claude Code — 12k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
 
 RUNTIME                                  FILE            CONTEXT  MEMORY        FIRST REPLY  FOLLOW-UP  WRITES AT           TASK*
-Ollama (defaults)                        Q4_K_M 22.1 GB  4k ⚠     ~ 21.3/22 GB  1 min 59 s   52 s       ~12 tok/s at 14.7k  ✗ breaks
+Ollama (defaults)                        Q4_K_M 22.1 GB  4k ⚠     ~ 21.3/22 GB  2 min 24 s   52 s       ~12 tok/s at 14.7k  ✗ breaks
 Ollama (tuned)                           Q4_K_M 22.1 GB  40k      ✗ 22.0/22 GB  —            —          —                   —
-llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ~ 21.3/22 GB  1 min 54 s   51 s       ~12 tok/s at 14.7k  ✗ breaks
+llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ~ 21.3/22 GB  2 min 19 s   51 s       ~12 tok/s at 14.7k  ✗ breaks
 llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  40k      ✗ 22.0/22 GB  —            —          —                   —
-LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ~ 21.5/22 GB  1 min 56 s   51 s       ~12 tok/s at 14.7k  ✗ breaks
+LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ~ 21.5/22 GB  2 min 21 s   51 s       ~12 tok/s at 14.7k  ✗ breaks
 LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  40k      ✗ 22.0/22 GB  —            —          —                   —
 
 FIRST REPLY = cold start (model load + the whole prompt). FOLLOW-UP = a typical later turn (new tokens only + the reply).

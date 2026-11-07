@@ -58,7 +58,7 @@ func TestScriptQuotingPermissionsAndScrub(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "injected")
 	args := []string{"model's name", "--quant", "Q4_K_M", "--model", "$(touch " + marker + ") `touch " + marker + "`\n'quote'"}
-	id, path, e := Generate(s, "darwin", exe, dir, args)
+	id, path, e := generate(s, "darwin", exe, dir, "try", args)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -95,7 +95,7 @@ func TestScriptQuotingPermissionsAndScrub(t *testing.T) {
 }
 func TestPowerShellScript(t *testing.T) {
 	s := store.Store{Dir: t.TempDir()}
-	_, path, e := Generate(s, "windows", "C:\\triaLM's app\\trialm.exe", "C:\\my repo", []string{"hello'world", "--ctx", "65536"})
+	_, path, e := generate(s, "windows", "C:\\triaLM's app\\trialm.exe", "C:\\my repo", "try", []string{"hello'world", "--ctx", "65536"})
 	if e != nil {
 		t.Fatal(e)
 	}

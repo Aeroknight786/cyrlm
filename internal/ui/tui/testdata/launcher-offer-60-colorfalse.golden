@@ -1,21 +1,21 @@
-+--------------------------------------------------------+
-| ^ triaLM    what-if Apple M5 10c - 24.0 GB - Codex v   |
-+--------------------------------------------------------+
+╭────────────────────────────────────────────────────────╮
+│ ▲ triaLM    what-if Apple M5 10c · 24.0 GB · Codex ✓   │
+╰────────────────────────────────────────────────────────╯
 
-+--------------------------------------------------------+
-| * Calibrate this Mac once - recommended                |
-| 3-7 min - no downloads - enter start - s skip          |
-+--------------------------------------------------------+
+╭────────────────────────────────────────────────────────╮
+│ ✦ Calibrate this Mac once · recommended                │
+│ 350 s on M5 · no downloads · enter start · s skip      │
+╰────────────────────────────────────────────────────────╯
 
   Your models
-    * Qwen3.5 9B              21 tok/s   ready
-    + Qwen3.6 35B-A3B        ~29 tok/s   on disk - not set
+    ● Qwen3.5 9B              21 tok/s   ready
+    ◐ Qwen3.6 35B-A3B        ~29 tok/s   on disk · not set
 up
-    o gpt-oss 20B            ~26 tok/s   12.0 GB - not on
+    ○ gpt-oss 20B            ~26 tok/s   12.0 GB · not on
 disk
 
-    * Find something faster or smarter
+    ✦ Find something faster or smarter
 
-  v0.6.1 available - trialm update
+  v0.6.1 available · trialm update
 
 enter start  s skip  ? help

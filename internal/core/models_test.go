@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/gguf"
@@ -144,6 +145,15 @@ func TestModelsOrderingAndLocalPlan(t *testing.T) {
 	writeModelFixture(t, filepath.Join(root, "setups", p.Slug, "journal.json"), b)
 	rows, e = s.Models(context.Background(), o, d.Target, h)
 	if e != nil || len(rows) != 3 || rows[0].Journal == nil || rows[0].Speed.Kind != figure.Measured || rows[0].Speed.String() != "21 tok/s" {
+		t.Fatal(rows, e)
+	}
+	// Current journals store measured depth instead of a synthetic zero anchor.
+	j.Report.DecodeTPS = map[int]float64{17: 22, 59000: 9}
+	j.Report.Samples = []calib.RealSample{{Mode: "decode", Depth: 17, Prompt: 17, Generated: 32, Speed: 22}, {Mode: "decode", Depth: 59000, Prompt: 59000, Generated: 32, Speed: 9}}
+	b, _ = json.Marshal(j)
+	writeModelFixture(t, filepath.Join(root, "setups", p.Slug, "journal.json"), b)
+	rows, e = s.Models(context.Background(), o, d.Target, h)
+	if e != nil || rows[0].Speed.String() != "22 tok/s" {
 		t.Fatal(rows, e)
 	}
 	for _, r := range rows[1:] {

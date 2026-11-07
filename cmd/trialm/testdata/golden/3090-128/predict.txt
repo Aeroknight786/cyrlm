@@ -3,12 +3,12 @@ Qwen3.6 35B-A3B on what-if: RTX 3090 (24 GB VRAM), 128 GB RAM
 Scenario: Claude Code — 12k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
 
 RUNTIME                                  FILE            CONTEXT  MEMORY        FIRST REPLY  FOLLOW-UP  WRITES AT            TASK*
-Ollama (defaults)                        Q4_K_M 22.1 GB  32k ⚠    ~ 22.1/24 GB  14 s         2.6 s      ~170 tok/s at 35.4k  ✗ breaks
-Ollama (tuned)                           Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  14 s         2.7 s      ~160 tok/s at 43.6k  1 min 50 s
-llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ~ 21.5/24 GB  13 s         2.1 s      ~190 tok/s at 14.7k  ✗ breaks
-llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  13 s         2.6 s      ~160 tok/s at 43.6k  1 min 47 s
-LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ~ 21.7/24 GB  13 s         2.1 s      ~190 tok/s at 14.7k  ✗ breaks
-LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  13 s         2.7 s      ~160 tok/s at 43.6k  1 min 48 s
+Ollama (defaults)                        Q4_K_M 22.1 GB  32k ⚠    ~ 22.1/24 GB  15 s         2.6 s      ~170 tok/s at 35.4k  ✗ breaks
+Ollama (tuned)                           Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  15 s         2.7 s      ~160 tok/s at 43.6k  1 min 52 s
+llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ~ 21.5/24 GB  14 s         2.1 s      ~190 tok/s at 14.7k  ✗ breaks
+llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  14 s         2.6 s      ~160 tok/s at 43.6k  1 min 48 s
+LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ~ 21.7/24 GB  15 s         2.1 s      ~190 tok/s at 14.7k  ✗ breaks
+LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  15 s         2.7 s      ~160 tok/s at 43.6k  1 min 49 s
 
 FIRST REPLY = cold start (model load + the whole prompt). FOLLOW-UP = a typical later turn (new tokens only + the reply).
 * TASK = a 40-call agent task; at datacenter speed it would take about 2 min 00 s. "✗ breaks" = the harness prompt does not fit the context.
@@ -25,7 +25,7 @@ Typical error (about 3 in 4 predictions): generation ±45%, prompt processing ±
   ⚠ LM Studio (llama.cpp engine) (defaults): memory is tight: other apps or a longer context may push it over
   ⚠ LM Studio (llama.cpp engine) (tuned): memory is tight: other apps or a longer context may push it over
 
-Best setup: llama.cpp (llama-server) with tuned settings — task ≈ 1 min 47 s, first reply 13 s, then ~2.6 s per turn.
+Best setup: llama.cpp (llama-server) with tuned settings — task ≈ 1 min 48 s, first reply 14 s, then ~2.6 s per turn.
   (what-if machine: installed runtimes not checked) Install: brew install llama.cpp · winget install llama.cpp · or a prebuilt release from github.com/ggml-org/llama.cpp
   Settings for llama.cpp (llama-server):
     - llama-server -m <model.gguf> -c 40960 -fa on --jinja

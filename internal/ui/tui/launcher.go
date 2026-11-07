@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/harness"
+	"os"
 )
 
 func toolName(id string) string { return strings.TrimSuffix(harness.DisplayName(id), " CLI") }
@@ -58,7 +60,8 @@ func (m *Root) launcher() string {
 		if m.detection.Target.OS == "darwin" {
 			label = "✦ Calibrate this Mac once · recommended"
 		}
-		b += "\n" + m.card(m.theme.selected.Bold(true).Render(label)+"\n3–7 min · no downloads · enter start · s skip") + "\n"
+		estimate := figure.Band(calib.EstimatedSeconds(calib.Plan(false, os.Getenv("TRIALM_CALIBRATE_SPEC") == "1")), 25, "s", figure.Simulated, "calibration:plan").String()
+		b += "\n" + m.card(m.theme.selected.Bold(true).Render(label)+"\n"+estimate+" on M5 · no downloads · enter start · s skip") + "\n"
 	}
 	b += "\n  " + m.theme.selected.Bold(true).Render("Your models") + "\n"
 	for i, choice := range m.models {

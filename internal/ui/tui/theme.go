@@ -25,11 +25,11 @@ func newPalette(noColor, ascii bool) palette {
 		}
 		return s
 	}
-	return palette{style("6"), style("2"), style("3"), style("1"), style("5"), style("8"), noColor, ascii || noColor}
+	return palette{style("6"), style("2"), style("3"), style("1"), style("5"), style("8"), noColor, ascii}
 }
 func (p palette) wordmark() string {
 	if p.plain || p.ascii {
-		return "^ triaLM"
+		return p.glyph("▲ triaLM")
 	}
 	colors := lipgloss.Blend1D(6, lipgloss.Color("#34d9ce"), lipgloss.Color("#d881ff"))
 	word := "▲ "

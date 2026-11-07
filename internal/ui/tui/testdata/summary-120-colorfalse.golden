@@ -1,12 +1,12 @@
-Trial over - qwen3.6:35b-a3b - IQ3_XXS - llamacpp
-Trial summary - fp8 (declared), no-logging; upper bound on quality
-  38 requests - local ~840 s - cloud 190 s - 0 cloud-bound moments
-  time split: reading ~370 s - writing ~290 s - load 0 s - between turns (tools/user) 176 s
-  first turn ~10 s - typical follow-up ~9.8 s - slowest ~41 s (reading)
-  cache reuse 0% - loads 0 - context peak 0 tokens - overflows 0
+Trial over · qwen3.6:35b-a3b · IQ3_XXS · llamacpp
+Trial summary · fp8 (declared), no-logging; upper bound on quality
+  38 requests · local ~840 s · cloud 190 s · 0 cloud-bound moments
+  time split: reading ~370 s · writing ~290 s · load 0 s · between turns (tools/user) 176 s
+  first turn ~10 s · typical follow-up ~9.8 s · slowest ~41 s (reading)
+  cache reuse 0% · loads 0 · context peak 0 tokens · overflows 0
   spend 0.210 USD
 [===============---------------------]
-reading 44% - writing 35% - fixed/tools 21%
+reading 44% · writing 35% · fixed/tools 21%
 
 How did it feel?
 

@@ -130,21 +130,6 @@ func (s Session) Apply(ctx context.Context, p setup.Plan, policy setup.Policy) (
 	}
 	return j, err
 }
-func (s Session) Status(ctx context.Context, slug string) (setup.Journal, error) {
-	e, err := s.SetupExecutor()
-	if err != nil {
-		return setup.Journal{}, err
-	}
-	if err = ctx.Err(); err != nil {
-		return setup.Journal{}, err
-	}
-	j, err := e.Status(slug)
-	if err == nil {
-		j.Running = e.Running(ctx, j)
-		s.Emit("setup_status", j, Next{Cmd: "trialm setup --json", Why: "resume saved setup"})
-	}
-	return j, err
-}
 
 // SetupResult closes the agent contract after the journal reaches Ready.
 func (s Session) SetupResult(ctx context.Context, j setup.Journal) {
@@ -161,7 +146,7 @@ func (s Session) SetupResult(ctx context.Context, j setup.Journal) {
 	}
 	root, _ := paths.Home()
 	enginePath = strings.ReplaceAll(enginePath, "~/.trialm", root)
-	if err := calib.RecordReal(ctx, store.Default().Dir, enginePath, calib.RealMeasurement{Model: p.Model, Quant: p.Quant, Engine: p.Runtime, Decode: j.Report.DecodeTPS, Prefill: j.Report.PrefillTPS}); err == nil {
+	if err := calib.RecordReal(ctx, store.Default().Dir, enginePath, calib.RealMeasurement{Model: p.Model, Quant: p.Quant, Engine: p.Runtime, Decode: j.Report.DecodeTPS, Prefill: j.Report.PrefillTPS, Samples: j.Report.Samples}); err == nil {
 		s.Emit("setup_calibrated", true)
 	} else {
 		s.Emit("setup_log", setup.Update{Lines: []string{"Calibration was not saved · " + err.Error()}})

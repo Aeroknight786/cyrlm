@@ -830,3 +830,20 @@ func TestCalibratedPredictionsKeepApproximationMarker(t *testing.T) {
 		t.Fatal(f, estimated(f))
 	}
 }
+
+func TestNoColorRetainsUnicodeBoxes(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "xterm-256color")
+	m := New(Config{NoColor: os.Getenv("NO_COLOR") != "", ASCII: asciiTerminal("linux", os.Getenv)})
+	card := m.card("triaLM")
+	if strings.Contains(card, "\x1b") || !strings.Contains(card, "╭") || !strings.Contains(card, "│") || m.theme.glyph("✓") != "✓" || m.theme.wordmark() != "▲ triaLM" {
+		t.Fatal(card)
+	}
+	for _, goos := range []string{"linux", "windows"} {
+		t.Setenv("TERM", "dumb")
+		m = New(Config{NoColor: true, ASCII: asciiTerminal(goos, os.Getenv)})
+		if strings.Contains(m.card("triaLM"), "╭") || !strings.Contains(m.card("triaLM"), "+") {
+			t.Fatal(goos, m.card("triaLM"))
+		}
+	}
+}

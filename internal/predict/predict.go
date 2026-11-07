@@ -322,7 +322,10 @@ const (
 func RunScenario(t *Timing, sc Scenario, ctx int) ScenarioResult {
 	r := ScenarioResult{ContextTokens: ctx, FitsInContext: ctx >= MinContext(sc)}
 	p0 := sc.BasePromptTokens
-	first := t.PrefillSec(0, p0) + t.DecodeSec(p0)
+	first := t.PrefillSec(0, p0)
+	for i := 0; i < sc.OutputTokensPerTurn; i++ {
+		first += t.DecodeSec(p0 + i)
+	}
 	r.FirstReply = dur(first)
 	r.ColdFirstReply = dur(first + t.LoadColdS)
 	d := sc.MidDepth
@@ -349,8 +352,8 @@ func RunScenario(t *Timing, sc Scenario, ctx int) ScenarioResult {
 			depth = p0 + (depth-p0)/2 // harness compaction
 		}
 		sess += t.PrefillSec(depth, depth+sc.NewTokensPerTurn)
-		for k := 0; k < sc.OutputTokensPerTurn; k += 50 {
-			sess += 50 * t.DecodeSec(depth+sc.NewTokensPerTurn+k)
+		for k := 0; k < sc.OutputTokensPerTurn; k++ {
+			sess += t.DecodeSec(depth + sc.NewTokensPerTurn + k)
 		}
 		depth += sc.NewTokensPerTurn
 	}

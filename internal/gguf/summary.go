@@ -112,7 +112,7 @@ type Summary struct {
 	ChatTemplateLength int    `json:"chat_template_length,omitempty"`
 
 	// Split is set for llama.cpp split parts; tensor totals then cover only
-	// the parts that were read (see MergeSplits).
+	// the parts that were read.
 	Split *SplitInfo `json:"split,omitempty"`
 
 	// Derived from the tensor table.
@@ -471,7 +471,7 @@ func (f *File) summarizeTensors(s *Summary, note func(string, ...any)) {
 		note("%d tensors use repacked types removed from current llama.cpp (re-download a current quant)", removed)
 	}
 	if s.Split != nil && s.Split.Count > 1 && s.TensorCount < s.Split.TensorsCount {
-		note("split model part %d of %d: tensor totals cover %d of %d tensors; open every part and use MergeSplits for whole-model totals",
+		note("split model part %d of %d: tensor totals cover %d of %d tensors; open every part for whole-model totals",
 			s.Split.No+1, s.Split.Count, s.TensorCount, s.Split.TensorsCount)
 	}
 
