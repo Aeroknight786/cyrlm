@@ -23,6 +23,13 @@ jobs:
         with:
           python-version: '3.12'
       - uses: astral-sh/setup-uv@v5
+      # Codex runs shell tools inside bubblewrap; Ubuntu's AppArmor blocks
+      # the unprivileged user namespace it needs ("Failed RTM_NEWADDR").
+      - name: Allow Codex's sandbox
+        if: runner.os == 'Linux' && matrix.harness == 'codex'
+        run: |
+          sudo apt-get install -y -q bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Test harness fixtures
         run: |
           go test ./tools/harness-e2e

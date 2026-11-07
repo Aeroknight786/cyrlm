@@ -11,3 +11,5 @@ Codex uses `exec --sandbox workspace-write` with approval policy `never`. Its ma
 Cline's greeting has multiple words because its CLI treats a single word as a command name. Continue runs with `--allow Write`, and the fake calls `Write` with `filepath` and `content`, matching cn's advertised schema. Missing tools and required arguments fail at the fake upstream rather than falling back to an unrelated tool.
 
 Run the focused checks with `go test ./tools/harness-e2e` and `python3 -m unittest discover -s tools/harness-e2e -p 'test_*.py'`.
+
+The runner is POSIX-only (macOS and Linux). On Ubuntu, Codex's bubblewrap sandbox needs unprivileged user namespaces (`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`), which the workflow sets for the Codex job.

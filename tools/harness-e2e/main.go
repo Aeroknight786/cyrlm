@@ -1,3 +1,5 @@
+//go:build unix
+
 // Command harness-e2e exercises the real headless CLIs through both triaLM paths.
 package main
 
