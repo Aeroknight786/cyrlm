@@ -1,33 +1,33 @@
 
 Qwen3.6 35B-A3B on what-if: RTX 4090 (24 GB VRAM), 64 GB RAM
-Scenario: Claude Code — 12k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
+Scenario: Claude Code — 20k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
 
 RUNTIME                                  FILE            CONTEXT  MEMORY        FIRST REPLY  FOLLOW-UP  WRITES AT            TASK*
-Ollama (defaults)                        Q4_K_M 22.1 GB  32k ⚠    ~ 22.1/24 GB  14 s         2.0 s      ~180 tok/s at 35.4k  ✗ breaks
-Ollama (tuned)                           Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  14 s         2.1 s      ~170 tok/s at 43.6k  1 min 30 s
-llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ~ 21.5/24 GB  13 s         1.7 s      ~200 tok/s at 14.7k  ✗ breaks
-llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  13 s         2.1 s      ~170 tok/s at 43.6k  88 s
-LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ~ 21.7/24 GB  13 s         1.7 s      ~200 tok/s at 14.7k  ✗ breaks
-LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  40k      ~ 22.2/24 GB  13 s         2.1 s      ~170 tok/s at 43.6k  89 s
+Ollama (defaults)                        Q4_K_M 22.1 GB  32k ⚠    ~ 22.1/24 GB  15 s         2.0 s      ~180 tok/s at 35.4k  ✗ breaks
+Ollama (tuned)                           Q4_K_M 22.1 GB  56k      ~ 22.6/24 GB  15 s         2.2 s      ~170 tok/s at 47.6k  1 min 37 s
+llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ~ 21.5/24 GB  14 s         1.8 s      ~190 tok/s at 22.6k  ✗ breaks
+llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  56k      ~ 22.6/24 GB  14 s         2.1 s      ~170 tok/s at 47.6k  1 min 34 s
+LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ~ 21.7/24 GB  14 s         1.8 s      ~190 tok/s at 22.6k  ✗ breaks
+LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  56k      ~ 22.6/24 GB  14 s         2.1 s      ~170 tok/s at 47.6k  1 min 35 s
 
 FIRST REPLY = cold start (model load + the whole prompt). FOLLOW-UP = a typical later turn (new tokens only + the reply).
 * TASK = a 40-call agent task; at datacenter speed it would take about 2 min 00 s. "✗ breaks" = the harness prompt does not fit the context.
 Typical error (about 3 in 4 predictions): generation ±45%, prompt processing ±65%. NVIDIA desktop results (n≈120): decode median error ≈11%, prompt processing ≈20% (varies with llama.cpp version); hybrid linear-attention model: little benchmark data for its recurrent layers.
 
-  ⚠ Ollama (defaults): the 32768-token context (Ollama default for 24 GiB of GPU memory) leaves almost no room after Claude Code's ~12k-token prompt: the conversation overflows within a few turns
+  ⚠ Ollama (defaults): the 32768-token context (Ollama default for 24 GiB of GPU memory) leaves almost no room after Claude Code's ~20k-token prompt: the conversation overflows within a few turns
   ⚠ Ollama (defaults): memory is tight: other apps or a longer context may push it over
   ⚠ quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes
   ⚠ Ollama (tuned): memory is tight: other apps or a longer context may push it over
-  ⚠ llama.cpp (llama-server) (defaults): Claude Code's ~12k-token prompt does not fit the 4096-token context (model native context, reduced to fit free memory): requests will be rejected with a context error
+  ⚠ llama.cpp (llama-server) (defaults): Claude Code's ~20k-token prompt does not fit the 4096-token context (model native context, reduced to fit free memory): requests will be rejected with a context error
   ⚠ llama.cpp (llama-server) (defaults): memory is tight: other apps or a longer context may push it over
   ⚠ llama.cpp (llama-server) (tuned): memory is tight: other apps or a longer context may push it over
-  ⚠ LM Studio (llama.cpp engine) (defaults): Claude Code's ~12k-token prompt does not fit the 4096-token context (LM Studio (llama.cpp engine) default load setting): the middle of the conversation is silently cut
+  ⚠ LM Studio (llama.cpp engine) (defaults): Claude Code's ~20k-token prompt does not fit the 4096-token context (LM Studio (llama.cpp engine) default load setting): the middle of the conversation is silently cut
   ⚠ LM Studio (llama.cpp engine) (defaults): memory is tight: other apps or a longer context may push it over
   ⚠ LM Studio (llama.cpp engine) (tuned): memory is tight: other apps or a longer context may push it over
 
-Best setup: llama.cpp (llama-server) with tuned settings — task ≈ 88 s, first reply 13 s, then ~2.1 s per turn.
+Best setup: llama.cpp (llama-server) with tuned settings — task ≈ 1 min 34 s, first reply 14 s, then ~2.1 s per turn.
   (what-if machine: installed runtimes not checked) Install: brew install llama.cpp · winget install llama.cpp · or a prebuilt release from github.com/ggml-org/llama.cpp
   Settings for llama.cpp (llama-server):
-    - llama-server -m <model.gguf> -c 40960 -fa on --jinja
+    - llama-server -m <model.gguf> -c 57344 -fa on --jinja
     - Optional: --slot-save-path to persist the harness prompt cache across restarts
 

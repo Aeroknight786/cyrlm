@@ -163,25 +163,17 @@ func (m *Root) setupBody() string {
 	if p.ID == "" {
 		return m.card(m.waiting() + " Planning your setup")
 	}
-	summary := p.DownloadSummary()
-	if m.setup.onDisk {
-		summary = "already on disk · " + summary
-	}
-	password := "no password"
-	if p.Prompts.Passwords > 0 {
-		password = fmt.Sprintf("%d OS password prompt(s)", p.Prompts.Passwords)
-	}
-	b := m.theme.selected.Bold(true).Render("Set up "+p.ModelName+" for "+toolName(m.cfg.Preferences.Tool)) + "\n" + summary + fmt.Sprintf(" · %d approval · ", p.Prompts.Approvals) + password + "\n"
-	b += "Not touched · " + strings.Join(p.Untouched, ", ") + "\n"
+	b := m.theme.selected.Bold(true).Render("Set up "+p.ModelName+" for "+toolName(m.cfg.Preferences.Tool)) + "\n" + p.CountsLine(m.setup.onDisk) + "\n"
+	b += "Not touched · " + p.UntouchedSummary() + "\n"
 	if p.Prompts.AfterRestart != "" {
 		b += m.theme.caveat.Render(p.Prompts.AfterRestart) + "\n"
 	}
+	if p.OS == "darwin" && !m.expanded {
+		b += "\n" + p.Overview()
+	}
 	for i, step := range p.Steps {
 		state := m.setup.states[i+1]
-		if !m.expanded && !m.busy {
-			continue
-		}
-		if !m.expanded && state == "" {
+		if !m.expanded && (p.OS == "darwin" || !m.busy || state == "") {
 			continue
 		}
 		mark := "·"
@@ -190,10 +182,7 @@ func (m *Root) setupBody() string {
 		} else if state != "" {
 			mark = m.waiting()
 		}
-		b += "\n" + mark + " " + step.Title
-		if m.expanded && len(step.Argv) > 0 {
-			b += "\n  " + fmt.Sprintf("%q", step.Argv)
-		}
+		b += "\n" + mark + " " + step.Description(m.expanded)
 	}
 	if u := m.setup.update; u.Progress != nil && u.Progress.Total > 0 {
 		p := u.Progress
@@ -204,15 +193,12 @@ func (m *Root) setupBody() string {
 		b += "\n" + m.setup.journal.Summary()
 	}
 	if m.expanded {
-		b += "\n" + strings.Join(m.setup.logs, "\n")
-	} else if m.busy && m.setup.update.Kind == setup.Check {
+		b += "\n" + strings.Join(append(append([]string{}, m.setup.logs...), p.Warnings...), "\n")
+	} else if p.OS != "darwin" && m.busy && m.setup.update.Kind == setup.Check {
 		for _, line := range m.setup.logs {
 			name, _, _ := strings.Cut(line, ":")
 			b += "\n" + clip(name, min(m.width, 80)-6)
 		}
-	}
-	if m.expanded {
-		b += "\n" + strings.Join(p.Warnings, "\n")
 	}
 	return m.card(strings.TrimSpace(b))
 }

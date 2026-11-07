@@ -1,14 +1,14 @@
 
 Qwen3.6 35B-A3B on what-if: 8-core x86 CPU (CPU only), 32 GB RAM
-Scenario: Claude Code — 12k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
+Scenario: Claude Code — 20k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
 
 RUNTIME                                  FILE            CONTEXT  MEMORY        FIRST REPLY  FOLLOW-UP  WRITES AT           TASK*
-Ollama (defaults)                        Q4_K_M 22.1 GB  4k ⚠     ~ 21.3/22 GB  2 min 24 s   52 s       ~12 tok/s at 14.7k  ✗ breaks
-Ollama (tuned)                           Q4_K_M 22.1 GB  40k      ✗ 22.0/22 GB  —            —          —                   —
-llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ~ 21.3/22 GB  2 min 19 s   51 s       ~12 tok/s at 14.7k  ✗ breaks
-llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  40k      ✗ 22.0/22 GB  —            —          —                   —
-LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ~ 21.5/22 GB  2 min 21 s   51 s       ~12 tok/s at 14.7k  ✗ breaks
-LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  40k      ✗ 22.0/22 GB  —            —          —                   —
+Ollama (defaults)                        Q4_K_M 22.1 GB  4k ⚠     ~ 21.3/22 GB  3 min 54 s   58 s       ~11 tok/s at 22.6k  ✗ breaks
+Ollama (tuned)                           Q4_K_M 22.1 GB  56k      ✗ 22.4/22 GB  —            —          —                   —
+llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ~ 21.3/22 GB  3 min 47 s   56 s       ~11 tok/s at 22.6k  ✗ breaks
+llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  56k      ✗ 22.4/22 GB  —            —          —                   —
+LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ~ 21.5/22 GB  3 min 49 s   57 s       ~11 tok/s at 22.6k  ✗ breaks
+LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  56k      ✗ 22.4/22 GB  —            —          —                   —
 
 FIRST REPLY = cold start (model load + the whole prompt). FOLLOW-UP = a typical later turn (new tokens only + the reply).
 * TASK = a 40-call agent task; at datacenter speed it would take about 2 min 00 s. "✗ breaks" = the harness prompt does not fit the context.
@@ -16,16 +16,16 @@ Typical error (about 3 in 4 predictions): generation ±75%, prompt processing ±
 
   · CPU-only: memory bandwidth assumed; run `trialm detect --probe` to measure it
 
-  ⚠ Ollama (defaults): Claude Code's ~12k-token prompt does not fit the 4096-token context (Ollama default for 22 GiB of GPU memory): the prompt is silently truncated and the agent will misbehave
+  ⚠ Ollama (defaults): Claude Code's ~20k-token prompt does not fit the 4096-token context (Ollama default for 22 GiB of GPU memory): the prompt is silently truncated and the agent will misbehave
   ⚠ Ollama (defaults): memory is tight: other apps or a longer context may push it over
   ⚠ quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes
-  ⚠ Ollama (tuned): does not fit: needs 22.0 GB, 22.0 GB available
-  ⚠ llama.cpp (llama-server) (defaults): Claude Code's ~12k-token prompt does not fit the 4096-token context (model native context, reduced to fit free memory): requests will be rejected with a context error
+  ⚠ Ollama (tuned): does not fit: needs 22.4 GB, 22.0 GB available
+  ⚠ llama.cpp (llama-server) (defaults): Claude Code's ~20k-token prompt does not fit the 4096-token context (model native context, reduced to fit free memory): requests will be rejected with a context error
   ⚠ llama.cpp (llama-server) (defaults): memory is tight: other apps or a longer context may push it over
-  ⚠ llama.cpp (llama-server) (tuned): does not fit: needs 22.0 GB, 22.0 GB available
-  ⚠ LM Studio (llama.cpp engine) (defaults): Claude Code's ~12k-token prompt does not fit the 4096-token context (LM Studio (llama.cpp engine) default load setting): the middle of the conversation is silently cut
+  ⚠ llama.cpp (llama-server) (tuned): does not fit: needs 22.4 GB, 22.0 GB available
+  ⚠ LM Studio (llama.cpp engine) (defaults): Claude Code's ~20k-token prompt does not fit the 4096-token context (LM Studio (llama.cpp engine) default load setting): the middle of the conversation is silently cut
   ⚠ LM Studio (llama.cpp engine) (defaults): memory is tight: other apps or a longer context may push it over
-  ⚠ LM Studio (llama.cpp engine) (tuned): does not fit: needs 22.0 GB, 22.0 GB available
+  ⚠ LM Studio (llama.cpp engine) (tuned): does not fit: needs 22.4 GB, 22.0 GB available
 
 Recommendation: no runtime gives a working Claude Code setup for this model here — try a smaller quant (--quant), a smaller model, or --ctx.
 

@@ -72,6 +72,7 @@ type Config struct {
 	Tools           []string
 }
 type modelsMsg struct {
+	tool string
 	rows []core.ModelChoice
 	err  error
 }
@@ -234,7 +235,10 @@ func (m *Root) loadModels() tea.Cmd {
 	}
 	m.detecting = true
 	d, p := m.detection, m.cfg.Preferences
-	return func() tea.Msg { rows, e := m.cfg.Models(m.cfg.Context, d, p); return modelsMsg{rows, e} }
+	return func() tea.Msg {
+		rows, e := m.cfg.Models(m.cfg.Context, d, p)
+		return modelsMsg{rows: rows, err: e, tool: p.Tool}
+	}
 }
 func (m *Root) tick() tea.Cmd {
 	if m.theme.plain || m.theme.ascii {
@@ -353,6 +357,9 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case setupEvent:
 		return m, m.setupEvent(v)
 	case modelsMsg:
+		if v.tool != m.cfg.Preferences.Tool {
+			return m, nil
+		}
 		m.detecting = false
 		if v.err != nil {
 			m.fail("Could not load your models. Press f to find a recipe or d for details.", v.err)
@@ -691,14 +698,18 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "down", "j":
 				m.modelIndex = min(len(m.models), m.modelIndex+1)
 			case "tab":
+				next := 0
 				for i, tool := range m.cfg.Tools {
 					if tool == m.cfg.Preferences.Tool {
-						m.cfg.Preferences.Tool = m.cfg.Tools[(i+1)%len(m.cfg.Tools)]
-						return m, nil
+						next = (i + 1) % len(m.cfg.Tools)
+						break
 					}
 				}
 				if len(m.cfg.Tools) > 0 {
-					m.cfg.Preferences.Tool = m.cfg.Tools[0]
+					m.cfg.Preferences.Tool = m.cfg.Tools[next]
+					if m.detection.Target.OS == "darwin" {
+						return m, m.loadModels()
+					}
 				}
 			case "t":
 				return m, m.try(false)
@@ -823,7 +834,7 @@ func (m *Root) makeFields() {
 	add := func(title string, value *string, options ...string) {
 		opts := make([]huh.Option[string], len(options))
 		for i, o := range options {
-			opts[i] = huh.NewOption(o, o)
+			opts[i] = huh.NewOption(toolName(o), o)
 		}
 		f := huh.NewSelect[string]().Options(opts...).Value(value).Inline(true)
 		f.WithKeyMap(huh.NewDefaultKeyMap())

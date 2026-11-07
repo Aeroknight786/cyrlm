@@ -93,7 +93,7 @@ func CommandBridge(commandContext context.Context, output io.Writer, args []stri
 	}
 	client := &upstream.OpenAICompat{BaseURL: base + "/v1", APIKey: key, Model: *model, IdleTimeout: 20 * time.Minute}
 	srv := New(Config{
-		Bridge: true, Upstream: client, RuntimeName: rtName, Log: logW,
+		Bridge: true, Harness: hh.ID, Upstream: client, RuntimeName: rtName, Log: logW,
 		Model: api.ModelInfo{Name: *model, ContextLength: *ctxTokens, ModifiedAt: time.Now(), Capabilities: []string{"completion", "tools"}},
 	})
 	bound, err := srv.Listen("127.0.0.1", *port, true)

@@ -6,21 +6,23 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/charmbracelet/x/ansi"
 )
 
-func wrap(s string, w int) string      { return ansi.Wrap(s, max(1, w), "") }
-func strip(s string) string            { return ansi.Strip(s) }
-func clip(s string, w int) string      { return ansi.Truncate(s, max(1, w), "") }
-func estimated(f figure.Figure) string { return "~" + strings.TrimPrefix(f.String(), "~") }
-func metric(r predict.Result, v float64, unit string, reading bool) figure.Figure {
-	band := r.Accuracy.DecodePct
-	if reading {
-		band = r.Accuracy.PrefillPct
+func wrap(s string, w int) string { return ansi.Wrap(s, max(1, w), "") }
+func strip(s string) string       { return ansi.Strip(s) }
+func clip(s string, w int) string { return ansi.Truncate(s, max(1, w), "") }
+func estimated(f figure.Figure, local ...bool) string {
+	if len(local) > 0 && local[0] && f.Kind == figure.Calibrated {
+		return strings.TrimPrefix(f.String(), "~")
 	}
-	return figure.Band(v, band, unit, figure.Kind(r.Kind), "prediction:"+r.Model.ID+"/"+r.Runtime.ID)
+	return "~" + strings.TrimPrefix(f.String(), "~")
+}
+func metric(r predict.Result, v float64, unit string, reading bool) figure.Figure {
+	return core.PredictionMetric(r, v, unit, reading)
 }
 func (m *Root) body() string {
 	title := m.theme.wordmark()
@@ -35,10 +37,7 @@ func (m *Root) body() string {
 	case Needs:
 		lines := []string{"What do you need? · Enter accepts every default"}
 		for i, f := range m.fields {
-			mark := "  "
-			if i == m.field {
-				mark = m.theme.selected.Render("❯ ")
-			}
+			mark := m.theme.selected.Render(selection(i, m.field))
 			lines = append(lines, mark+fmt.Sprintf("%-18s", m.labels[i])+strings.TrimSpace(strings.ReplaceAll(f.View(), "\n", " ")))
 		}
 		lines = append(lines, "Native context only · YaRN choices arrive in v0.6", "Trial: no-logging providers · cap "+figure.Exact(m.cfg.Preferences.BudgetUSD, "USD", figure.Measured, "prefs:budget").String())
@@ -65,11 +64,7 @@ func (m *Root) body() string {
 	case Gallery:
 		b := "Published claims · unverified by triaLM · never ranked\n"
 		for i, c := range Claims() {
-			mark := "  "
-			if i == m.selected {
-				mark = "❯ "
-			}
-			b += mark + c.ID + " [" + c.Grade + "]\n  " + c.Hardware + "\n  " + c.Figures[0].String() + "\n"
+			b += selection(i, m.selected) + c.ID + " [" + c.Grade + "]\n  " + c.Hardware + "\n  " + c.Figures[0].String() + "\n"
 		}
 		return b
 	case ClaimCard:
@@ -94,7 +89,7 @@ func (m *Root) body() string {
 		if row, ok := m.row(); ok {
 			r := row.Result
 			f := metric(r, r.DecodeTPSDeep, "tok/s", false)
-			return fmt.Sprintf("Why these numbers?\n%s · %s\n%s\nRange %s to %s\nSource: %s\nWriting ±%d%% · reading ±%d%%\n%s", r.Model.Name, r.Runtime.Name, estimated(f), figure.BandNumber(f.Lo, 26), figure.BandNumber(f.Hi, 26), f.Src, r.Accuracy.DecodePct, r.Accuracy.PrefillPct, strings.Join(r.Warnings, "\n"))
+			return fmt.Sprintf("Why these numbers?\n%s · %s\n%s\nRange %s to %s\nSource: %s\nWriting ±%d%% · reading ±%d%%\n%s", r.Model.Name, r.Runtime.Name, estimated(f, m.detection.Target.OS == "darwin"), figure.BandNumber(f.Lo, 26), figure.BandNumber(f.Hi, 26), f.Src, r.Accuracy.DecodePct, r.Accuracy.PrefillPct, strings.Join(r.Warnings, "\n"))
 		}
 		return "Claims are source-reported figures, not triaLM measurements.\n" + Claims()[0].SourceURL
 	case Setup:
@@ -102,7 +97,7 @@ func (m *Root) body() string {
 	case Ready:
 		return m.readyBody()
 	case Launching:
-		return "Opening " + m.cfg.Preferences.Tool + " on the local model…"
+		return "Opening " + toolName(m.cfg.Preferences.Tool) + " on the local model…"
 	case Trial:
 		return m.meter.String()
 	case Chat:
@@ -112,6 +107,10 @@ func (m *Root) body() string {
 }
 func (m *Root) recipes() string {
 	b := fmt.Sprintf("Recipes for %s · %s · %dk native\nSimulated or calibrated · uncertainty shown on ?\n", m.cfg.Preferences.Tool, m.cfg.Preferences.Priority, m.cfg.Preferences.Context/1024)
+	if m.detection.Target.OS == "darwin" {
+		b = fmt.Sprintf("Recipes for %s on this Mac · %s\n", toolName(m.cfg.Preferences.Tool), m.cfg.Preferences.Priority)
+		b += wrap(m.theme.dim.Render(fmt.Sprintf("First reply reads %s's opening prompt (~%sK tokens); later replies reuse it. ~ = estimate, ? = how sure.", toolName(m.cfg.Preferences.Tool), core.OpeningPromptFigure(m.listing.Scenario, m.cfg.Preferences.Tool).Number())), m.width) + "\n"
+	}
 	if len(m.listing.Rows) == 0 {
 		if m.busy {
 			return b // the spinner line says it is still ranking
@@ -123,11 +122,7 @@ func (m *Root) recipes() string {
 	} else {
 		for i, row := range m.listing.Rows {
 			r := row.Result
-			mark := "  "
-			if i == m.selected {
-				mark = "❯ "
-			}
-			b += fmt.Sprintf("%s%d %s\n  %s · %s\n  turn %s\n", mark, i+1, r.Model.Name, r.Quant.Name, r.Runtime.ID, estimated(metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false)))
+			b += fmt.Sprintf("%s%d %s\n  %s · %s\n  turn %s\n", selection(i, m.selected), i+1, r.Model.Name, r.Quant.Name, r.Runtime.ID, estimated(metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false), m.detection.Target.OS == "darwin"))
 		}
 	}
 	for _, row := range m.listing.Rows {
@@ -136,10 +131,16 @@ func (m *Root) recipes() string {
 			break
 		}
 	}
-	b += "\nClaims we can't simulate yet\n"
-	// Claims remain a separate lane and never enter the core ranker.
-	for _, c := range ClaimsFor(m.detection.Target.Device.Name, m.detection.Target.OS) {
-		b += "  claim " + c.ID + " · " + c.Figures[0].String() + " [" + c.Grade + "]\n"
+	cs := ClaimsFor(m.detection.Target.Device.Name, m.detection.Target.OS)
+	if m.detection.Target.OS == "darwin" {
+		if len(cs) > 0 {
+			b += m.theme.dim.Render("c published claims for similar hardware") + "\n"
+		}
+	} else {
+		b += "\nClaims we can't simulate yet\n"
+		for _, c := range cs {
+			b += "  claim " + c.ID + " · " + c.Figures[0].String() + " [" + c.Grade + "]\n"
+		}
 	}
 	b += wrap(m.theme.cloud.Render("Trial: real cloud model · no-logging providers · cap "+figure.Exact(m.cfg.Preferences.BudgetUSD, "USD", figure.Measured, "prefs:budget").String()), m.width)
 	b += "\n" + m.theme.dim.Render("calibrate for tighter numbers: trialm calibrate")
@@ -157,7 +158,7 @@ func (m *Root) details() string {
 	if r.Timing != nil {
 		read := r.Scenario.FollowUpTTFT.Seconds()
 		write := max(0, r.Scenario.FollowUpTurn.Seconds()-read)
-		b += "Turn " + estimated(metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false)) + "\n" + m.split(read, write, 0)
+		b += "Turn " + estimated(metric(r, r.Scenario.FollowUpTurn.Seconds(), "s", false), m.detection.Target.OS == "darwin") + "\n" + m.split(read, write, 0)
 	}
 	flash := "off"
 	if r.Settings.FlashAttention {

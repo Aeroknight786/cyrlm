@@ -1,7 +1,12 @@
 [36m╭────────────────────────────────────────────────────────────────────────────╮[m
 [36m│[m [1;36mSet up Qwen3.6 35B-A3B for Codex[m                                           [36m│[m
 [36m│[m already on disk · 13.2 GB download · 1 approval · no password              [36m│[m
-[36m│[m Not touched · Codex config, shell profile, other models                    [36m│[m
+[36m│[m Not touched · your Codex settings, your shell, other models                [36m│[m
+[36m│[m                                                                            [36m│[m
+[36m│[m Install llama.cpp b12182 (16.7 MB)                                         [36m│[m
+[36m│[m Start the engine                                                           [36m│[m
+[36m│[m Connect Codex                                                              [36m│[m
+[36m│[m Check speed and tools                                                      [36m│[m
 [36m╰────────────────────────────────────────────────────────────────────────────╯[m
 
 [90menter go  esc back  d details[m

@@ -68,31 +68,24 @@ func (m *Root) launcher() string {
 	b += "\n  " + m.theme.selected.Bold(true).Render("Your models") + "\n"
 	for i, choice := range m.models {
 		mark, state, style := "○", choice.Download.String()+" · not on disk", m.theme.dim
-		speed := choice.Speed.String()
+		speed := estimated(choice.Speed)
 		if choice.Journal != nil {
 			mark, state, style = "●", "ready", m.theme.good
-		} else {
-			speed = "~" + strings.TrimPrefix(speed, "~")
-			if choice.Row.LocalPath != "" {
-				mark, state, style = "◐", "on disk · not set up", m.theme.selected
-			}
+			speed = choice.Speed.String()
+		} else if choice.Row.LocalPath != "" {
+			mark, state, style = "◐", "on disk · not set up", m.theme.selected
 		}
-		cursor := "  "
-		if i == m.modelIndex {
-			cursor = "❯ "
+		if m.detection.Target.OS == "darwin" {
+			speed = estimated(choice.Reply, true) + " per reply"
 		}
 		nameWidth := max(12, min(25, m.width-39))
-		line := fmt.Sprintf("%s%s %-*s %10s   %s", cursor, mark, nameWidth, clip(choice.Row.Result.Model.Name, nameWidth), speed, state)
+		line := fmt.Sprintf("%s%s %-*s %10s   %s", selection(i, m.modelIndex), mark, nameWidth, clip(choice.Row.Result.Model.Name, nameWidth), speed, state)
 		if i == m.modelIndex && !m.theme.plain {
 			style = style.Background(lipgloss.Color("#182b30"))
 		}
 		b += "  " + style.Render(line) + "\n"
 	}
-	cursor := "  "
-	if m.modelIndex == len(m.models) {
-		cursor = "❯ "
-	}
-	b += "\n  " + m.theme.cloud.Render(cursor+"✦ Find something faster or smarter")
+	b += "\n  " + m.theme.cloud.Render(selection(len(m.models), m.modelIndex)+"✦ Find something faster or smarter")
 	if m.notice != "" {
 		b += "\n\n  " + m.theme.dim.Render(m.notice)
 	}

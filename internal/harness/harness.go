@@ -41,9 +41,14 @@ type Harness struct {
 	Binary string
 }
 
+// Claude Code: bare install with tool search was ~12K. On the owner's M5,
+// 2.1.204 through triaLM on 2026-11-07 measured 20,200 with claude -p
+// (25 tools, one MCP server), and 41K–47K interactively. Default: 20K;
+// the local median replaces it after real conversations. Other tools retain
+// their existing measured/reported defaults below.
 var harnesses = []Harness{
 	{Compat: Compat{Status: "fake-upstream", Version: "2.1.319", Date: "2026-11-06", OS: "linux"}, ID: "claude-code", Name: "Claude Code", Protocol: "anthropic", Protocols: []string{"anthropic"}, Binary: "claude",
-		Scenario: predict.Scenario{Harness: "claude-code", BasePromptTokens: 12000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 45000, MinContext: 36864}},
+		Scenario: predict.Scenario{Harness: "claude-code", BasePromptTokens: 20000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 45000, MinContext: 36864}},
 	{Compat: Compat{Status: "untested"}, ID: "codex", Name: "Codex CLI", Protocol: "responses", Protocols: []string{"responses"}, Binary: "codex",
 		Scenario: predict.Scenario{Harness: "codex", BasePromptTokens: 9000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 25000, MinContext: 65536}},
 	{Compat: Compat{Status: "fake-upstream", Version: "1.19.5", Date: "2026-11-06", OS: "linux"}, ID: "opencode", Name: "OpenCode", Protocol: "openai-chat", Protocols: []string{"openai-chat", "anthropic"}, Binary: "opencode",
@@ -107,6 +112,7 @@ func Get(id string) (Harness, error) {
 	}
 	for _, h := range harnesses {
 		if h.ID == n {
+			h.Scenario = OpeningScenario(h.Scenario, goruntime.GOOS)
 			return h, nil
 		}
 	}

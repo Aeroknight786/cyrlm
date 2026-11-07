@@ -161,6 +161,9 @@ func (s Session) Launch(ctx context.Context, o LaunchOptions) (l Launch, err err
 			}
 		}
 	}
+	if err == nil && l.Bridge != nil {
+		l.Bridge.ObserveHarness(h.ID)
+	}
 	if err != nil && l.Bridge != nil {
 		_ = l.Bridge.Close()
 	}

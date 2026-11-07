@@ -378,7 +378,7 @@ func TestScenarioAndCompatMetadata(t *testing.T) {
 		}
 	}
 	cc, _ := Get("claude-code")
-	if cc.Scenario.BasePromptTokens != 12000 || cc.Scenario.MinContext != 36864 {
+	if cc.Scenario.BasePromptTokens != 20000 || cc.Scenario.MinContext != 36864 {
 		t.Error(cc.Scenario)
 	}
 	q, _ := Get("qwen-code")

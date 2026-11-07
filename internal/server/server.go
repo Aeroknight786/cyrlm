@@ -14,6 +14,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/api/ollama"
 	"github.com/aeroknight786/trialm/internal/api/openai"
 	"github.com/aeroknight786/trialm/internal/api/responses"
+	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/llm"
 	"github.com/aeroknight786/trialm/internal/sim"
 	"github.com/aeroknight786/trialm/internal/tok"
@@ -50,6 +52,8 @@ type Config struct {
 	AllowOrigins []string
 	// MaxBodyBytes caps request bodies (default 32 MiB).
 	MaxBodyBytes int64
+	// Harness identifies the tool whose conversation openings are measured.
+	Harness string
 	// Bridge relays requests to a real local runtime with no simulation:
 	// the harness speaks its own protocol (Responses, Anthropic, Ollama),
 	// the runtime gets plain Chat Completions. Device may be nil.
@@ -58,20 +62,21 @@ type Config struct {
 
 // Server is the simulated runtime.
 type Server struct {
-	cfg          Config
-	mux          *http.ServeMux
-	chat         api.Frontend
-	anth         *anthropic.Frontend
-	resp         api.Frontend
-	ollChat      api.Frontend
-	ollGen       api.Frontend
-	logMu        sync.Mutex
-	listener     net.Listener
-	httpSrv      *http.Server
-	startedAt    time.Time
-	bridgeN      atomic.Int64
-	warnedNumCtx sync.Once
-	warnedSystem sync.Once
+	cfg            Config
+	mux            *http.ServeMux
+	chat           api.Frontend
+	anth           *anthropic.Frontend
+	resp           api.Frontend
+	ollChat        api.Frontend
+	ollGen         api.Frontend
+	logMu          sync.Mutex
+	listener       net.Listener
+	httpSrv        *http.Server
+	startedAt      time.Time
+	bridgeN        atomic.Int64
+	openingHarness atomic.Value
+	warnedNumCtx   sync.Once
+	warnedSystem   sync.Once
 }
 
 // New creates a server.
@@ -102,6 +107,7 @@ func New(cfg Config) *Server {
 	// Initialize before a Serve goroutine can race a fast --launch child's
 	// exit and Shutdown. http.Server coordinates Serve/Shutdown internally.
 	s.httpSrv = &http.Server{Handler: s, ReadHeaderTimeout: 10 * time.Second}
+	s.ObserveHarness(cfg.Harness)
 	s.routes()
 	return s
 }
@@ -425,6 +431,7 @@ func (s *Server) relay(w http.ResponseWriter, r *http.Request, fe api.Frontend, 
 	var st api.Stream
 	var resp llm.Response
 	var first time.Time
+	complete := false
 	for ev := range events {
 		switch ev.Type {
 		case llm.EventError:
@@ -437,6 +444,7 @@ func (s *Server) relay(w http.ResponseWriter, r *http.Request, fe api.Frontend, 
 			}
 			return
 		case llm.EventDone:
+			complete = true
 			resp.Apply(ev)
 		default:
 			if first.IsZero() {
@@ -461,6 +469,9 @@ func (s *Server) relay(w http.ResponseWriter, r *http.Request, fe api.Frontend, 
 	}
 	if len(resp.ToolCalls) > 0 && resp.FinishReason == llm.FinishStop {
 		resp.FinishReason = llm.FinishToolCalls
+	}
+	if complete {
+		s.recordOpening(req, resp.Usage.PromptTokens)
 	}
 	end := time.Now()
 	tm := llm.Timings{Total: end.Sub(start), EvalTokens: resp.Usage.CompletionTokens, PromptEvalTokens: resp.Usage.PromptTokens - resp.Usage.CachedPromptTokens}
@@ -713,3 +724,25 @@ func (s *Server) logWarnings(n int, proto string, req *llm.Request) {
 		}
 	}
 }
+
+// Requests with assistant history are follow-ups, including tool-result turns.
+func (s *Server) recordOpening(req *llm.Request, tokens int) {
+	id, _ := s.openingHarness.Load().(string)
+	if runtime.GOOS != "darwin" || id == "" {
+		return
+	}
+	for _, msg := range req.Messages {
+		if msg.Role == "assistant" {
+			return
+		}
+	}
+	if tokens <= 0 {
+		tokens = tok.Render(req, tok.RenderOptions{}).Len()
+	}
+	if err := harness.RecordOpeningPrompt(id, tokens); err != nil {
+		s.logf("Opening prompt count could not be saved: %v\n", err)
+	}
+}
+
+// ObserveHarness enables opening counts after triaLM's own verification probes.
+func (s *Server) ObserveHarness(id string) { s.openingHarness.Store(id) }

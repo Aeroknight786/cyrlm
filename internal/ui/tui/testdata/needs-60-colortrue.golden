@@ -1,15 +1,15 @@
 What do you need? · Enter accepts every default
-[36m❯ [mTool              [2;36m‹ [m[36mcodex[m[36m ›[m
-  Use               [2;36m‹ [m[36magent[m[36m ›[m
-  Model             [2;36m‹ [m[36many[m[36m ›[m
-  Priority          [36m‹ [m[36mbalanced[m[36m ›[m
-  Context (native)  [36m‹ [m[36m64k[m[36m ›[m
-  Quality           [2;36m‹ [m[36m3bit-ok[m[36m ›[m
-  Engines           [2;36m‹ [m[36mstable+new[m[36m ›[m
-  Speed boosts      [2;36m‹ [m[36mauto[m[36m ›[m
-  Trial             [2;36m‹ [m[36mrepo[m[36m ›[m
-  Trial cap         [36m‹ [m[36m$2[m[36m ›[m
-  Retention         [2;36m‹ [m[36mno-logging[m[36m ›[m
+[36m❯ [mTool              [2;36m‹ [m[36mCodex[m[36m ›[m
+[36m  [mUse               [2;36m‹ [m[36magent[m[36m ›[m
+[36m  [mModel             [2;36m‹ [m[36many[m[36m ›[m
+[36m  [mPriority          [36m‹ [m[36mbalanced[m[36m ›[m
+[36m  [mContext (native)  [36m‹ [m[36m64k[m[36m ›[m
+[36m  [mQuality           [2;36m‹ [m[36m3bit-ok[m[36m ›[m
+[36m  [mEngines           [2;36m‹ [m[36mstable+new[m[36m ›[m
+[36m  [mSpeed boosts      [2;36m‹ [m[36mauto[m[36m ›[m
+[36m  [mTrial             [2;36m‹ [m[36mrepo[m[36m ›[m
+[36m  [mTrial cap         [36m‹ [m[36m$2[m[36m ›[m
+[36m  [mRetention         [2;36m‹ [m[36mno-logging[m[36m ›[m
 Native context only · YaRN choices arrive in v0.6
 Trial: no-logging providers · cap 2.00 USD
 

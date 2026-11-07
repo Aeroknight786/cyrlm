@@ -26,10 +26,12 @@ type ModelChoice struct {
 	Row      Row
 	Journal  *setup.Journal
 	Speed    figure.Figure
+	Reply    figure.Figure
 	Download figure.Figure
 }
 
 func (s Session) Models(ctx context.Context, o Options, t predict.Target, h harness.Harness) ([]ModelChoice, error) {
+	h.Scenario = harness.OpeningScenario(h.Scenario, t.OS)
 	ready, err := s.ReadySetups(ctx)
 	if err != nil {
 		return nil, err
@@ -56,15 +58,18 @@ func (s Session) Models(ctx context.Context, o Options, t predict.Target, h harn
 		// Trials of a saved setup retain its actual quant and engine.
 		row.Result.Quant, _ = model.Quant(j.Plan.Quant)
 		row.Result.Runtime, _ = engine.Get(j.Plan.Runtime)
-		// Short-context writing, the basis of the predictions shown beside it
-		// (journals written before actual-depth samples keep DecodeTPS[0]).
+		if t.OS == "darwin" {
+			row.Result = predict.Predict(predict.Input{Model: model, QuantName: j.Plan.Quant, Runtime: row.Result.Runtime, Target: t, Tuned: j.Plan.Tuned, CtxOverride: j.Plan.ContextTokens, KVCacheType: j.Plan.KVCacheType, Scenario: h.Scenario, BackendOverride: j.Plan.Backend})
+		}
+		// Preserve the short-context writing metric on non-Mac launchers.
+		// Mac launchers use the calibrated scenario above.
 		speed, depth := j.Report.DecodeTPS[0], -1
 		for _, sample := range j.Report.Samples {
 			if sample.Mode == "decode" && (depth < 0 || sample.Depth < depth) {
 				speed, depth = sample.Speed, sample.Depth
 			}
 		}
-		choices = append(choices, ModelChoice{Row: row, Journal: &j, Speed: figure.Band(speed, 20, "tok/s", figure.Measured, "setup:"+j.Plan.Slug+"/ready")})
+		choices = append(choices, ModelChoice{Row: row, Journal: &j, Reply: replyFigure(row.Result), Speed: figure.Band(speed, 20, "tok/s", figure.Measured, "setup:"+j.Plan.Slug+"/ready")})
 		seen[model.ID] = true
 	}
 	home, _ := os.UserHomeDir()
@@ -113,7 +118,7 @@ func (s Session) Models(ctx context.Context, o Options, t predict.Target, h harn
 func modelChoice(r Row) ModelChoice {
 	p := r.Result
 	speed := figure.Band(p.DecodeTPS0, p.Accuracy.DecodePct, "tok/s", figure.Kind(p.Kind), "prediction:"+p.Model.ID)
-	return ModelChoice{Row: r, Speed: speed, Download: figure.Bytes(p.Quant.FileBytes, "catalog:"+p.Model.ID)}
+	return ModelChoice{Row: r, Reply: replyFigure(p), Speed: speed, Download: figure.Bytes(p.Quant.FileBytes, "catalog:"+p.Model.ID)}
 }
 
 // Discovery only reads filenames, manifests and launcher text. It never sources
@@ -289,3 +294,24 @@ func cachedModel(home, root string, m catalog.Model, q catalog.Quant) string {
 var legacyModel = regexp.MustCompile(`(?:-m|--model)\s+("[^"\n]+"|'[^'\n]+'|[^\s\\]+)`)
 
 var modelShard = regexp.MustCompile(`-(\d{5})-of-(\d{5})`)
+
+func replyFigure(p predict.Result) figure.Figure {
+	return PredictionMetric(p, p.Scenario.FollowUpTurn.Seconds(), "s", false)
+}
+
+// PredictionMetric carries the same band and source on every interactive screen.
+func PredictionMetric(r predict.Result, v float64, unit string, reading bool) figure.Figure {
+	band := r.Accuracy.DecodePct
+	if reading {
+		band = r.Accuracy.PrefillPct
+	}
+	return figure.Band(v, band, unit, figure.Kind(r.Kind), "prediction:"+r.Model.ID+"/"+r.Runtime.ID)
+}
+
+// OpeningPromptFigure also supplies the header while a new tool is still ranking.
+func OpeningPromptFigure(sc predict.Scenario, tool string) figure.Figure {
+	if h, err := harness.Get(tool); err == nil && (sc.BasePromptTokens == 0 || sc.Harness != h.ID) {
+		sc = h.Scenario
+	}
+	return figure.Band(float64(sc.BasePromptTokens)/1000, 20, "", figure.Measured, "harness:opening/"+sc.Harness)
+}

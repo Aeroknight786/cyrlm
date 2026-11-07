@@ -1,7 +1,12 @@
 ╭────────────────────────────────────────────────────────────────────────────╮
 │ Set up Qwen3.6 35B-A3B for Codex                                           │
 │ 13.2 GB download · 1 approval · no password                                │
-│ Not touched · Codex config, shell profile, other models                    │
+│ Not touched · your Codex settings, your shell, other models                │
+│                                                                            │
+│ Install llama.cpp b12182 (16.7 MB)                                         │
+│ Start the engine                                                           │
+│ Connect Codex                                                              │
+│ Check speed and tools                                                      │
 ╰────────────────────────────────────────────────────────────────────────────╯
 
 enter go  esc back  d details

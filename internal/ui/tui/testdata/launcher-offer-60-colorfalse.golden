@@ -8,11 +8,11 @@
 ╰────────────────────────────────────────────────────────╯
 
   Your models
-    ● Qwen3.5 9B              21 tok/s   ready
-    ◐ Qwen3.6 35B-A3B        ~29 tok/s   on disk · not set
-up
-    ○ gpt-oss 20B            ~26 tok/s   12.0 GB · not on
-disk
+    ● Qwen3.6 35B-A3B       16 s per reply   ready
+    ◐ Gemma 4 26B-A4B       ~19 s per reply   on disk · not
+set up
+    ○ gpt-oss 20B           ~18 s per reply   12.0 GB · not
+on disk
 
     ✦ Find something faster or smarter
 

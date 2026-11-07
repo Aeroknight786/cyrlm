@@ -14,9 +14,11 @@ import (
 
 	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/catalog"
+	"github.com/aeroknight786/trialm/internal/engine"
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/gguf"
 	"github.com/aeroknight786/trialm/internal/harness"
+	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/verify"
 )
@@ -129,6 +131,9 @@ func TestModelsOrderingAndLocalPlan(t *testing.T) {
 		t.Fatalf("%+v", rows)
 	}
 	for _, r := range rows {
+		if r.Reply.V != r.Row.Result.Scenario.FollowUpTurn.Seconds() || r.Reply.Unit != "s" || r.Reply.Kind != figure.Kind(r.Row.Result.Kind) {
+			t.Fatal("launcher lost scenario provenance", r)
+		}
 		if r.Speed.Kind == figure.Measured {
 			t.Fatal("predicted speed marked measured")
 		}
@@ -148,6 +153,19 @@ func TestModelsOrderingAndLocalPlan(t *testing.T) {
 	rows, e = s.Models(context.Background(), o, d.Target, h)
 	if e != nil || len(rows) != 3 || rows[0].Journal == nil || rows[0].Speed.Kind != figure.Measured || rows[0].Speed.String() != "21 tok/s" {
 		t.Fatal(rows, e)
+	}
+	if rows[0].Reply.V != rows[0].Row.Result.Scenario.FollowUpTurn.Seconds() {
+		t.Fatal("Ready row substituted a raw speed", rows[0])
+	}
+	want := predict.Predict(predict.Input{Model: m, QuantName: p.Quant, Runtime: rows[0].Row.Result.Runtime, Target: d.Target, Tuned: p.Tuned, CtxOverride: o.Context, KVCacheType: p.KVCacheType, Scenario: h.Scenario, BackendOverride: p.Backend})
+	if rows[0].Row.Result.Quant.Name != p.Quant || rows[0].Row.Result.Runtime.ID != p.Runtime || rows[0].Reply.V != want.Scenario.FollowUpTurn.Seconds() {
+		t.Fatal("Ready did not predict the saved recipe", rows[0], want.Scenario)
+	}
+	smaller := o
+	smaller.Context = 49152
+	saved, err := s.Models(context.Background(), smaller, d.Target, h)
+	if err != nil || len(saved) == 0 || saved[0].Row.Result.Settings.ContextTokens != p.ContextTokens {
+		t.Fatal("Ready estimate used preferences instead of the running setup context", saved, err)
 	}
 	// Current journals store measured depth instead of a synthetic zero anchor.
 	j.Report.DecodeTPS = map[int]float64{17: 22, 59000: 9}
@@ -228,5 +246,57 @@ func TestCompleteCachedShardsAndMLX(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("MLX launcher lost local path", p)
+	}
+}
+
+func TestCalibratedLauncherReplyUsesScenario(t *testing.T) {
+	sys, e := predict.SyntheticSystem("Apple M5", 24, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	target := predict.TargetFromSystem(sys, 0)
+	model, _ := catalog.Lookup("qwen3.5:9b")
+	rt, _ := engine.Get("llamacpp")
+	h, _ := harness.Get("claude-code")
+	in := predict.Input{Model: model, QuantName: "Q4_K_M", Runtime: rt, Target: target, Tuned: true, CtxOverride: 49152, Scenario: h.Scenario}
+	c := &calib.Calibration{}
+	for _, s := range []calib.RealSample{{Mode: "decode", Depth: 17, Prompt: 17, Generated: 32, Speed: 22}, {Mode: "prefill", Prompt: 512, Speed: 800}} {
+		raw, _ := json.Marshal(struct{ Model, Engine, Mode string }{model.ID, rt.ID, s.Mode})
+		c.Rows = append(c.Rows, calib.Row{Probe: "real", Quant: in.QuantName, Depth: s.Depth, Prompt: s.Prompt, Gen: s.Generated, Seconds: 1 / s.Speed, Raw: raw})
+	}
+	r := predict.WithCalibration(in, c)
+	if r.Kind != "calibrated" {
+		t.Fatal(r.Accuracy)
+	}
+	choice := modelChoice(Row{Result: r})
+	if choice.Reply.Kind != figure.Calibrated || choice.Reply.V != r.Scenario.FollowUpTurn.Seconds() || choice.Reply.V == 22 {
+		t.Fatal(choice)
+	}
+}
+
+func TestMeasuredOpeningChangesFirstReply(t *testing.T) {
+	t.Setenv("TRIALM_HOME", t.TempDir())
+	s := Session{}
+	o := Options{Device: "Apple M5", RAM: 24, Runtime: "llamacpp", Quant: "Q4_K_M", Context: 65536, Tuned: true}
+	d, e := s.Detect(context.Background(), o)
+	if e != nil {
+		t.Fatal(e)
+	}
+	h, _ := harness.Get("claude-code")
+	before, e := s.Find(context.Background(), o, d.Target, h.Scenario, h, "qwen3.5:9b", 1)
+	if e != nil || len(before.Rows) != 1 || before.Scenario.BasePromptTokens != 20000 {
+		t.Fatal(before, e)
+	}
+	if e = harness.RecordOpeningPrompt(h.ID, 44000); e != nil {
+		t.Fatal(e)
+	}
+	h.Scenario = harness.OpeningScenario(h.Scenario, "darwin")
+	after, e := s.Find(context.Background(), o, d.Target, h.Scenario, h, "qwen3.5:9b", 1)
+	if e != nil || len(after.Rows) != 1 || after.Scenario.BasePromptTokens != 44000 {
+		t.Fatal(after, e)
+	}
+	a, b := after.Rows[0].Result.Scenario, before.Rows[0].Result.Scenario
+	if a.ColdFirstReply <= b.ColdFirstReply || a.FollowUpTurn != b.FollowUpTurn {
+		t.Fatal("opening measurement did not affect only the uncached opening at fixed context", a, b)
 	}
 }
