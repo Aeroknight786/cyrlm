@@ -309,12 +309,15 @@ type chunk struct {
 		PromptTokens        int `json:"prompt_tokens"`
 		CompletionTokens    int `json:"completion_tokens"`
 		PromptTokensDetails *struct {
-			CachedTokens int `json:"cached_tokens"`
+			CachedTokens *int `json:"cached_tokens"`
 		} `json:"prompt_tokens_details"`
 		CompletionTokensDetails *struct {
 			ReasoningTokens int `json:"reasoning_tokens"`
 		} `json:"completion_tokens_details"`
 	} `json:"usage"`
+	Timings *struct {
+		CacheN *int `json:"cache_n"`
+	} `json:"timings"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -396,13 +399,24 @@ func parseSSE(ctx context.Context, r io.Reader, out chan<- llm.Event, onLine fun
 		}
 		if ch.Usage != nil {
 			u := llm.Usage{PromptTokens: ch.Usage.PromptTokens, CompletionTokens: ch.Usage.CompletionTokens}
-			if ch.Usage.PromptTokensDetails != nil {
-				u.CachedPromptTokens = ch.Usage.PromptTokensDetails.CachedTokens
+			if usage != nil {
+				u.CachedPromptTokens, u.CacheKnown = usage.CachedPromptTokens, usage.CacheKnown
+			}
+			if ch.Usage.PromptTokensDetails != nil && ch.Usage.PromptTokensDetails.CachedTokens != nil {
+				u.CachedPromptTokens = *ch.Usage.PromptTokensDetails.CachedTokens
+				u.CacheKnown = true
 			}
 			if ch.Usage.CompletionTokensDetails != nil {
 				u.ReasoningTokens = ch.Usage.CompletionTokensDetails.ReasoningTokens
 			}
 			usage = &u
+		}
+		if ch.Timings != nil && ch.Timings.CacheN != nil {
+			if usage == nil {
+				usage = &llm.Usage{}
+			}
+			usage.CachedPromptTokens = *ch.Timings.CacheN
+			usage.CacheKnown = true
 		}
 	}
 	if stalled != nil && stalled() {

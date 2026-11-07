@@ -79,7 +79,7 @@ func machineCalibration() *calib.Calibration {
 	calibrationCache.key = key
 	calibrationCache.data = nil
 	c, e := calib.Load(home)
-	if e != nil || !c.Usable() {
+	if e != nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
@@ -134,10 +134,10 @@ func applyCalibration(r *Result, in Input) {
 }
 
 func calibrationAllowed(r *Result, in Input) bool {
-	return !in.Target.Synthetic && !in.Target.CPUOnly && in.Runtime.Engine == "llamacpp" && r.Timing != nil && r.Memory.Level != FitOffload && r.Memory.Level != FitNo
+	return !in.Target.Synthetic && in.Runtime.Engine == "llamacpp" && r.Timing != nil && r.Memory.Level != FitOffload && r.Memory.Level != FitNo
 }
 func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
-	if !calibrationAllowed(r, in) || c == nil || c.Backend != r.Backend {
+	if !calibrationAllowed(r, in) || c == nil || c.Backend != "" && c.Backend != r.Backend {
 		return
 	}
 	class, q := calibrationClass(in.Model), calibrationQuant(r.Quant.Name)
@@ -148,13 +148,50 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 	factors := &timingCalibration{}
 	var db, pb int
 	var paths []string
+	hasReal := false
+	for _, row := range c.Rows {
+		if row.Probe == "real" {
+			hasReal = true
+			break
+		}
+	}
+	usedReal := false
+	if in.Target.CPUOnly && !hasReal {
+		return
+	}
 	for i, depth := range []int{0, 8192, 32768} {
 		// Timing can cross every bucket. Report the widest used band for each
 		// operation so every headline and validation depth has honest coverage.
 		for _, mode := range []string{"decode", "prefill"} {
 			f, ok := c.FactorEvidence(class, q, depth, in.Model.Layers, mode)
+			speed, realBand, real := c.RealSpeed(in.Model.ID, r.Quant.Name, in.Runtime.ID, mode, depth)
+			if real {
+				usedReal = true
+				baseline := r.Timing.DecodeTPS(depth)
+				if mode == "prefill" {
+					baseline = r.Timing.PrefillTPS(depth, depth+512)
+				}
+				if baseline > 0 {
+					band := realBand
+					if band < 0 {
+						band = r.Accuracy.DecodePct
+						if mode == "prefill" {
+							band = r.Accuracy.PrefillPct
+						}
+					}
+					f = calib.FactorResult{Multiplier: speed / baseline, BandPct: band, Basis: "real-model measurement (single run uses default band when needed)"}
+					ok = true
+				}
+			}
 			if !ok {
-				return
+				if !hasReal {
+					return
+				}
+				band := r.Accuracy.DecodePct
+				if mode == "prefill" {
+					band = r.Accuracy.PrefillPct
+				}
+				f = calib.FactorResult{Multiplier: 1, BandPct: band, Basis: "uncalibrated default band"}
 			}
 			band := f.BandPct
 			if f.Fallback {
@@ -180,12 +217,15 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 			paths = append(paths, mode+": "+f.Basis)
 		}
 	}
+	if !usedReal && (in.Target.CPUOnly || hasReal && len(c.Fits) == 0) {
+		return
+	}
 	r.Timing.calibration = factors
 	r.Kind = "calibrated"
 	r.Accuracy.DecodePct = db
 	r.Accuracy.PrefillPct = pb
 	r.Accuracy.PrefillMeasureOnly = false
-	r.Accuracy.Basis = "calibrated on this machine; sensitivity band from synthetic checks and transfer allowances; context costs transfer per layer; real-model coverage is not established; " + strings.Join(paths, "; ")
+	r.Accuracy.Basis = "calibrated on this machine; bands follow the evidence or stated defaults; " + strings.Join(paths, "; ")
 	r.DecodeTPS0 = r.Timing.DecodeTPS(512)
 	r.PrefillTPS2k = r.Timing.PrefillTPS(0, 2048)
 	r.PrefillTPSP0 = r.Timing.PrefillTPS(0, sc.BasePromptTokens)

@@ -1,6 +1,7 @@
 package predict
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -218,5 +219,70 @@ func TestM5RealQwen35Validation(t *testing.T) {
 	}
 	if len(misses) > 0 {
 		t.Skipf("real-model transfer miss (not fitted away): %s", strings.Join(misses, "; "))
+	}
+}
+
+func TestRealOnlyCalibration(t *testing.T) {
+	in, baseline, c := calibrationFixture(t)
+	c.Fits = nil
+	tag, _ := json.Marshal(struct{ Model, Engine, Mode string }{in.Model.ID, in.Runtime.ID, "decode"})
+	c.Rows = []calib.Row{{Probe: "real", Quant: baseline.Quant.Name, Seconds: 1.0 / 10, Raw: tag}, {Probe: "real", Quant: baseline.Quant.Name, Seconds: 1.0 / 50, Raw: tag}}
+	r := baseline
+	applyMachineCalibration(&r, in, c)
+	if r.Kind != "calibrated" || r.DecodeTPS0 == baseline.DecodeTPS0 || r.Accuracy.DecodePct == baseline.Accuracy.DecodePct {
+		t.Fatalf("baseline=%+v result=%+v", baseline.Accuracy, r.Accuracy)
+	}
+	for _, mismatch := range []string{"model", "quant", "engine"} {
+		otherIn, other := in, baseline
+		switch mismatch {
+		case "model":
+			otherIn.Model.ID = "other"
+		case "quant":
+			other.Quant.Name = "other"
+		case "engine":
+			otherIn.Runtime.ID = "other"
+		}
+		applyMachineCalibration(&other, otherIn, c)
+		if other.DecodeTPS0 != baseline.DecodeTPS0 || other.Kind == "calibrated" {
+			t.Fatal(mismatch, "changed")
+		}
+	}
+}
+
+func TestRecordedFingerprintInvalidation(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("TRIALM_HOME", home)
+	engine, err := calib.FindEngine(home)
+	if err != nil {
+		t.Skip(err)
+	}
+	in, base, _ := calibrationFixture(t)
+	err = calib.RecordReal(context.Background(), home, engine, calib.RealMeasurement{Model: in.Model.ID, Quant: base.Quant.Name, Engine: in.Runtime.ID, Decode: map[int]float64{0: 30}})
+	if err != nil {
+		if strings.Contains(err.Error(), "RAM detection is unavailable") {
+			t.Skip(err)
+		}
+		t.Fatal(err)
+	}
+	c := machineCalibration()
+	if c == nil || len(c.Rows) != 1 {
+		t.Fatal("recorded evidence unavailable")
+	}
+	got := base
+	applyMachineCalibration(&got, in, c)
+	if got.DecodeTPS0 == base.DecodeTPS0 {
+		t.Fatal("recorded speed unused")
+	}
+	c.Fingerprint.Hash = "changed"
+	if err := c.Save(home); err != nil {
+		t.Fatal(err)
+	}
+	if machineCalibration() != nil {
+		t.Fatal("stale fingerprint accepted")
+	}
+	got = base
+	applyMachineCalibration(&got, in, machineCalibration())
+	if got.DecodeTPS0 != base.DecodeTPS0 {
+		t.Fatal("stale evidence affected prediction")
 	}
 }
