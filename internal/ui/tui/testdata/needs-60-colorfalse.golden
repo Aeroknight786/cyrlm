@@ -8,6 +8,8 @@ What do you need? · Enter accepts every default
   Engines           ‹ stable+new ›
   Speed boosts      ‹ auto ›
   Trial             ‹ repo ›
+  Trial cap         ‹ $2 ›
+  Retention         ‹ no-logging ›
 Native context only · YaRN choices arrive in v0.6
 Trial: no-logging providers · cap 2.00 USD
 

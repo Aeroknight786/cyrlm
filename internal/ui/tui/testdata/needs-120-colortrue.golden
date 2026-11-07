@@ -8,6 +8,8 @@ What do you need? · Enter accepts every default
   Engines           [2;36m‹ [m[36mstable+new[m[36m ›[m
   Speed boosts      [2;36m‹ [m[36mauto[m[36m ›[m
   Trial             [2;36m‹ [m[36mrepo[m[36m ›[m
+  Trial cap         [36m‹ [m[36m$2[m[36m ›[m
+  Retention         [2;36m‹ [m[36mno-logging[m[36m ›[m
 Native context only · YaRN choices arrive in v0.6
 Trial: no-logging providers · cap 2.00 USD
 

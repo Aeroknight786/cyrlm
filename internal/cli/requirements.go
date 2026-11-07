@@ -83,8 +83,8 @@ func (c *common) validateRequirements() error {
 	if c.prefs.ContextVia != "native" {
 		return &exitError{4, "opt-in YaRN arrives in v0.6; use --context-via native"}
 	}
-	if c.prefs.QualityFloor != "" && c.prefs.QualityFloor != "3bit-ok" && c.prefs.QualityFloor != "4bit+" {
-		return &exitError{2, "--quality-floor must be 3bit-ok|4bit+"}
+	if c.prefs.QualityFloor != "" && c.prefs.QualityFloor != "3bit-ok" && c.prefs.QualityFloor != "4bit+" && c.prefs.QualityFloor != "8bit" {
+		return &exitError{2, "--quality-floor must be 3bit-ok|4bit+|8bit"}
 	}
 	return nil
 }

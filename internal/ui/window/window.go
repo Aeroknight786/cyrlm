@@ -155,6 +155,13 @@ func (l Launcher) Run(ctx context.Context, s store.Store, args []string, w io.Wr
 		}
 	}
 	fallback := Command(exe, append([]string{"try", "--here"}, args...))
+	if l.Platform == "windows" {
+		q := []string{psQuote(exe)}
+		for _, a := range append([]string{"try", "--here"}, args...) {
+			q = append(q, psQuote(a))
+		}
+		fallback = "& " + strings.Join(q, " ")
+	}
 	id, script, e := Generate(s, l.Platform, exe, dir, args)
 	if e != nil {
 		return e

@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/aeroknight786/trialm/internal/core"
+	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/selfupdate"
@@ -18,6 +20,19 @@ import (
 // SessionConfig adapts the stdlib session once for both home and find.
 func SessionConfig(ctx context.Context, s store.Store, p store.Preferences, o core.Options, top int, version string) Config {
 	cfg := Config{Context: ctx, Store: s, Preferences: p}
+	for _, h := range harness.All() {
+		if h.Binary != "" {
+			if _, e := exec.LookPath(harness.FindBinary(h.Binary)); e == nil {
+				cfg.Tools = append(cfg.Tools, h.Name)
+			}
+		}
+	}
+	cfg.Balance = func(ctx context.Context) (figure.Figure, error) {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		v, e := (openrouter.Client{Key: s.Key()}).Credits(ctx)
+		return figure.Exact(v, "USD", figure.Measured, "openrouter:/credits"), e
+	}
 	cfg.Headless = os.Getenv("SSH_CONNECTION") != "" || (runtime.GOOS != "darwin" && runtime.GOOS != "windows" && os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "")
 	cfg.Authorize = func(ctx context.Context, key string) error {
 		return Authorize(ctx, s, openrouter.Client{}, "", OpenBrowser, key)
@@ -58,6 +73,9 @@ func SessionConfig(ctx context.Context, s store.Store, p store.Preferences, o co
 	cfg.TrialArgs = func(row core.Row, p store.Preferences) []string {
 		r := row.Result
 		a := []string{r.Model.OllamaTag, "--runtime", r.Runtime.ID, "--quant", r.Quant.Name, "--for", p.Tool, "--ctx", strconv.Itoa(p.Context), "--use", p.Use, "--budget", strconv.FormatFloat(p.BudgetUSD, 'f', -1, 64), "--privacy", p.Privacy, "--boosts", p.Boosts}
+		if p.ZDR {
+			a = append(a, "--zdr")
+		}
 		if o.Device != "" {
 			a = append(a, "--device", o.Device, "--ram", fmt.Sprint(o.RAM), "--vram", fmt.Sprint(o.VRAM))
 		}

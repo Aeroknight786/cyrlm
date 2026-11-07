@@ -40,6 +40,8 @@ func fixture(t testing.TB) *Root {
 	opts := core.Options{Device: "Apple M5", RAM: 24, Runtime: "all", Tuned: true, Context: p.Context, Use: "agent", QualityFloor: p.QualityFloor}
 	cfg := SessionConfig(context.Background(), s, p, opts, 3, "test")
 	cfg.UpdateNotice = nil
+	cfg.Balance = nil
+	cfg.Tools = []string{"Codex", "Claude Code"}
 	m := New(cfg)
 	d, e := cfg.Detect(context.Background())
 	if e != nil {
@@ -67,7 +69,7 @@ func TestViewGoldens(t *testing.T) {
 				name := fmt.Sprintf("%s-%d-color%t", screen, w, !plain)
 				t.Run(name, func(t *testing.T) {
 					m := fixture(t)
-					m.width = w
+					m.Update(tea.WindowSizeMsg{Width: w, Height: 24})
 					m.stack = []Screen{screen}
 					m.theme = newPalette(plain, false)
 					m.started = time.Now().Add(-30 * time.Second)
@@ -77,6 +79,9 @@ func TestViewGoldens(t *testing.T) {
 					m.chat = newChat(context.Background(), nil)
 					m.chat.resize(w, 24)
 					got := m.View().Content
+					if screen == Recipes && !strings.Contains(got, "Qwen3.6") {
+						t.Fatal("recipe rows are not visible")
+					}
 					if plain && strings.Contains(got, "\x1b") {
 						t.Fatal("NO_COLOR has an escape")
 					}
@@ -238,6 +243,8 @@ func TestJourneyAKeyCount(t *testing.T) {
 	defer trialServer.Close()
 	cfg := SessionConfig(context.Background(), s, p, core.Options{Device: "Apple M5", RAM: 24, Runtime: "all", Tuned: true, Use: "agent", Context: 65536}, 3, "test")
 	cfg.UpdateNotice = nil
+	cfg.Balance = nil
+	cfg.Tools = []string{"Codex", "Claude Code"}
 	cfg.Headless = false
 	cfg.Authorize = func(ctx context.Context, pasted string) error {
 		return Authorize(ctx, s, openrouter.Client{BaseURL: api.URL}, api.URL+"/auth", func(raw string) error {
@@ -429,5 +436,48 @@ func TestASCIIConsole(t *testing.T) {
 		return ""
 	}) {
 		t.Fatal("console glyph selection")
+	}
+}
+
+func TestQualityDefaultFollowsGPU(t *testing.T) {
+	for _, gb := range []float64{16, 48} {
+		p, _ := (store.Store{Dir: t.TempDir()}).Preferences()
+		p.Tool = "codex"
+		m := New(Config{Store: store.Store{Dir: t.TempDir()}, Preferences: p})
+		d := core.Detection{}
+		d.Target.GPUMemBytes = gb * (1 << 30)
+		m.Update(detectedMsg{detection: d})
+		want := "3bit-ok"
+		if gb > 24 {
+			want = "4bit+"
+		}
+		if m.cfg.Preferences.QualityFloor != want {
+			t.Fatal(gb, m.cfg.Preferences)
+		}
+	}
+}
+func TestHeadlessCodeAgainstFake(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/auth/keys" {
+			fmt.Fprint(w, `{"key":"fake-secret"}`)
+		} else {
+			fmt.Fprint(w, `{"data":{"total_credits":10,"total_usage":1}}`)
+		}
+	}))
+	defer srv.Close()
+	s := store.Store{Dir: t.TempDir()}
+	h, e := beginHeadless(s, openrouter.Client{BaseURL: srv.URL}, srv.URL+"/auth")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if strings.Contains(h.URL, h.verifier) || !strings.Contains(h.URL, "S256") {
+		t.Fatal("invalid public authorization URL")
+	}
+	if e = h.finish(context.Background(), "http://127.0.0.1/callback?code=one-use-code"); e != nil {
+		t.Fatal(e)
+	}
+	t.Setenv("OPENROUTER_API_KEY", "")
+	if s.Key() != "fake-secret" {
+		t.Fatal("key not saved")
 	}
 }

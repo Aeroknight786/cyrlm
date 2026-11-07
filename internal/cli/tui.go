@@ -37,9 +37,7 @@ func runTUI(ctx context.Context, verb string, args []string) error {
 	if p.Context == 0 {
 		p.Context = max(49152, ((h.Scenario.MinContext+16383)/16384)*16384)
 	}
-	if p.QualityFloor == "" {
-		p.QualityFloor = "3bit-ok"
-	}
+
 	if len(pos) > 0 {
 		p.Model = strings.Join(pos, " ")
 	}

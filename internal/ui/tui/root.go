@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"github.com/aeroknight786/trialm/internal/core"
+	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/ui/window"
@@ -61,6 +62,8 @@ type Config struct {
 	Process         func(context.Context, string, []string) *exec.Cmd
 	WindowArgs      []string
 	Headless        bool
+	Balance         func(context.Context) (figure.Figure, error)
+	Tools           []string
 }
 type detectedMsg struct {
 	detection core.Detection
@@ -76,6 +79,10 @@ type headlessReadyMsg struct {
 	err   error
 }
 type noticeMsg string
+type balanceMsg struct {
+	figure figure.Figure
+	err    error
+}
 type childMsg struct {
 	kind Screen
 	err  error
@@ -111,6 +118,8 @@ type Root struct {
 	meter           window.Meter
 	headless        *headlessLogin
 	authURL         string
+	balance         figure.Figure
+	autoQuality     bool
 }
 
 func New(cfg Config) *Root {
@@ -124,11 +133,12 @@ func New(cfg Config) *Root {
 	if start == "" {
 		start = First
 	}
-	m := &Root{cfg: cfg, stack: []Screen{start}, width: 80, height: 24, theme: newPalette(cfg.NoColor, cfg.ASCII), spin: spinner.New(spinner.WithSpinner(spinner.Dot)), bar: progress.New(progress.WithWidth(36), progress.WithDefaultBlend(), progress.WithoutPercentage())}
+	m := &Root{autoQuality: cfg.Preferences.QualityFloor == "", cfg: cfg, stack: []Screen{start}, width: 80, height: 24, theme: newPalette(cfg.NoColor, cfg.ASCII), spin: spinner.New(spinner.WithSpinner(spinner.Dot)), bar: progress.New(progress.WithWidth(36), progress.WithDefaultBlend(), progress.WithoutPercentage())}
 	m.search = textinput.New()
 	m.search.Prompt = "Search models: "
 	m.search.CharLimit = 500
 	m.history, _ = cfg.Store.History()
+	_ = cfg.Store.Read("credits.json", &m.balance)
 	m.makeFields()
 	return m
 }
@@ -167,6 +177,9 @@ func (m *Root) Init() tea.Cmd {
 	}
 	if m.cfg.UpdateNotice != nil {
 		cmds = append(cmds, func() tea.Msg { return noticeMsg(m.cfg.UpdateNotice(m.cfg.Context)) })
+	}
+	if m.cfg.Balance != nil && m.cfg.Store.Key() != "" {
+		cmds = append(cmds, func() tea.Msg { v, e := m.cfg.Balance(m.cfg.Context); return balanceMsg{v, e} })
 	}
 	return tea.Batch(cmds...)
 }
@@ -275,6 +288,13 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case detectedMsg:
 		m.detection = v.detection
+		if m.autoQuality {
+			m.cfg.Preferences.QualityFloor = "3bit-ok"
+			if v.detection.Target.GPUMemBytes > 24*(1<<30) {
+				m.cfg.Preferences.QualityFloor = "4bit+"
+			}
+			m.makeFields()
+		}
 		if v.err != nil {
 			m.message = v.err.Error()
 			return m, nil
@@ -318,6 +338,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.secret = ""
 		m.headless = nil
 		m.authURL = ""
+		_ = m.cfg.Store.Read("credits.json", &m.balance)
 		if v.err != nil {
 			m.message = "Could not connect OpenRouter. Press p to paste a key or try again."
 			return m, nil
@@ -327,6 +348,11 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.execute(m.cfg.DirectArgs)
 		}
 		return m, m.afterKey()
+	case balanceMsg:
+		if v.err == nil {
+			m.balance = v.figure
+			_ = m.cfg.Store.Write("credits.json", m.balance)
+		}
 	case noticeMsg:
 		m.notice = string(v)
 	case windowDoneMsg:
@@ -627,6 +653,8 @@ func (m *Root) authorize(secret string) tea.Cmd {
 	return func() tea.Msg { return authorizedMsg{m.cfg.Authorize(m.cfg.Context, secret)} }
 }
 func (m *Root) makeFields() {
+	m.fields = nil
+	m.labels = nil
 	p := &m.cfg.Preferences
 	add := func(title string, value *string, options ...string) {
 		opts := make([]huh.Option[string], len(options))
@@ -652,10 +680,25 @@ func (m *Root) makeFields() {
 	ctx.WithTheme(m.formTheme())
 	ctx.Focus()
 	m.fields = append(m.fields, ctx)
-	add("Quality", &p.QualityFloor, "3bit-ok", "4bit+")
+	add("Quality", &p.QualityFloor, "3bit-ok", "4bit+", "8bit")
 	add("Engines", &p.Engines, "stable+new", "stable", "installed")
 	add("Speed boosts", &p.Boosts, "auto", "off", "everything")
 	add("Trial", &p.Privacy, "repo", "playground", "predict-only")
+	budget := huh.NewSelect[float64]().Options(huh.NewOption("$1", 1.), huh.NewOption("$2", 2.), huh.NewOption("$5", 5.), huh.NewOption("$10", 10.)).Value(&p.BudgetUSD).Inline(true)
+	budget.WithKeyMap(huh.NewDefaultKeyMap())
+	budget.WithWidth(32)
+	budget.WithTheme(m.formTheme())
+	budget.Focus()
+	m.fields = append(m.fields, budget)
+	m.labels = append(m.labels, "Trial cap")
+	retention := huh.NewSelect[bool]().Options(huh.NewOption("no-logging", false), huh.NewOption("ZDR only", true)).Value(&p.ZDR).Inline(true)
+	retention.WithKeyMap(huh.NewDefaultKeyMap())
+	retention.WithWidth(32)
+	retention.WithTheme(m.formTheme())
+	retention.Focus()
+	m.fields = append(m.fields, retention)
+	m.labels = append(m.labels, "Retention")
+
 }
 func (m *Root) footer() string {
 	switch m.screen() {

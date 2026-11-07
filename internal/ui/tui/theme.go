@@ -37,7 +37,7 @@ func (p palette) glyph(s string) string {
 	if !p.ascii {
 		return s
 	}
-	return strings.NewReplacer("✓", "v", "✗", "x", "●", "*", "·", "-", "❯", ">", "‹", "<", "›", ">", "━", "=", "╷", "|", "█", "=", "░", "-", "≈", "~", "×", "x", "→", "->", "↑", "^", "↓", "v", "←", "<", "→", ">").Replace(s)
+	return strings.NewReplacer("≥", ">=", "≤", "<=", "±", "+/-", "…", "...", "–", "-", "✓", "v", "✗", "x", "●", "*", "·", "-", "❯", ">", "‹", "<", "›", ">", "━", "=", "╷", "|", "█", "=", "░", "-", "≈", "~", "×", "x", "→", "->", "↑", "^", "↓", "v", "←", "<", "→", ">").Replace(s)
 }
 func programOptions() []tea.ProgramOption {
 	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/store"
 )
@@ -40,10 +41,11 @@ func Authorize(ctx context.Context, s store.Store, c openrouter.Client, authURL 
 		}
 	}
 	c.Key = key
-	if _, err := c.Credits(ctx); err != nil {
+	balance, err := c.Credits(ctx)
+	if err != nil {
 		return err
 	}
-	return s.SaveKey(key)
+	return saveAuthorization(s, key, balance)
 }
 
 func OpenBrowser(u string) error {
@@ -89,8 +91,16 @@ func (h *headlessLogin) finish(ctx context.Context, code string) error {
 	}
 	c := h.client
 	c.Key = key
-	if _, e = c.Credits(ctx); e != nil {
+	balance, e := c.Credits(ctx)
+	if e != nil {
 		return e
 	}
-	return h.store.SaveKey(key)
+	return saveAuthorization(h.store, key, balance)
+}
+
+func saveAuthorization(s store.Store, key string, balance float64) error {
+	if e := s.SaveKey(key); e != nil {
+		return e
+	}
+	return s.Write("credits.json", figure.Exact(balance, "USD", figure.Measured, "openrouter:/credits"))
 }

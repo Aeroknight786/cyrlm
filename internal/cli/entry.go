@@ -123,8 +123,9 @@ func Main(ctx context.Context, argv []string, v string) int {
 				err = e
 				break
 			}
+			history, _ := store.Default().History()
 			if err = emit("detect", d); err == nil {
-				err = emit("result", map[string]any{"version": v, "key_configured": store.Default().Key() != ""}, homeNext()...)
+				err = emit("result", map[string]any{"version": v, "key_configured": store.Default().Key() != "", "trials": ui.TrialCards(history)}, homeNext()...)
 			}
 		} else {
 			fmt.Fprint(out(), usage)

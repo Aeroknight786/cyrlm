@@ -10,6 +10,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/terminal"
+	"github.com/aeroknight786/trialm/internal/ui"
 	"github.com/aeroknight786/trialm/internal/ui/tui"
 	"github.com/aeroknight786/trialm/internal/ui/window"
 )
@@ -20,6 +21,10 @@ func runWindow(ctx context.Context, args []string, w io.Writer) error {
 	if errors.As(err, &need) {
 		_ = emit("needs_user", map[string]any{"needs": "terminal", "run": need.Run}, core.Next{Cmd: need.Run, Why: "open this in your terminal"})
 		return &exitError{3, need.Error()}
+	}
+	if err == nil {
+		rows, _ := store.Default().History()
+		return emit("result", map[string]any{"trials": ui.TrialCards(rows)}, core.Next{Cmd: "trialm find --json", Why: "try another recipe"})
 	}
 	return err
 }

@@ -24,6 +24,14 @@ func metric(r predict.Result, v float64, unit string, reading bool) figure.Figur
 }
 func (m *Root) body() string {
 	title := m.theme.wordmark()
+	credit := ""
+	if m.balance.Kind == figure.Measured {
+		credit = " · OpenRouter " + m.balance.String() + " credit (cached)"
+	}
+	tools := strings.Join(m.cfg.Tools, " · ")
+	if tools == "" {
+		tools = m.cfg.Preferences.Tool
+	}
 	switch m.screen() {
 	case First:
 		machine := "Detecting this machine…"
@@ -34,14 +42,14 @@ func (m *Root) body() string {
 		if len(m.detection.Runtimes) > 0 {
 			engine = fmt.Sprintf("%d installed", len(m.detection.Runtimes))
 		}
-		return title + "  feel a local model before you download it\n✓ " + machine + "\n✓ Coding tool   " + m.cfg.Preferences.Tool + "\n· Engines       " + engine + "\n\nConnect OpenRouter: real cloud answers, paced to this machine.\nTrials use providers that do not store your repo. Cap $2."
+		return title + "  feel a local model before you download it\n✓ " + machine + "\n✓ Coding tools  " + tools + "\n· Engines       " + engine + "\n\nConnect OpenRouter: real cloud answers, paced to this machine.\nTrials use providers that do not store your repo. Cap $2."
 	case Paste:
 		if m.password == nil {
 			return "OpenRouter key"
 		}
 		return title + "\n" + m.authURL + "\n" + m.password.View()
 	case Calibration:
-		return title + "\n\nCalibrate this machine · recommended\n≈3–7 min · no model downloads\nSynthetic files need about 6 GB of temporary disk.\nUses an installed llama-bench. Skip and browse if unavailable."
+		return title + credit + "\n\nCalibrate this machine · recommended\n≈3–7 min · no model downloads\nSynthetic files need about 6 GB of temporary disk.\nUses an installed llama-bench. Skip and browse if unavailable."
 	case Calibrating:
 		elapsed := time.Since(m.started).Seconds()
 		fraction := 0.0
@@ -74,7 +82,7 @@ func (m *Root) body() string {
 		split := m.split(r.ReadingSeconds, r.WritingSeconds, r.LoadSeconds+r.BetweenTurnsSeconds)
 		return "Trial over · " + m.last.Model + " · " + m.last.Quant + " · " + m.last.Runtime + "\n" + r.Plain(m.last.Band) + split + "\nHow did it feel?"
 	case Home:
-		b := title + "  " + m.detection.Target.Name + "\n"
+		b := title + "  " + m.detection.Target.Name + credit + "\n"
 		// P2 owns verified ready setups; a trial is never labelled ready.
 		b += "Ready setups: none yet · setup arrives in v0.5\n❯ Find or try another\n\nTrials history\n"
 		for i := len(m.history) - 1; i >= max(0, len(m.history)-5); i-- {

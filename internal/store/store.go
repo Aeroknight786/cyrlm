@@ -91,6 +91,7 @@ type Preferences struct {
 	Boosts        string  `json:"boosts"`
 	Privacy       string  `json:"privacy"`
 	BudgetUSD     float64 `json:"budget_usd"`
+	ZDR           bool    `json:"zdr,omitempty"`
 	Hardware      string  `json:"hardware"`
 }
 

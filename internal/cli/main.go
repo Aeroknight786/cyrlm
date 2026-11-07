@@ -406,7 +406,7 @@ func cmdServe(args []string, try bool) error {
 	logFile := fs.String("log", "", "write request logs to this file (also works in the foreground)")
 	allowOrigin := fs.String("allow-origin", "", "extra allowed browser origins (comma-separated)")
 	force := fs.Bool("force", false, "serve even if the model does not fit")
-	zdr := fs.Bool("zdr", false, "require zero data retention")
+	zdr := fs.Bool("zdr", c.prefs.ZDR, "require zero data retention")
 	budget := fs.Float64("budget", c.prefs.BudgetUSD, "per-trial USD cap")
 	pace := fs.String("pace", "p50", "p50 | p90 local pacing")
 	serve := fs.Bool("serve", false, "serve in the foreground without launching a tool")
@@ -425,6 +425,7 @@ func cmdServe(args []string, try bool) error {
 		return &exitError{2, "--budget must be a finite positive USD amount"}
 	}
 
+	explicitWindow := *window
 	if try && !*here && !*serve && !*launch && paths.Getenv("DETACHED") == "" && autoWindow() {
 		*window = true
 	}
@@ -432,7 +433,7 @@ func cmdServe(args []string, try bool) error {
 		*launch = true
 	}
 	chat := try && c.prefs.Use == "chat" && !*serve
-	if chat && !terminal.IsTTY(os.Stdin) && !*window {
+	if chat && !terminal.IsTTY(os.Stdin) && (!*window || !explicitWindow && jsonMode) {
 		return needs("--serve or --window", "chat needs a terminal")
 	}
 	if *serve && *launch {

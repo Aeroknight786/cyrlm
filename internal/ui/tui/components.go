@@ -47,7 +47,7 @@ func (m *Root) tableView() string {
 		}
 		rows = append(rows, cells)
 	}
-	tb := table.New(table.WithColumns(cols), table.WithRows(rows), table.WithHeight(len(rows)+1), table.WithFocused(true), table.WithStyles(table.Styles{Header: m.theme.dim.Bold(true), Cell: lipgloss.NewStyle(), Selected: m.theme.selected}))
+	tb := table.New(table.WithColumns(cols), table.WithRows(rows), table.WithWidth(m.width), table.WithHeight(len(rows)+1), table.WithFocused(true), table.WithStyles(table.Styles{Header: m.theme.dim.Bold(true), Cell: lipgloss.NewStyle(), Selected: m.theme.selected}))
 	tb.SetCursor(max(0, m.selected))
 	return tb.View()
 }
