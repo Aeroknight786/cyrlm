@@ -57,16 +57,19 @@ func Grid(quick bool) []Probe {
 	}
 	add(Shapes[2], "IQ3_XXS", Shapes[2].Counts, false)
 	add(Shapes[3], "MXFP4", Shapes[3].Counts, false)
+	add(Shapes[2], "IQ3_XXS", []int{12}, true)
+	add(Shapes[3], "MXFP4", []int{4}, true)
 	if quick {
 		return ps
 	}
-	add(Shapes[2], "IQ3_XXS", []int{12}, true)
-	add(Shapes[3], "MXFP4", []int{4}, true)
 	add(Shapes[4], "Q4_K_M", Shapes[4].Counts, false)
+	add(Shapes[4], "Q4_K_M", []int{18}, true)
 	for _, q := range []string{"Q4_K_M", "IQ3_XXS", "IQ4_XS", "MXFP4", "Q8_0"} {
 		add(Shapes[0], q, Shapes[0].Counts, false)
+		add(Shapes[0], q, []int{4}, true)
 	}
 	add(Shapes[1], "Q4_K_M", Shapes[1].Counts, false)
+	add(Shapes[1], "Q4_K_M", []int{4}, true)
 	return ps
 }
 

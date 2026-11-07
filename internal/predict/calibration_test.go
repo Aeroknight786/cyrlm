@@ -107,3 +107,27 @@ func TestCalibrationUsesDepthSpecificFactors(t *testing.T) {
 		}
 	}
 }
+
+func TestPartialCalibrationKeepsOriginalPrediction(t *testing.T) {
+	for _, which := range []string{"missing", "rejected"} {
+		t.Run(which, func(t *testing.T) {
+			in, r, c := calibrationFixture(t)
+			before := r.DecodeTPS0
+			for i, f := range c.Fits {
+				if f.Depth == 32768 && f.Mode == "decode" {
+					if which == "missing" {
+						c.Fits = append(c.Fits[:i], c.Fits[i+1:]...)
+					} else {
+						c.Fits[i].Rejected = "held-out error exceeds 35%"
+						c.Fits[i].BandPct = -1
+					}
+					break
+				}
+			}
+			applyMachineCalibration(&r, in, c)
+			if r.Kind == "calibrated" || r.DecodeTPS0 != before || r.Timing.calibration != nil {
+				t.Fatal("partial fit changed prediction", r.Kind)
+			}
+		})
+	}
+}
