@@ -22,4 +22,4 @@ Setup plan Qwen3.6 35B-A3B · Q4_K_M · Ollama
 9/9 check · Verify Ready
 Kept as they are · drivers and OS startup services, existing model caches, harness defaults
 Resolve Hugging Face file digests on this machine before applying this what-if plan.
-plan_id 5ded0e53e432c995a255a63ef761f198bace5801a9d35ee4edaee8a2de125b4a
+plan_id 3f52c8765650841ae99754e07ad348e7b396572e4d412ce566eb1591d12612cb

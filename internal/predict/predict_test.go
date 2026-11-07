@@ -165,3 +165,39 @@ func TestGeneratedCatalogModels(t *testing.T) {
 		t.Fatalf("qwen3.6 KV at 64k = %.2f GB, expected ~1.3 GB (10 full-attention layers)", kv/1e9)
 	}
 }
+
+// TestAttentionAtDepth guards the KV-read term against the measured slowdown
+// between a short and a long cache (bench_data.csv depth rows, and the
+// owner's M5 runs of Qwen3.5 9B). Ratios cancel the weight-streaming fit,
+// so they test only the attention term.
+func TestAttentionAtDepth(t *testing.T) {
+	prof, _ := runtime.Get("llamacpp")
+	for _, c := range []struct {
+		device, model, quant string
+		ram                  float64
+		short, long          int
+		measured, tol        float64 // tok/s(short) / tok/s(long)
+	}{
+		{"Apple M3 Max 40c", "llama3.1-8b", "Q4_K_M", 64, 256, 4096, 48.97 / 36.12, 0.15},
+		{"Apple M2 Ultra 76c", "llama3.1-8b", "Q4_K_M", 192, 256, 4096, 78.81 / 54.13, 0.15},
+		{"Apple M1 Max 32c", "llama3.1-8b", "Q4_K_M", 64, 256, 4096, 35.73 / 26.84, 0.15},
+		{"RTX 4090", "llama3.1-8b", "Q4_K_M", 64, 256, 4096, 130.58 / 110.66, 0.10},
+		{"RTX 3090", "llama3.1-8b", "Q4_K_M", 64, 256, 4096, 115.42 / 87.49, 0.20}, // CUDA keeps the weight rate (fit-attn: no held-out gain); the 3090 is its worst row
+		{"Apple M5 10c", "qwen3.5-9b", "Q4_K_M", 24, 0, 65536, 21.0 / 9.0, 0.30},   // busy-machine runs vary
+	} {
+		m, ok := catalog.Lookup(c.model)
+		if !ok {
+			t.Fatal(c.model)
+		}
+		sys, err := SyntheticSystem(c.device, c.ram, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res := Predict(Input{Model: m, QuantName: c.quant, Runtime: prof, Target: TargetFromSystem(sys, 0), CtxOverride: 65536})
+		got := res.Timing.DecodeTPS(c.short) / res.Timing.DecodeTPS(c.long)
+		t.Logf("%-18s %-12s %5d→%5d: slowdown predicted %.2f× measured %.2f×", c.device, c.model, c.short, c.long, got, c.measured)
+		if math.Abs(got/c.measured-1) > c.tol {
+			t.Errorf("%s %s: slowdown %.2f× vs measured %.2f×", c.device, c.model, got, c.measured)
+		}
+	}
+}

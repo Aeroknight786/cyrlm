@@ -132,6 +132,13 @@ type FitPoint struct {
 
 const FittingVersion = 2
 
+// BaselineVersion names the predictor whose per-row baselines synthetic fits
+// are relative to. 2 = decode reads the KV cache at its own attention rate.
+// A file from an older predictor keeps its raw rows but no fits until
+// Rebaseline recomputes the baselines with the current predictor (seconds,
+// no llama-bench); real-model rows are absolute speeds and need nothing.
+const BaselineVersion = 2
+
 type Fit struct {
 	DepthLayerError float64    `json:"depth_layer_error_seconds,omitempty"`
 	DepthSource     string     `json:"depth_source,omitempty"`
@@ -157,19 +164,22 @@ type Fit struct {
 }
 
 type Calibration struct {
-	FittingVersion int          `json:"fitting_version"`
-	Backend        string       `json:"backend"`
-	Version        int          `json:"version"`
-	Fingerprint    Fingerprint  `json:"fingerprint"`
-	Started        time.Time    `json:"started"`
-	WallSeconds    float64      `json:"wall_seconds"`
-	Complete       bool         `json:"complete"`
-	Quick          bool         `json:"quick"`
-	Rows           []Row        `json:"rows"`
-	Fits           []Fit        `json:"fits"`
-	Validations    []Validation `json:"validations,omitempty"`
-	Coverage       []string     `json:"coverage"`
-	Notes          []string     `json:"notes"`
+	FittingVersion int `json:"fitting_version"`
+	BaselineVer    int `json:"baseline_version,omitempty"`
+	// NeedsRebaseline is set by Load for a file from an older predictor.
+	NeedsRebaseline bool         `json:"-"`
+	Backend         string       `json:"backend"`
+	Version         int          `json:"version"`
+	Fingerprint     Fingerprint  `json:"fingerprint"`
+	Started         time.Time    `json:"started"`
+	WallSeconds     float64      `json:"wall_seconds"`
+	Complete        bool         `json:"complete"`
+	Quick           bool         `json:"quick"`
+	Rows            []Row        `json:"rows"`
+	Fits            []Fit        `json:"fits"`
+	Validations     []Validation `json:"validations,omitempty"`
+	Coverage        []string     `json:"coverage"`
+	Notes           []string     `json:"notes"`
 }
 
 func Load(home string) (*Calibration, error) {
@@ -185,7 +195,9 @@ func Load(home string) (*Calibration, error) {
 	if c.Version != GeneratorVersion {
 		return nil, errors.New("calibration generator version changed")
 	}
-	if c.FittingVersion != FittingVersion {
+	if c.BaselineVer != BaselineVersion {
+		c.Fits, c.NeedsRebaseline = nil, true
+	} else if c.FittingVersion != FittingVersion {
 		c.FitRows()
 	}
 	return &c, nil
@@ -251,6 +263,7 @@ func (c *Calibration) FitRows() {
 	}
 	sort.Strings(keys)
 	c.FittingVersion = FittingVersion
+	c.BaselineVer = BaselineVersion
 	for i, n := range c.Notes {
 		if strings.Contains(n, "75%") {
 			c.Notes[i] = "Bands combine held-out layer error and repetition spread, extrapolated to real layers; real-model coverage is not validated."
@@ -651,4 +664,24 @@ func (f Fit) band(layers int) int {
 		check = math.Max(check, (p.Error+p.Spread)*math.Max(1, float64(layers)/float64(p.Layers)))
 	}
 	return int(math.Ceil(100 * (.10 + (noise+check)/pred)))
+}
+
+// Rebaseline recomputes every synthetic row's baseline with the current
+// predictor and refits. Rows whose probe is no longer in the grid are dropped.
+func (c *Calibration) Rebaseline(baseline func(Probe, BenchRow) float64) {
+	probes := map[string]Probe{}
+	for _, p := range Grid(false) {
+		probes[p.ID()] = p
+	}
+	kept := c.Rows[:0]
+	for _, r := range c.Rows {
+		if p, ok := probes[r.Probe]; ok {
+			r.Baseline = baseline(p, BenchRow{Prompt: r.Prompt, Gen: r.Gen, Depth: r.Depth})
+			kept = append(kept, r)
+		} else if r.Probe == "real" {
+			kept = append(kept, r)
+		}
+	}
+	c.Rows, c.NeedsRebaseline = kept, false
+	c.FitRows()
 }

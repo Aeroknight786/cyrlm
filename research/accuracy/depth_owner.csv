@@ -1,0 +1,7 @@
+device,segment,backend,engine,model,params_total_B,params_active_B,moe,quant,file_size_GB,metric,test,n_tokens,depth,measured_tps,spec_bw_GBs,spec_fp16_tflops,spec_conf,os,fit_eligible,source_url,notes
+Apple M5 10c,apple_base,Metal,llama.cpp,qwen3.5-9b,8.95,8.95,0,Q4_K_M,5.68,tg,ready,32,0,21.48,153,,medium,macOS,yes,owner M5 2026-11-07 run A,trialm Ready on llama.cpp b12182; owner's own 9B server resident
+Apple M5 10c,apple_base,Metal,llama.cpp,qwen3.5-9b,8.95,8.95,0,Q4_K_M,5.68,tg,ready,32,65536,8.96,153,,medium,macOS,yes,owner M5 2026-11-07 run A,
+Apple M5 10c,apple_base,Metal,llama.cpp,qwen3.5-9b,8.95,8.95,0,Q4_K_M,5.68,tg,ready,32,0,14.0,153,,medium,macOS,yes,owner M5 2026-11-07 run B,busy machine
+Apple M5 10c,apple_base,Metal,llama.cpp,qwen3.5-9b,8.95,8.95,0,Q4_K_M,5.68,tg,ready,32,65536,9.1,153,,medium,macOS,yes,owner M5 2026-11-07 run B,
+Apple M5 10c,apple_base,Metal,llama.cpp,qwen3.5-9b,8.95,8.95,0,Q4_K_M,5.68,tg,bench,8,0,14.4,153,,medium,macOS,yes,owner M5 2026-11-07 calibrate --check,"llama-bench -d 0, 32768"
+Apple M5 10c,apple_base,Metal,llama.cpp,qwen3.5-9b,8.95,8.95,0,Q4_K_M,5.68,tg,bench,8,32768,9.4,153,,medium,macOS,yes,owner M5 2026-11-07 calibrate --check,

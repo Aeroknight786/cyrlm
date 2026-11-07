@@ -1,7 +1,7 @@
 Why these numbers?
 Qwen3.6 35B-A3B - llama.cpp (llama-server)
-~40 tok/s
-Range ~16 to ~64
+~25 tok/s
+Range ~9.9 to ~40
 Source: prediction:qwen3.6-35b-a3b/llamacpp
 Writing +/-60% - reading +/-70%
 quality caveat: IQ3_XXS is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than

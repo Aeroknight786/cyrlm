@@ -171,3 +171,20 @@ func TestArchiveMissingBinaryAndBadChecksumPreserveTarget(t *testing.T) {
 		t.Fatal(string(b))
 	}
 }
+
+func TestNewerHandlesDevBuilds(t *testing.T) {
+	for _, c := range []struct {
+		remote, current string
+		want            bool
+	}{
+		{"v0.2.0", "0.3.0-dev", false}, // the bug the owner saw: an older release offered to a dev build
+		{"v0.3.0", "0.3.0-dev", true},
+		{"v0.3.1", "0.3.0-dev", true},
+		{"v0.3.0", "0.3.0", false},
+		{"v0.4.0-rc1", "0.3.0", false},
+	} {
+		if got := Newer(c.remote, c.current); got != c.want {
+			t.Errorf("Newer(%q, %q) = %v, want %v", c.remote, c.current, got, c.want)
+		}
+	}
+}

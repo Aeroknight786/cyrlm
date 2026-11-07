@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/paths"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -72,7 +73,9 @@ func Run(args []string) error {
 		if e != nil {
 			return e
 		}
-		c.FitRows()
+		if e = rebaseline(c); e != nil {
+			return e
+		}
 		if e = c.Save(home); e != nil {
 			return e
 		}
@@ -137,28 +140,7 @@ func Run(args []string) error {
 	if t.CPUOnly {
 		return fail(errors.New("synthetic GPU calibration needs a detected GPU; use trialm detect --probe for CPU bandwidth"))
 	}
-	profile, _ := runtime.Get("llamacpp")
-	timings := map[string]*predict.Timing{}
-	backend, _ := profile.ChooseBackend(t.OS, t.Arch, t.HWBackends)
-	baseline := func(p calib.Probe, b calib.BenchRow) float64 {
-		tm := timings[p.ID()]
-		if tm == nil {
-			_, _, m, q := p.Layout()
-			target := t
-			target.Synthetic = true
-			r := predict.Predict(predict.Input{Model: m, QuantName: q.Name, Runtime: profile, Target: target, Tuned: true, CtxOverride: 65536, KVCacheType: "f16"})
-			tm = r.Timing
-			timings[p.ID()] = tm
-		}
-		if b.Gen > 0 {
-			sec := 0.0
-			for i := 0; i < b.Gen; i++ {
-				sec += tm.DecodeSec(b.Depth + i)
-			}
-			return sec / float64(b.Gen)
-		}
-		return tm.PrefillSec(b.Depth, b.Depth+b.Prompt) / float64(b.Prompt)
-	}
+	baseline, backend := baselineFor(t)
 	_, e = calib.Run(ctx, calib.RunOptions{Backend: backend, Home: home, Engine: engine, Fingerprint: fp, Quick: *quick, Baseline: baseline, Event: emit})
 	if errors.Is(e, context.Canceled) {
 		return fail(fmt.Errorf("calibration interrupted; finished rows kept: %w", e))
@@ -347,4 +329,60 @@ func calibrationReminderEligible(args []string) bool {
 		}
 	}
 	return true
+}
+
+// baselineFor predicts a synthetic probe's seconds per token on target t with
+// the current predictor; calibration multipliers are relative to it.
+func baselineFor(t predict.Target) (func(calib.Probe, calib.BenchRow) float64, string) {
+	profile, _ := runtime.Get("llamacpp")
+	timings := map[string]*predict.Timing{}
+	backend, _ := profile.ChooseBackend(t.OS, t.Arch, t.HWBackends)
+	return func(p calib.Probe, b calib.BenchRow) float64 {
+		tm := timings[p.ID()]
+		if tm == nil {
+			_, _, m, q := p.Layout()
+			target := t
+			target.Synthetic = true
+			r := predict.Predict(predict.Input{Model: m, QuantName: q.Name, Runtime: profile, Target: target, Tuned: true, CtxOverride: 65536, KVCacheType: "f16"})
+			tm = r.Timing
+			timings[p.ID()] = tm
+		}
+		if b.Gen > 0 {
+			sec := 0.0
+			for i := 0; i < b.Gen; i++ {
+				sec += tm.DecodeSec(b.Depth + i)
+			}
+			return sec / float64(b.Gen)
+		}
+		return tm.PrefillSec(b.Depth, b.Depth+b.Prompt) / float64(b.Prompt)
+	}, backend
+}
+
+// rebaseline recomputes the stored baselines for this machine and refits.
+func rebaseline(c *calib.Calibration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	t, _, e := calibrationTarget(ctx)
+	if e != nil {
+		return e
+	}
+	f, _ := baselineFor(t)
+	c.Rebaseline(f)
+	return nil
+}
+
+// Upgrade refits a calibration saved by an older speed model, keeping its
+// measurements; it runs once, quietly, after an update.
+func Upgrade() {
+	home, e := paths.Home()
+	if e != nil {
+		return
+	}
+	c, e := calib.Load(home)
+	if e != nil || !c.NeedsRebaseline {
+		return
+	}
+	if rebaseline(c) == nil {
+		_ = c.Save(home)
+	}
 }
