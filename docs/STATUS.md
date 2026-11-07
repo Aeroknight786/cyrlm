@@ -52,6 +52,18 @@
 - **Real-local on the M5** (scratch triaLM home, your HF cache): `trialm setup qwen3.5:9b --runtime llamacpp --quant Q4_K_M --harness codex` reused the 5.7 GB file (0 bytes downloaded, same inode), installed b12182 (16.7 MB), moved off port 8080 (your `chat.py` holds it), and reached Ready in about 4 min. Measured: writing 21 tok/s at short context (predicted 22), 9 tok/s at 64K (we were ~80% optimistic there), reading 420 tok/s. A second run measured 14 / 9.1 / 280: this Mac still varies about 1.5x between runs, and both runs shared the GPU and memory with your own 9B `llama-server` on port 8081 (and `chat.py` on 8080), so treat them as busy-machine numbers. Full undo left your HF file untouched.
 - **Bugs this run found and fixed:** Ready overflowed the context at the target depth (prompt sizing); reading was measured after the 64K request and included llama-server's prompt-cache save (160 vs 420 tok/s); the spec sweep could never succeed through the chat template; the Windows setup lock blocked its own journal rename; `stop` did not wait for exit (Windows kept the DLLs locked).
 
+## After P2: the Mac experience (2026-11-07, afternoon)
+
+Driven by the owner using the app on their M5:
+- **Launcher.** Bare `trialm` opens to the models on this Mac (HF cache, Ollama, LM Studio, old cyrlm launchers) and the best picks, each with one figure: the time per reply in the selected tool. Enter sets up (one approval) and opens the tool; `f` opens the recipe table (`FIRST REPLY · LATER REPLIES · WRITING`, "for Claude Code on this Mac"); the setup card is four plain lines, details behind `d`.
+- **One route for every agent.** Every tool reaches a local engine through triaLM's bridge, which reshapes requests so strict chat templates accept them (Claude Code 2.1.204 failed on every request before: "System message must be at the beginning"). `trialm launch --serve` gives any custom agent one address that speaks OpenAI Chat/Responses, Anthropic Messages and Ollama.
+- **Measured opening prompts.** The bridge records each tool's real first-request size; predictions use it (Claude Code: 12K assumed before; 20K measured headless, 41–47K in the owner's interactive sessions).
+- **Low Power Mode** is detected on macOS: the launcher warns, calibration refuses, and throttled Ready numbers are never saved (it cut the 9B from 18–21 to 6–8 tok/s).
+- **`trialm launch --stop`** stops any setup's engine, Ready or not.
+- **Speed model** reviewed by two other models (docs/MODEL_REVIEW.md): the KV cache at depth is read at a fitted rate on Macs (`tools/fit-attn`), real measurements apply at their own depth, first replies include the whole answer.
+- **Real run:** Claude Code fixed a bug in a scratch project on the local Qwen3.5 9B in 3.7 min; 90 s of that was a cache miss caused by the owner's MCP server connecting after the first request (Claude Code's behaviour; not changed).
+- **Known gap being fixed next:** calibration and setups used different llama.cpp builds, so real measurements were rejected ("fingerprint changed").
+
 ## Owner checks (each needs you)
 
 1. **Already happened (my mistake):** at 07:21 on 2026-11-07 the coordinator ran `trialm help --all` once without a scratch home, so the migration ran on your real machine: `~/.cyrlm` is now a symlink to `~/.trialm`, and your key, the 9B launcher and the results file moved intact (checked; your 9B server on 8081 kept running). What's left of check 1 is the install itself and launching the old setup.
@@ -67,7 +79,7 @@
 6. **The real-model M5 bench:** `tools/m5-bench.sh` (asks before its ~25 GB download, ~15 min). Then compare with `trialm predict qwen3.6:35b-a3b --runtime llamacpp --quant IQ3_XXS` and `trialm predict gpt-oss:20b --runtime llamacpp`.
 7. **P1a live OpenRouter checks:** `trialm key` (browser sign-in), then check the credit it shows against your OpenRouter dashboard; `trialm try` in Codex and in Claude Code; and a trial's spend on the summary card against the dashboard.
 8. **Strata on Metal:** run Strata's installer on the M5 to settle whether it works there.
-9. **The new app, first run:** `go build -o ~/.local/bin/trialm ./cmd/trialm && TRIALM_HOME=$(mktemp -d) trialm` in Terminal or iTerm. Walk it: browser sign-in, Enter on calibration, Enter on needs, `d` on a recipe, Enter to try. Ctrl-C at any point should restore the terminal.
+9. **The new app, first run (now the launcher):** `go build -o ~/.local/bin/trialm ./cmd/trialm && TRIALM_HOME=$(mktemp -d) trialm` in Terminal or iTerm. Walk it: browser sign-in, Enter on calibration, Enter on needs, `d` on a recipe, Enter to try. Ctrl-C at any point should restore the terminal.
 10. **Journey D prompt counts from real Claude Code and Codex** (keep your normal permission mode): `trialm --json`, `trialm find --json`, `trialm try 1 --window`, then `trialm --json` and read `data.trials`. Count tool prompts, approvals and browser clicks.
 11. **macOS window mode:** from Claude Code, `trialm try 1` (it picks window mode automatically) — count any macOS permission prompts; close the window early and check the card says partial. Also Windows Terminal/conhost and Linux tmux if you use them.
 
