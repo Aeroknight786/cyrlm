@@ -185,6 +185,9 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 			ctx += " ⚠"
 		}
 		label := rowLabel(r)
+		if r.Kind == "calibrated" {
+			label += " calibrated"
+		}
 		if inst.has(r.Runtime.ID) {
 			label += " ●"
 		}
@@ -218,7 +221,11 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 			if acc.PrefillMeasureOnly {
 				pre = "measure only (" + pre + ")"
 			}
-			fmt.Printf("Typical error (about 3 in 4 predictions): generation ±%d%%, prompt processing %s. %s.\n", acc.DecodePct, pre, acc.Basis)
+			prefix := "Typical error (about 3 in 4 predictions)"
+			if strings.HasPrefix(acc.Basis, "calibrated") {
+				prefix = "Synthetic fit band (75% interval)"
+			}
+			fmt.Printf("%s: generation ±%d%%, prompt processing %s. %s.\n", prefix, acc.DecodePct, pre, acc.Basis)
 		}
 		if acc.CalibrateAdvice != "" && !strings.Contains(acc.CalibrateAdvice, "trialm detect --probe") {
 			fmt.Printf("Tip: %s.\n", acc.CalibrateAdvice)
