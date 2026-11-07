@@ -49,6 +49,7 @@ func cmdBridge(args []string) error {
 	hname := fs.String("harness", "", "print connection steps for this coding tool")
 	ctxTokens := fs.Int("ctx", 0, "the runtime's context window, so the harness compacts in time (default: read from llama.cpp)")
 	port := fs.Int("port", 11535, "listen port (falls back to the next free port)")
+	logFile := fs.String("log", "", "write request logs to this file (also works in the foreground)")
 	keyEnv := fs.String("key-env", "TRIALM_UPSTREAM_API_KEY", "env var with an API key for the runtime, if it needs one")
 	pos, err := parseInterspersed(fs, args)
 	if err != nil {
@@ -80,9 +81,21 @@ func cmdBridge(args []string) error {
 	if key == "" {
 		key = "local"
 	}
+	logW := os.Stdout
+	if *logFile != "" {
+		if err := os.MkdirAll(filepath.Dir(*logFile), 0o700); err != nil {
+			return err
+		}
+		f, err := os.OpenFile(*logFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		logW = f
+	}
 	client := &upstream.OpenAICompat{BaseURL: base + "/v1", APIKey: key, Model: *model, IdleTimeout: 20 * time.Minute}
 	srv := server.New(server.Config{
-		Bridge: true, Upstream: client, RuntimeName: rtName, Log: os.Stdout,
+		Bridge: true, Upstream: client, RuntimeName: rtName, Log: logW,
 		Model: api.ModelInfo{Name: *model, ContextLength: *ctxTokens, ModifiedAt: time.Now(), Capabilities: []string{"completion", "tools"}},
 	})
 	bound, err := srv.Listen("127.0.0.1", *port, true)
@@ -98,7 +111,11 @@ func cmdBridge(args []string) error {
 	fmt.Println("  Real local inference, no simulation. Requests are reshaped for the model's chat template; runtime errors are shown, not retried.")
 	fmt.Println()
 	if hh.ID != "" {
-		setup := hh.SetupFor(harness.Options{Port: bound, Model: *model, Tuned: true, ContextTokens: *ctxTokens})
+		setup := hh.SetupFor(harness.Options{Port: bound, Model: *model, Tuned: true, ContextTokens: *ctxTokens, Protocol: "openai-chat", Bridge: true})
+		if err := setup.WriteFiles(); err != nil {
+			_ = srv.Shutdown(context.Background())
+			return err
+		}
 		fmt.Printf("── Connect %s ─────────────────────────────────────────\n\n%s\n", hh.Name, setup.Render())
 	}
 	printRunning("")

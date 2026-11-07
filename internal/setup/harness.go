@@ -3,6 +3,8 @@ package setup
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/aeroknight786/trialm/internal/harness"
@@ -50,25 +52,12 @@ func (b *builder) harnessSteps() {
 	pl.HarnessCompatible = true
 	pl.HarnessNote = fmt.Sprintf("%s connects to %s's %s at %s as model %s.", h.Name, b.p.Name, protocolNames[proto], pl.Endpoint, pl.LocalModelName)
 
-	s := h.SetupFor(harness.Options{Port: b.port, Model: pl.LocalModelName, Tuned: pl.Tuned, Protocol: proto, ContextTokens: pl.ContextTokens})
+	s := h.SetupFor(harness.Options{Port: b.port, Model: pl.LocalModelName, Tuned: pl.Tuned, Protocol: proto, ContextTokens: pl.ContextTokens, Bridge: true, Home: "~/.trialm"})
 	switch h.ID {
 	case "claude-code":
 		b.claudeCodeSteps(s)
 	case "opencode":
 		b.openCodeStep()
-	case "continue":
-		b.add(Step{
-			ID: "harness-continue", Kind: KindHarness,
-			Title: "Add " + pl.LocalModelName + " to Continue",
-			Why:   "Adds the model to Continue's model list, using " + b.p.Name + "'s Ollama API.",
-			Files: []FileEdit{{
-				Path: "~/.continue/config.yaml", Format: "yaml", Content: s.Config, Merge: "merge",
-				Note: "Add the entry to the existing models list (create the file with `name`, `version` and `schema` keys if it does not exist); back up the file first.",
-			}},
-			Restart:    "Continue (reload the editor window)",
-			Confidence: Medium,
-			Docs:       []string{docContinue},
-		})
 	default:
 		b.manualHarnessStep(*h, s)
 	}
@@ -127,10 +116,7 @@ func (b *builder) claudeCodeSteps(s harness.Setup) {
 	rel := ".trialm/harness/claude-code-" + pl.Runtime + ".json"
 	launch := "claude --settings " + b.home(rel)
 	why := fmt.Sprintf("Writes a separate Claude Code settings file that points it at %s (ANTHROPIC_BASE_URL=%s) for every model alias, so only sessions started with --settings use the local model; your normal Claude Code setup is untouched. CLAUDE_CODE_MAX_CONTEXT_TOKENS=%d makes Claude Code compact before the local context is full.", b.p.Name, pl.Endpoint, pl.ContextTokens)
-	if pl.Tuned {
-		why += " CLAUDE_CODE_ATTRIBUTION_HEADER=0 keeps the system prompt identical across requests so the local prompt cache is reused."
-	}
-	why += " Unset ANTHROPIC_API_KEY in the shell you start it from. Start it with: " + launch
+	why += " Unset ANTHROPIC_API_KEY, CLAUDECODE and CLAUDE_CODE_ENTRYPOINT in the shell you start it from. " + strings.Join(s.Notes, " ") + " Start it with: " + launch
 	b.add(Step{
 		ID: "harness-claude-code", Kind: KindHarness,
 		Title: "Connect Claude Code to " + pl.LocalModelName,
@@ -190,48 +176,30 @@ func (b *builder) bridgeSteps(h harness.Harness) {
 		st.Commands = []Command{b.any(strings.Join(harness.CodexCommand("http://127.0.0.1:11535/v1", pl.LocalModelName, pl.ContextTokens), " "))}
 		st.Docs = []string{docCodexConfig}
 	} else {
-		st.Why = "Follow the connection steps the bridge printed (they point at the bridge's port)."
+		s := h.SetupFor(harness.Options{Port: 11535, Model: pl.LocalModelName, Tuned: pl.Tuned, ContextTokens: pl.ContextTokens, Protocol: "openai-chat", Bridge: true, Home: "~/.trialm"})
+		b.manualHarnessStep(h, s)
+		return
 	}
 	b.add(st)
 }
 
 func (b *builder) openCodeStep() {
 	pl := b.plan
-	id := "trialm-" + pl.Runtime
-	cfg := map[string]any{
-		"$schema": "https://opencode.ai/config.json",
-		"provider": map[string]any{
-			id: map[string]any{
-				"npm":     "@ai-sdk/openai-compatible",
-				"name":    shortName(b.p) + " (local)",
-				"options": map[string]any{"baseURL": pl.Endpoint + "/v1"},
-				"models": map[string]any{
-					pl.LocalModelName: map[string]any{
-						"name":      pl.ModelName + " " + pl.Quant + " (" + shortName(b.p) + ")",
-						"tool_call": true,
-						"limit":     map[string]int{"context": pl.ContextTokens, "output": outputTokens(pl.ContextTokens)},
-					},
-				},
-			},
-		},
-	}
-	content, _ := json.MarshalIndent(cfg, "", "  ")
-	launch := "opencode --model " + b.q(id+"/"+pl.LocalModelName)
+	h, _ := harness.Get("opencode")
+	s := h.SetupFor(harness.Options{Port: b.port, Model: pl.LocalModelName, ContextTokens: pl.ContextTokens, Tuned: pl.Tuned, Bridge: true})
+	permanent := s.Config
+	s.Config = ""
 	if pl.ContextTokens < 64000 {
 		b.warn(fmt.Sprintf("OpenCode needs a context window of 64k tokens or more; this plan uses %d.", pl.ContextTokens))
 	}
+	b.manualHarnessStep(h, s)
 	b.add(Step{
-		ID: "harness-opencode", Kind: KindHarness,
-		Title: "Connect OpenCode to " + pl.LocalModelName,
-		Why:   fmt.Sprintf("Adds an OpenAI-compatible provider for %s at %s/v1 with the model's context limit, so OpenCode compacts before the window is full.", b.p.Name, pl.Endpoint),
-		Files: []FileEdit{{
-			Path: "~/.config/opencode/opencode.json", Format: "json", Content: string(content) + "\n", Merge: "merge",
-			Note: "Merge into the \"provider\" object of the global config (or a project's opencode.json); back the file up to opencode.json.bak-trialm first.",
-		}},
-		Restart:    "OpenCode: start it with `" + launch + "`",
-		Undo:       []Command{b.os(b.restoreBackup(".config/opencode/opencode.json"))},
-		Confidence: Medium,
-		Docs:       []string{docOpenCode},
+		ID: "harness-opencode-permanent", Kind: KindHarness,
+		Title: "Optional: make the local OpenCode provider permanent", Optional: true,
+		Why:     "Merge the same provider and tuned settings into OpenCode's config. OPENCODE_DISABLE_MODELS_FETCH=1 avoids the models.dev startup fetch.",
+		Files:   []FileEdit{{Path: "~/.config/opencode/opencode.json", Format: "json", Content: permanent, Merge: "merge", Note: "Back up opencode.json before merging."}},
+		Restart: "OpenCode: start a new session", Undo: []Command{b.os(b.restoreBackup(".config/opencode/opencode.json"))},
+		Confidence: Medium, Docs: []string{docOpenCode},
 	})
 }
 
@@ -239,36 +207,80 @@ func (b *builder) openCodeStep() {
 // (Cline, Zed, Aider, Qwen Code, generic clients).
 func (b *builder) manualHarnessStep(h harness.Harness, s harness.Setup) {
 	pl := b.plan
-	var parts []string
-	for i, st := range s.Steps {
-		parts = append(parts, fmt.Sprintf("%d) %s", i+1, st))
-	}
+	parts := append([]string(nil), s.Steps...)
 	if s.Config != "" {
-		parts = append(parts, "Add to "+s.ConfigPath+": "+strings.ReplaceAll(strings.TrimSpace(s.Config), "\n", " "))
+		parts = append(parts, "Optional: merge into "+s.ConfigPath+": "+strings.ReplaceAll(strings.TrimSpace(s.Config), "\n", " "))
 	}
+	st := Step{ID: "harness-" + h.ID, Kind: KindHarness,
+		Title: "Connect " + h.Name + " to " + pl.LocalModelName, Confidence: Medium}
 	if len(s.Command) > 0 {
 		var env []string
-		for _, kv := range s.Env {
-			env = append(env, kv[0]+"="+shQuote(kv[1]))
-		}
-		run := strings.TrimSpace(strings.Join(env, " ") + " " + joinSh(s.Command))
-		if b.win && len(s.Env) > 0 {
-			var set []string
-			for _, kv := range s.Env {
-				set = append(set, "$env:"+kv[0]+" = "+psQuote(kv[1]))
+		for _, name := range s.Unset {
+			if b.win {
+				env = append(env, "Remove-Item Env:"+name+" -ErrorAction SilentlyContinue;")
 			}
-			run = strings.Join(set, "; ") + "; " + joinPS(s.Command)
 		}
-		parts = append(parts, "Start it with: "+run)
+		for _, kv := range s.Env {
+			if b.win {
+				env = append(env, "$env:"+kv[0]+" = "+b.harnessArg(kv[1])+";")
+			} else {
+				env = append(env, kv[0]+"="+b.harnessArg(kv[1]))
+			}
+		}
+		var args []string
+		for _, arg := range s.Command {
+			args = append(args, b.harnessArg(arg))
+		}
+		run := strings.Join(args, " ")
+		if b.win && strings.HasPrefix(args[0], "'") {
+			run = "& " + run
+		}
+		if len(env) > 0 {
+			run = strings.Join(env, " ") + " " + run
+		}
+		if !b.win && len(s.Unset) > 0 {
+			prefix := "env"
+			for _, name := range s.Unset {
+				prefix += " -u " + name
+			}
+			run = prefix + " " + run
+		}
+		st.Commands = []Command{b.os(run)}
+		parts = append([]string{"Starts " + h.Name + " with the local endpoint and model. Any files below belong to triaLM."}, parts...)
+		st.Restart = h.Name + ": start a new session with the command above"
+	}
+	paths := make([]string, 0, len(s.Files))
+	for path := range s.Files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		format := strings.TrimPrefix(filepath.Ext(path), ".")
+		if format == "yml" {
+			format = "yaml"
+		}
+		st.Files = append(st.Files, FileEdit{Path: filepath.ToSlash(path), Format: format, Content: s.Files[path], Merge: "create", Note: "triaLM-owned config; create with mode 0600. Leaves the harness's default settings untouched."})
+		st.Undo = append(st.Undo, b.os(b.rm(strings.TrimPrefix(filepath.ToSlash(path), "~/"))))
 	}
 	parts = append(parts, s.Notes...)
-	b.add(Step{
-		ID: "harness-" + h.ID, Kind: KindHarness,
-		Title:      "Connect " + h.Name + " to " + pl.LocalModelName,
-		Why:        "Manual: " + strings.Join(parts, " "),
-		Restart:    h.Name,
-		Confidence: Medium,
-	})
+	st.Why = strings.Join(parts, " ")
+	if h.Binary == "" {
+		st.Why = "Manual: " + st.Why
+	}
+	if h.ID == "continue" {
+		st.Restart = "cn: nothing to restart; editor extension: reload the window"
+		st.Docs = []string{docContinue}
+	}
+	b.add(st)
+}
+
+// harnessArg expands owned plan paths in the target shell. Env vars cannot
+// contain a literal tilde: the shell must turn HOME into an absolute path.
+func (b *builder) harnessArg(arg string) string {
+	if strings.HasPrefix(filepath.ToSlash(arg), "~/") {
+		return b.home(strings.TrimPrefix(filepath.ToSlash(arg), "~/"))
+	}
+	return b.q(arg)
 }
 
 // restoreBackup restores a config file from the .bak-trialm backup the

@@ -39,7 +39,7 @@ Easiest: let your coding agent do everything.
 Commands:
   trialm detect                           your machine and installed runtimes
   trialm recommend [--harness h]          best models + runtimes for this machine
-  trialm try <model> --harness h          live trial: the real model, at this machine's speed
+  trialm try <model> [--harness h]          live trial: the real model, at this machine's speed
   trialm plan <model> [--runtime r]       exact setup steps (nothing is run)
   trialm verify --runtime r --model m     measure your real setup and check your coding tool works with it
   trialm bridge --harness h               connect a coding tool to a local runtime it can't talk to directly (e.g. Codex)
@@ -58,7 +58,7 @@ Usage:
   trialm runtimes                               runtime profiles (Ollama, llama.cpp, LM Studio, MLX)
   trialm predict  <model> [flags]               will it fit, how fast, on every runtime
   trialm serve    <model> [flags]               run the simulated local runtime (Ollama-compatible)
-  trialm try      <model> --harness <h> [flags] predict + serve + connect your harness
+  trialm try      <model> [--harness h] [flags] predict + serve + connect your harness
   trialm inspect  <file.gguf | URL>             read a GGUF header (no full download)
   trialm recommend [--harness h]                best models + runtimes for this machine
   trialm plan     <model> --runtime r [flags]   exact setup steps (for you or your coding agent)
@@ -251,6 +251,16 @@ func (c *common) finish(fs *flag.FlagSet) {
 	})
 	if c.defaults {
 		c.tuned = false
+	}
+	switch fs.Name() {
+	case "try", "serve", "recommend", "plan":
+		if c.harness == "" {
+			h, note := harness.DetectInstalled()
+			c.harness = h.ID
+			if note != "" {
+				fmt.Fprintln(os.Stderr, note)
+			}
+		}
 	}
 }
 
@@ -452,6 +462,7 @@ func cmdServe(args []string, try bool) error {
 	port := fs.Int("port", 11434, "listen port")
 	host := fs.String("host", "127.0.0.1", "listen address")
 	launch := fs.Bool("launch", false, "launch the harness (try)")
+	logFile := fs.String("log", "", "write request logs to this file (also works in the foreground)")
 	allowOrigin := fs.String("allow-origin", "", "extra allowed browser origins (comma-separated)")
 	force := fs.Bool("force", false, "serve even if the model does not fit")
 	pos, err := parseInterspersed(fs, args)
@@ -467,9 +478,6 @@ func cmdServe(args []string, try bool) error {
 	})
 	if len(pos) != 1 {
 		return fmt.Errorf("usage: trialm %s <model> [flags]", name)
-	}
-	if try && c.harness == "" {
-		return errors.New("try needs --harness (claude-code, codex, opencode, aider, cline, continue, zed, qwen-code)")
 	}
 	m, err := lookupModel(pos[0])
 	if err != nil {
@@ -520,11 +528,12 @@ func cmdServe(args []string, try bool) error {
 	}
 	logW := os.Stdout
 	var logPath string
-	if *launch {
-		dir := filepath.Join(os.TempDir(), "trialm")
-		_ = os.MkdirAll(dir, 0o755)
-		logPath = filepath.Join(dir, fmt.Sprintf("session-%s.log", time.Now().Format("20060102-150405")))
-		f, err := os.Create(logPath)
+	if *launch || *logFile != "" {
+		logPath = launchLogPath(*logFile, time.Now())
+		if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err != nil {
+			return err
+		}
+		f, err := os.OpenFile(logPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 		if err != nil {
 			return err
 		}
@@ -534,7 +543,7 @@ func cmdServe(args []string, try bool) error {
 	srv := server.New(server.Config{
 		Device: dev, Upstream: client, DeviceName: t.Name, RuntimeName: prof.Name, Log: logW, AllowOrigins: origins,
 		Model: api.ModelInfo{
-			Name: m.OllamaTag, Family: m.Family, ParameterSize: m.ParamLabel(), Quantization: res.Quant.Name,
+			Name: m.OllamaTag + "-trialm", Family: m.Family, ParameterSize: m.ParamLabel(), Quantization: res.Quant.Name,
 			ContextLength: res.Settings.ContextTokens, SizeBytes: res.Quant.FileBytes, Capabilities: capabilities(m),
 			ModifiedAt: time.Now(),
 		},
@@ -545,7 +554,11 @@ func cmdServe(args []string, try bool) error {
 	}
 	printServeBanner(m, t, prof, why, res, upDesc, bound, *port, c.verbose, !try)
 	if c.harness != "" {
-		setup := hh.SetupFor(harness.Options{Port: bound, Model: m.OllamaTag, Tuned: c.tuned, ContextTokens: res.Settings.ContextTokens})
+		setup := hh.SetupFor(harness.Options{Port: bound, Model: m.OllamaTag + "-trialm", Tuned: c.tuned, ContextTokens: res.Settings.ContextTokens, Protocol: hh.ProtocolFor(prof.APIs)})
+		if err := setup.WriteFiles(); err != nil {
+			_ = srv.Shutdown(context.Background())
+			return err
+		}
 		fmt.Printf("── Connect %s ─────────────────────────────────────────\n\n%s\n", hh.Name, setup.Render())
 		if *launch {
 			go func() { _ = srv.Serve() }()
@@ -553,7 +566,7 @@ func cmdServe(args []string, try bool) error {
 			lerr := setup.Launch()
 			_ = srv.Shutdown(context.Background())
 			fmt.Println()
-			fmt.Print(srv.Summary())
+			fmt.Println(srv.Summary())
 			return lerr
 		}
 	}
@@ -705,4 +718,12 @@ func jsonResults(rs []predict.Result) []jsonResult {
 	}
 	sort.SliceStable(out, func(i, k int) bool { return out[i].Runtime < out[k].Runtime })
 	return out
+}
+
+// launchLogPath keeps launch logs with triaLM's other logs unless overridden.
+func launchLogPath(explicit string, now time.Time) string {
+	if explicit != "" {
+		return explicit
+	}
+	return filepath.Join(trialmHome(), "logs", "session-"+now.Format("20060102-150405")+".log")
 }
