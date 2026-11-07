@@ -156,6 +156,11 @@ type common struct {
 	ram, vram                                    float64
 	tuned, defaults, probe, jsonOut, verbose     bool
 	tunedSet                                     bool
+	// harnessAuto is set when the harness was auto-detected rather than
+	// given; a recipe number from the last listing then supplies it.
+	harnessAuto bool
+	// recipeRef names the listing entry ("#1") that set runtime and quant.
+	recipeRef string
 }
 
 func (c *common) register(fs *flag.FlagSet, defaultRuntime string) {
@@ -216,7 +221,7 @@ func (c *common) finish(fs *flag.FlagSet) {
 	case "try", "serve", "recommend", "find", "setup", "plan":
 		if c.harness == "" {
 			h, note := harness.DetectInstalled()
-			c.harness = h.ID
+			c.harness, c.harnessAuto = h.ID, true
 			if note != "" {
 				fmt.Fprintln(os.Stderr, note)
 			}
@@ -321,7 +326,11 @@ func predictAll(c common, m catalog.Model, t predict.Target, sc predict.Scenario
 	return core.PredictAll(c.options(), m, t, sc, modes)
 }
 func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scenario, h harness.Harness) (runtime.Profile, string, error) {
-	return core.ChooseRuntime(c.options(), t, m, sc, h)
+	p, why, err := core.ChooseRuntime(c.options(), t, m, sc, h)
+	if err == nil && c.recipeRef != "" {
+		why = "recipe " + c.recipeRef + " from your last `trialm find`"
+	}
+	return p, why, err
 }
 func (c common) options() core.Options {
 	return core.Options{Runtime: c.runtime, Quant: c.quant, Context: c.ctx, KV: c.kv, Backend: c.backend, Probe: c.probe, Tuned: c.tuned, Device: c.device, RAM: c.ram, VRAM: c.vram, Engines: c.prefs.Engines, Boosts: c.prefs.Boosts, QualityFloor: c.prefs.QualityFloor, Use: c.prefs.Use, Priority: c.prefs.Priority, MaxDownloadGB: c.prefs.MaxDownloadGB, MinTPS: c.minTPS, MaxTurn: c.maxTurn, MinBits: c.minBits}

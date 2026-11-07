@@ -39,12 +39,13 @@ func resolveRecipe(pos []string, c *common) (string, error) {
 		r := rows[n-1]
 		if c.runtime == "" || c.runtime == "all" {
 			c.runtime = r.Runtime
+			c.recipeRef = "#" + strconv.Itoa(n)
 		}
 		if c.quant == "" {
 			c.quant = r.Quant
 		}
-		if c.harness == "" {
-			c.harness = r.Harness
+		if (c.harness == "" || c.harnessAuto) && r.Harness != "" {
+			c.harness, c.harnessAuto = r.Harness, false
 		}
 		return r.Model, nil
 	}
