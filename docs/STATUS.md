@@ -1,6 +1,6 @@
 # triaLM refactor status
 
-*Updated 2026-11-07 (P1a merged; P1b implemented on its working branch). The plan is [PLAN.md](PLAN.md); this file says where each phase stands and what only the owner can check.*
+*Updated 2026-11-07 (P1a and P1b merged on `trialm-refactor`). The plan is [PLAN.md](PLAN.md); this file says where each phase stands and what only the owner can check.*
 
 ## Where things are
 
@@ -9,7 +9,7 @@
 | **P0a** rename + safety net | `main` = tag **v0.2.0** (released) | Done. Release assets and both installers are on `releases/latest`; installs checked on clean macOS and Linux runners; the old `ccr-db94bc6e-e47992` installers forward to triaLM. |
 | **P0b** harness fixes + M5 calibration | `trialm-refactor` (pushed, not released) | Done except the owner checks below. Not tagged v0.2.1 and not merged to `main` until those pass. |
 | **P1a** core + agent CLI + private trial | `trialm-refactor` (pushed, not released) | Done against local fakes; the live OpenRouter checks below are yours. Details: [P1A_REPORT.md](P1A_REPORT.md). |
-| **P1b** new Charm CLI | this branch, not released | Implemented; [P1B_REPORT.md](P1B_REPORT.md). Owner checks: real agent prompt counts, macOS TCC and native consoles. Six CLIs pass both harness paths here; Codex is blocked by nested Seatbelt. |
+| **P1b** new Charm CLI | `trialm-refactor` (pushed, not released) | Done except owner checks 9–11. Details: [P1B_REPORT.md](P1B_REPORT.md). All 7 CLIs pass both harness paths (the agent's sandbox blocked Codex; rerun outside it: 14/14). |
 | P2 | — | Not started. |
 
 ## P0b: what is done
@@ -34,6 +34,13 @@
 - Private trials: only providers that do not store data (`--zdr` stricter), a $2 cap, `--pace p50|p90`, fidelity labels, cloud-bound moments, and a summary card. `trialm update` with a sha256 check.
 - Gates: `find --json` equals the old `recommend --json` on all six fixtures; source 22.9k of 26k lines; binary 9.4 of 14 MB. All 7 CLIs still pass the e2e runner.
 
+## P1b: what is done
+
+- Bare `trialm` on a terminal opens one inline Charm app (bubbletea v2.1.1, lipgloss v2.0.6, bubbles v2.2.1, huh v2.0.3; Go 1.26.10): detection → OpenRouter key (Enter = browser, `p` paste, `s` skip) → **the calibration offer as its own screen** (Enter runs it with a progress bar and ETA, `s` skips, remembered) → needs form (Enter takes every default) → recipe table → details (`d`) → trial (hands the terminal to the coding tool, or `w` opens a window) → summary card with a 1/2/3 rating ("1 too slow" re-ranks toward speed) → returning-user home with trial history.
+- Window mode, a chat screen for `use=chat`, and a claims gallery of only the three sourced claims PLAN cites. Plain and `--json` output are unchanged off a TTY.
+- Gates: 96 screen goldens (16 screens × 60/80/120 columns × colour/NO_COLOR); Journey A in 4 keys + 1 browser click; binary 11.7 of 14 MB; govulncheck clean.
+- Review fixes after driving the real binary on the M5 (calibration ran from the offer screen in ~3.5 min): the needs form defaults to the installed tool; Ctrl-C during calibration now also stops llama-bench and deletes the temporary file (it left a 4 GB file and an orphaned process before); a stop prints `Stopped.`; status lines are words, not llama-bench flags.
+
 ## Owner checks (each needs you)
 
 1. **P0a on the M5:** `curl -fsSL https://github.com/Aeroknight786/trialm/releases/latest/download/install.sh | sh`. The first `trialm` run moves your real `~/.cyrlm` into `~/.trialm` (a symlink stays at `~/.cyrlm`). Check that the old key and setup still launch.
@@ -48,6 +55,9 @@
 6. **The real-model M5 bench:** `tools/m5-bench.sh` (asks before its ~25 GB download, ~15 min). Then compare with `trialm predict qwen3.6:35b-a3b --runtime llamacpp --quant IQ3_XXS` and `trialm predict gpt-oss:20b --runtime llamacpp`.
 7. **P1a live OpenRouter checks:** `trialm key` (browser sign-in), then check the credit it shows against your OpenRouter dashboard; `trialm try` in Codex and in Claude Code; and a trial's spend on the summary card against the dashboard.
 8. **Strata on Metal:** run Strata's installer on the M5 to settle whether it works there.
+9. **The new app, first run:** `go build -o ~/.local/bin/trialm ./cmd/trialm && TRIALM_HOME=$(mktemp -d) trialm` in Terminal or iTerm. Walk it: browser sign-in, Enter on calibration, Enter on needs, `d` on a recipe, Enter to try. Ctrl-C at any point should restore the terminal.
+10. **Journey D prompt counts from real Claude Code and Codex** (keep your normal permission mode): `trialm --json`, `trialm find --json`, `trialm try 1 --window`, then `trialm --json` and read `data.trials`. Count tool prompts, approvals and browser clicks.
+11. **macOS window mode:** from Claude Code, `trialm try 1` (it picks window mode automatically) — count any macOS permission prompts; close the window early and check the card says partial. Also Windows Terminal/conhost and Linux tmux if you use them.
 
 ## How P0b was built
 
