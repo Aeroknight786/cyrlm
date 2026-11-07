@@ -7,7 +7,6 @@
 package download
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -58,16 +57,3 @@ type Client struct {
 // ErrDigest is returned when the bytes do not match Request.SHA256 after
 // one automatic re-fetch.
 var ErrDigest = errors.New("download: sha256 mismatch")
-
-// Fetch downloads r.URL to r.Dest, resuming a partial file, following
-// redirects (Xet, cdn-lfs, GitHub release CDNs) and checking the digest.
-// Cancelling ctx keeps the .part file so a later Fetch resumes it.
-func (c Client) Fetch(ctx context.Context, r Request) (Result, error) {
-	return Result{}, errors.New("download: not implemented")
-}
-
-// Candidates lists local paths where a file with this digest may already
-// exist: the Hugging Face hub cache (blobs/<sha256>), LM Studio's models
-// directory (<repo>/<file>) and Ollama's blobs (sha256-<hex>). home is the
-// user's home directory. Paths that do not exist are omitted.
-func Candidates(home, repo, file, sha256 string) []string { return nil }

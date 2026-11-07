@@ -1,0 +1,11 @@
+# P2 downloader report
+
+Implemented `internal/setup/download`: single-stream HTTP resume using a persisted URL and ETag or Last-Modified validator, incremental SHA-256 verification, one digest retry, safe redirect credential handling, throttled progress, cache candidates, verified hard-link or copy reuse, disk-space checks and `FallbackHint` argv. The `.part.json` sidecar accompanies `.part` during interrupted transfers. No shared contract signatures changed. The report is the only file changed outside the owned package, as requested. No goldens changed.
+
+Verification used scratch HOME, XDG and triaLM directories. `gofmt -l .` was empty; `go vet ./...`, `GOOS=windows go vet ./...` and `go test -race ./...` passed. Local HTTP tests cover cut and resume, ignored ranges, changed ETags, digest retry, cancellation, redirects, cache layouts and deterministic cut points. Tests exercise both linking and forced copy fallback, plus traversal rejection. The redirect test checks that a token is absent at the redirect target; it does not emulate the authenticated Hugging Face origin. Windows code was cross-vetted, not run on Windows. Real Xet and legacy CDN paths and an actual cross-filesystem copy were not exercised.
+
+Budget: product files in this package total 479 physical lines versus 73 in the stub, net +406, under +450. The budget test reports 25,761/28,500 product lines, 5,285/5,500 CLI plus UI lines, 13/30 command physical lines, and 11,727,586/14,000,000 stripped binary bytes.
+
+Real release check: fetched `llama-b12182-bin-linux-arm64-snapdragon.tar.gz` (25,617,327 bytes) from ggml-org/llama.cpp into a temporary directory, cancelled after 1,437,732 bytes, then resumed 24,179,595 bytes in 12.81 seconds (1.89 MB/s). Fetch verified GitHub's published SHA-256 `fa704cb36a2053ad985f457b82c395d684f0ca622bc1f32a2e7f75154169c18c`; the scratch asset was deleted. This is one transfer measurement, not a link-speed comparison. No model weights were downloaded.
+
+Owner checks: exercise authenticated HF → Xet and legacy CDN redirects from an open network; run Windows tests on a real Windows filesystem; validate the native fallback argv against each installed engine version. Files on platforms other than Unix and Windows use an unknown-free-space fallback and rely on write errors.
