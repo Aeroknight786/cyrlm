@@ -13,6 +13,9 @@ func TestHarnessSetup(t *testing.T) {
 		}
 		s := h.SetupFor(Options{Port: 11500, Model: "gpt-oss:20b"})
 		out := s.Render()
+		for _, content := range s.Files {
+			out += content
+		}
 		if !strings.Contains(out, "11500") {
 			t.Errorf("%s setup does not mention the port:\n%s", id, out)
 		}

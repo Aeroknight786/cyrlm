@@ -89,6 +89,9 @@ func New(cfg Config) *Server {
 		ollGen:    ollama.NewGenerate(),
 		startedAt: time.Now(),
 	}
+	// Initialize before a Serve goroutine can race a fast --launch child's
+	// exit and Shutdown. http.Server coordinates Serve/Shutdown internally.
+	s.httpSrv = &http.Server{Handler: s, ReadHeaderTimeout: 10 * time.Second}
 	s.routes()
 	return s
 }
@@ -605,7 +608,6 @@ func (s *Server) Listen(host string, port int, fallback bool) (int, error) {
 
 // Serve serves on the bound listener until Shutdown.
 func (s *Server) Serve() error {
-	s.httpSrv = &http.Server{Handler: s, ReadHeaderTimeout: 10 * time.Second}
 	err := s.httpSrv.Serve(s.listener)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil

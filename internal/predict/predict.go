@@ -281,7 +281,7 @@ type Scenario struct {
 
 // DefaultScenario is a Claude Code-sized session.
 func DefaultScenario() Scenario {
-	return Scenario{Harness: "claude-code", BasePromptTokens: 33000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 45000}
+	return Scenario{Harness: "claude-code", BasePromptTokens: 12000, NewTokensPerTurn: 2500, OutputTokensPerTurn: 300, Turns: 40, MidDepth: 45000, MinContext: 36864}
 }
 
 // ScenarioResult are the headline numbers.

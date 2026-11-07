@@ -541,7 +541,7 @@ func TestLMStudioWindowsOpenCode(t *testing.T) {
 	contains(t, "load", load, "load qwen3-coder-30b-a3b-instruct --context-length 65536 --gpu max --identifier qwen3-coder:30b-trialm -y")
 	lacks(t, "load", load, "--ttl")
 
-	oc := file(t, mustStep(t, p, "harness-opencode"), "~/.config/opencode/opencode.json")
+	oc := file(t, mustStep(t, p, "harness-opencode-permanent"), "~/.config/opencode/opencode.json")
 	var cfg struct {
 		Provider map[string]struct {
 			NPM     string `json:"npm"`
@@ -556,7 +556,7 @@ func TestLMStudioWindowsOpenCode(t *testing.T) {
 	if err := json.Unmarshal([]byte(oc.Content), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	prov := cfg.Provider["trialm-lmstudio"]
+	prov := cfg.Provider["trialm-local"]
 	if prov.Options.BaseURL != "http://127.0.0.1:1234/v1" || prov.NPM != "@ai-sdk/openai-compatible" {
 		t.Errorf("opencode provider: %+v", prov)
 	}
@@ -700,7 +700,7 @@ func TestCatalogModelSources(t *testing.T) {
 				t.Errorf("non-default quant should be in the local name: %s", pl.LocalModelName)
 			}
 			// Aider speaks the Ollama API: a manual launch step.
-			contains(t, "aider", mustStep(t, pl, "harness-aider").Why, "OLLAMA_API_BASE=http://127.0.0.1:11434", "ollama_chat/"+pl.LocalModelName)
+			contains(t, "aider", runs(mustStep(t, pl, "harness-aider")), "OLLAMA_API_BASE=http://127.0.0.1:11434", "ollama_chat/"+pl.LocalModelName)
 		})
 	}
 }
@@ -726,7 +726,7 @@ func TestOtherHarnesses(t *testing.T) {
 		harness, runtime, step string
 		want                   []string
 	}{
-		{"continue", "ollama", "harness-continue", []string{"provider: ollama", "apiBase: http://127.0.0.1:11434"}},
+		{"continue", "ollama", "harness-continue", []string{"provider: openai", "apiBase: http://127.0.0.1:11434/v1"}},
 		{"cline", "lmstudio", "harness-cline", []string{"http://127.0.0.1:1234"}},
 		{"qwen-code", "llamacpp", "harness-qwen-code", []string{"OPENAI_BASE_URL=http://127.0.0.1:8080/v1"}},
 		{"generic", "llamacpp", "harness-generic", []string{"http://127.0.0.1:8080/v1"}},
@@ -735,7 +735,7 @@ func TestOtherHarnesses(t *testing.T) {
 		t.Run(c.harness, func(t *testing.T) {
 			p := build(t, spec{model: "qwen3-8b", runtime: c.runtime, goos: "linux", goarch: "amd64", backend: "cuda", tuned: true, harness: c.harness}.input(t))
 			s := mustStep(t, p, c.step)
-			text := s.Why
+			text := s.Why + runs(s)
 			for _, f := range s.Files {
 				text += f.Content
 			}
@@ -749,7 +749,7 @@ func TestOtherHarnesses(t *testing.T) {
 		t.Fatalf("continue should connect to llama-server over its OpenAI API: %s", p.HarnessNote)
 	}
 	s := mustStep(t, p, "harness-continue")
-	text := s.Why
+	text := s.Why + runs(s)
 	for _, f := range s.Files {
 		text += f.Content
 	}
