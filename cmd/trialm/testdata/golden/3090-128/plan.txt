@@ -2,7 +2,7 @@
 Setup plan: Qwen3.6 35B-A3B (Q4_K_M, 22.1 GB) with llama.cpp (llama-server), tuned settings
   runtime chosen: the fastest working option here; not installed yet
   context 65536 tokens · 16-bit context cache · serves at http://127.0.0.1:8080 as "qwen3.6:35b-a3b-trialm"
-  expected: first reply 12 s, then ~2.4 s per turn, writing at 177 tok/s
+  expected: first reply 12 s, then ~2.4 s per turn, writing at ~180 tok/s
   ✓ Codex CLI connects through `trialm bridge`, which passes its requests to llama.cpp (llama-server)'s Chat Completions API at http://127.0.0.1:8080 as model qwen3.6:35b-a3b-trialm.
 
 Nothing has been run. Run each step yourself (or let your coding agent run them, with your approval):

@@ -1,0 +1,15 @@
+{
+  "data": {
+    "id": "test/model",
+    "name": "Model",
+    "endpoints": [
+      {"name":"Logging: Model","provider_name":"Logging","tag":"logging/fp8","context_length":262144,"quantization":"fp8","data_policy":{"data_collection":"allow","zdr":false},"supported_parameters":["tools","tool_choice"],"pricing":{"prompt":"0","completion":"0"},"uptime_last_30m":100},
+      {"name":"Unknown policy: Model","provider_name":"Unknown","tag":"unknown/fp8","context_length":262144,"quantization":"fp8","supported_parameters":["tools","tool_choice"],"pricing":{"prompt":"0","completion":"0"},"uptime_last_30m":100},
+      {"name":"Private: Model","provider_name":"Private","tag":"private/fp8","context_length":65536,"quantization":"fp8","data_policy":{"data_collection":"deny","zdr":false},"supported_parameters":["tools","tool_choice"],"pricing":{"prompt":"0.000001","completion":"0.000002","input_cache_read":"0.0000001","request":"0"},"uptime_last_30m":99.9},
+      {"name":"ZDR: Model","provider_name":"ZDR","tag":"zdr/bf16","context_length":131072,"quantization":"bf16","data_policy":{"data_collection":"deny","zdr":true},"supported_parameters":["tools","tool_choice"],"pricing":{"prompt":"0.000002","completion":"0.000004"},"uptime_last_30m":99},
+      {"name":"Short: Model","provider_name":"Short","tag":"short/fp8","context_length":8192,"quantization":"fp8","data_collection":"deny","supported_parameters":["tools","tool_choice"],"pricing":{"prompt":"0","completion":"0"}},
+      {"name":"No tools: Model","provider_name":"No tools","tag":"chat/fp8","context_length":131072,"quantization":"fp8","data_policy":{"data_collection":"deny","zdr":true},"supported_parameters":["temperature"],"pricing":{"prompt":"0","completion":"0"}},
+      {"name":"Unknown price: Model","provider_name":"Unknown price","tag":"unpriced/fp8","context_length":131072,"quantization":"fp8","data_collection":"deny","supported_parameters":["tools","tool_choice"],"pricing":{}}
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+{"data":[
+ {"model_id":"test/model","tag":"unknown/fp8","quantization":"fp8","safety_retention":false},
+ {"model_id":"test/model","tag":"logging/fp8","quantization":"fp8","safety_retention":false},
+ {"model_id":"test/model","tag":"private/fp8","quantization":"fp8","safety_retention":true},
+ {"model_id":"different/model","tag":"short/fp8","quantization":"fp8","safety_retention":false},
+ {"model_id":"test/model","tag":"chat/fp8","quantization":"bf16","safety_retention":false}
+]}

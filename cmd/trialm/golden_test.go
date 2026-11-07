@@ -145,6 +145,7 @@ func normalizeFloats(s string) string {
 func goldenEnv(home, emptyPath, args string) []string {
 	env := []string{
 		"HOME=" + home,
+		"TRIALM_HOME=" + filepath.Join(home, ".trialm"),
 		"USERPROFILE=" + home,
 		"PATH=" + emptyPath,
 		"NO_COLOR=1",

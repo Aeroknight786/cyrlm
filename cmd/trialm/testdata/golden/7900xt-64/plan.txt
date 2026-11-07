@@ -2,7 +2,7 @@
 Setup plan: Qwen3.6 35B-A3B (Q4_K_M, 22.1 GB) with Ollama, tuned settings
   runtime chosen: no runtime gives a working setup with these settings; simulating anyway (try a smaller model or --ctx)
   context 65536 tokens · 16-bit context cache · serves at http://127.0.0.1:11434 as "qwen3.6:35b-a3b-trialm"
-  expected: first reply 17 s, then ~6.6 s per turn, writing at 81 tok/s
+  expected: first reply 17 s, then ~6.6 s per turn, writing at ~81 tok/s
   ✓ Codex CLI connects through `trialm bridge`, which passes its requests to Ollama's Chat Completions API at http://127.0.0.1:11434 as model qwen3.6:35b-a3b-trialm.
 
 Nothing has been run. Run each step yourself (or let your coding agent run them, with your approval):
