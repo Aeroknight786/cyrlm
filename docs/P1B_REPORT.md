@@ -58,6 +58,8 @@ The binary increase over the same-compiler HEAD baseline is justified by the fou
 
 ## Harness runner and limits
 
+*Coordinator rerun outside the agent sandbox (2026-11-07): all 14 paths pass, Codex included. The 12/14 below is the agent's own run.*
+
 `GOTOOLCHAIN=go1.26.10 go run ./tools/harness-e2e -output /tmp/claude-501/p0b/p1b-harness-final` completed with **12/14 paths passing**: Claude Code, OpenCode, Aider, Qwen Code, Cline and Continue pass trial and bridge. Both Codex paths reach the fake model but the shell tool is blocked by the outer macOS sandbox: `sandbox-exec: sandbox_apply: Operation not permitted`. The unchanged runner identifies this as nested Seatbelt and asks for a rerun outside the outer sandbox. Therefore a fully green seven-CLI run cannot be claimed here. Logs and `summary.json` are in that output directory. No permission or sandbox bypass was attempted.
 
 Real OpenRouter authorization/credit/billing and real-cloud coding sessions remain owner checks from P1a. Real GPU calibration was not run. Actual Windows Terminal/conhost/VS Code rendering, Linux GUI/tmux opening, and macOS LaunchServices/TCC were not exercised; opener argv, script contents, fallback and Windows compilation were tested. A forced window close can lose up to the checkpoint interval; its card is marked partial. Setup execution, local ready/launch, YaRN, speculative simulation and claim parsing remain in their planned later releases.

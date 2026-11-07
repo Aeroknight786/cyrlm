@@ -130,6 +130,9 @@ func calibrationStatus(probe, msg string) string {
 		return "Reusing finished measurements · " + what
 	case strings.HasPrefix(msg, "Saved depth"):
 		if _, err := fmt.Sscanf(msg, "Saved depth %d", &depth); err == nil {
+			if depth == 0 {
+				return "Measured at short context · " + what
+			}
 			return fmt.Sprintf("Measured at %dk context · %s", depth/1024, what)
 		}
 	}
