@@ -1,0 +1,7 @@
+# Harness end-to-end checks
+
+From the repository root, run `go run ./tools/harness-e2e`. Use `-only claude-code` (or another harness ID) to select one CLI, `-latest` to use current releases, `-keep` to retain scratch homes and installations, and `-output DIR` to select the summary and log directory. The default is `harness-e2e-logs`. The runner needs Go, Node/npm, Python 3, and uv with Python 3.12 available. It builds the checked-out trialm and does not download model weights.
+
+The pinned versions come from `research/refactor-2026-11/harness-results.json`; that file has no Codex entry, so the Codex 0.134.0 pin is a provisional fallback. The runner uses fresh isolated homes, config directories, and work directories. It parses the connection instructions printed by each command, then adds headless flags. Missing runnable CLI instructions are failures, including cases where only extension instructions are printed. triaLM currently offers no machine-readable connect output for these commands.
+
+The fake upstream responds to a greeting, asks the CLI to create `tool.txt`, and answers after the tool result. Aider uses an applied edit and a deliberately failing first test to elicit its follow-up. `summary.json` records each harness and path; detailed logs include CLI output, connection instructions, server output, and fake upstream requests. The CLI may make other network requests; this is not a network sandbox.
