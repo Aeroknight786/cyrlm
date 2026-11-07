@@ -129,7 +129,9 @@ func fitRows() []Row {
 			rows = append(rows, Row{Class: "dense", Quant: "Q4_K_M", Layers: l, Gen: 32, Seconds: (.01 + .002*float64(l)) * noise, Baseline: .02 + .003*float64(l)})
 		}
 	}
-	rows = append(rows, Row{Class: "dense", Quant: "Q4_K_M", Layers: 4, Check: true, Gen: 32, Seconds: .019, Baseline: .032})
+	for _, v := range []float64{.0189, .019, .0191} {
+		rows = append(rows, Row{Class: "dense", Quant: "Q4_K_M", Layers: 4, Check: true, Gen: 32, Seconds: v, Baseline: .032})
+	}
 	return rows
 }
 func TestAffineFitResidualBandAndExtrapolation(t *testing.T) {
@@ -150,7 +152,7 @@ func TestAffineFitResidualBandAndExtrapolation(t *testing.T) {
 	if near >= b {
 		t.Fatal("band ignored extrapolation leverage")
 	}
-	if len(f.Residuals) != 5 || f.LogSigma <= 0 {
+	if len(f.Residuals) != 3 || len(f.Checks) != 1 {
 		t.Fatal("check did not enter residuals")
 	}
 	if _, _, ok = c.Factor("dense", "Q4_K_M", 32768, 36, "decode"); ok {
@@ -187,7 +189,7 @@ func TestAtomicStoreVersionAndDepthBuckets(t *testing.T) {
 		t.Fatal(e)
 	}
 	loaded, e := Load(home)
-	if e != nil || loaded.Fingerprint.Hash != "test" || len(loaded.Rows) != 5 {
+	if e != nil || loaded.Fingerprint.Hash != "test" || len(loaded.Rows) != 7 {
 		t.Fatal(loaded, e)
 	}
 	st, _ := os.Stat(filepath.Join(home, "calib.json"))
@@ -240,11 +242,11 @@ func TestRunnerKeepsFinishedRowsOnFailure(t *testing.T) {
 	defer cancel()
 	for i := 0; i < 2; i++ {
 		c, e := Run(ctx, RunOptions{Home: home, Engine: engine, Quick: true, Backend: "metal", Fingerprint: Fingerprint{Hash: "test"}, Baseline: func(Probe, BenchRow) float64 { return .002 }, Event: func(e Event) { events = append(events, e) }})
-		if e == nil || c.Complete || len(c.Rows) != 2 {
+		if e == nil || c.Complete || len(c.Rows) != 1 {
 			t.Fatal(c, e)
 		}
 		saved, se := Load(home)
-		if se != nil || len(saved.Rows) != 2 || !json.Valid(saved.Rows[0].Raw) {
+		if se != nil || len(saved.Rows) != 1 || !json.Valid(saved.Rows[0].Raw) {
 			t.Fatal(saved, se)
 		}
 	}
@@ -252,7 +254,7 @@ func TestRunnerKeepsFinishedRowsOnFailure(t *testing.T) {
 	old.Rows = append(old.Rows, Row{Probe: "old-machine-row", Seconds: 1})
 	_ = old.Save(home)
 	changed, e := Run(ctx, RunOptions{Home: home, Engine: engine, Quick: true, Backend: "metal", Fingerprint: Fingerprint{Hash: "changed"}, Baseline: func(Probe, BenchRow) float64 { return .002 }})
-	if e == nil || len(changed.Rows) != 2 || changed.Fingerprint.Hash != "changed" {
+	if e == nil || len(changed.Rows) != 1 || changed.Fingerprint.Hash != "changed" {
 		t.Fatal("stale fingerprint rows reused", changed, e)
 	}
 	if len(events) == 0 {

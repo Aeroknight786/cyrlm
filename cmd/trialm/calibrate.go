@@ -20,6 +20,8 @@ import (
 func cmdCalibrate(args []string) error {
 	fs := flag.NewFlagSet("calibrate", flag.ContinueOnError)
 	quick := fs.Bool("quick", false, "about 2 min; the two default hybrid and sliding MoE picks")
+	plan := fs.Bool("plan", false, "print the grid and estimated M5 seconds without running a benchmark")
+	refit := fs.Bool("refit", false, "rebuild fits from saved raw rows without hardware or llama-bench")
 	status := fs.Bool("status", false, "show calibration coverage and fingerprint status")
 	jsonOut := fs.Bool("json", false, "emit NDJSON events")
 	pos, e := parseInterspersed(fs, args)
@@ -27,11 +29,54 @@ func cmdCalibrate(args []string) error {
 		return e
 	}
 	if len(pos) > 0 {
-		return errors.New("usage: trialm calibrate [--quick] [--status] [--json]")
+		return errors.New("usage: trialm calibrate [--quick] [--status | --plan | --refit] [--json]")
+	}
+	selected := 0
+	for _, v := range []bool{*status, *plan, *refit} {
+		if v {
+			selected++
+		}
+	}
+	if selected > 1 {
+		return errors.New("choose one of --status, --plan or --refit")
+	}
+	home := trialmHome()
+	if *plan {
+		steps := calib.Plan(*quick)
+		if *jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{"v": 1, "type": "calibration_plan", "estimated_seconds": calib.EstimatedSeconds(steps), "estimate_basis": "Apple M5, llama-bench 11960; includes cold synthetic generation; allow about 25% variation", "steps": steps})
+		}
+		fmt.Printf("Calibration plan: %d steps, about %.0f seconds (%.0f min) on the M5. Allow about 25%% variation.\n", len(steps), calib.EstimatedSeconds(steps), calib.EstimatedSeconds(steps)/60)
+		for i, s := range steps {
+			fmt.Printf("[%d/%d] %s · about %.0f s\n", i+1, len(steps), s.Description(), s.EstimatedSeconds)
+		}
+		fmt.Println("Estimate from the owner's per-step timings, including generation and warm-up. No hard stop; Ctrl-C saves finished rows for resume.")
+		return nil
+	}
+	if *refit {
+		c, e := calib.Load(home)
+		if e != nil {
+			return e
+		}
+		c.FitRows()
+		if e = c.Save(home); e != nil {
+			return e
+		}
+		if *jsonOut {
+			return json.NewEncoder(os.Stdout).Encode(map[string]any{"v": 1, "type": "calibration_refit", "calibration": c})
+		}
+		fmt.Printf("Rebuilt %d fits from %d saved rows. Coverage: %s\n", len(c.Fits), len(c.Rows), strings.Join(c.Coverage, ", "))
+		for _, f := range c.Fits {
+			if f.Rejected != "" {
+				fmt.Printf("%s/%s depth %d %s: rejected (%s)\n", f.Class, f.Quant, f.Depth, f.Mode, f.Rejected)
+			} else {
+				fmt.Printf("%s/%s depth %d %s: about %.2gx speed, ±%d%%\n", f.Class, f.Quant, f.Depth, f.Mode, f.Multiplier, f.BandPct)
+			}
+		}
+		return nil
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	home := trialmHome()
 	engine, engineErr := calib.FindEngine(home)
 	if *status {
 		return calibrationStatus(ctx, home, engine, engineErr, *jsonOut)
@@ -99,9 +144,6 @@ func cmdCalibrate(args []string) error {
 	if errors.Is(e, context.Canceled) {
 		return fail(fmt.Errorf("calibration interrupted; finished rows kept: %w", e))
 	}
-	if errors.Is(e, context.DeadlineExceeded) {
-		return fail(errors.New("calibration time budget reached; finished rows kept. Run trialm calibrate again to continue"))
-	}
 	if e != nil {
 		return fail(e)
 	}
@@ -127,9 +169,9 @@ func calibrationStatus(ctx context.Context, home, engine string, engineErr error
 		} else if fp.Hash == c.Fingerprint.Hash {
 			state = "current"
 			reason = "Synthetic fit; real-model extrapolation awaits validation."
-			if len(c.Fits) == 0 {
+			if !c.Usable() {
 				state = "incomplete"
-				reason = "No usable fit yet. Run trialm calibrate to continue."
+				reason = "No usable fit yet. Run trialm calibrate --refit to inspect the held-out checks."
 			}
 		}
 	} else if !errors.Is(e, os.ErrNotExist) {
@@ -232,7 +274,7 @@ func maybeOfferCalibration(args []string) error {
 	if !predictCalibrationMissing(home) {
 		return nil
 	}
-	fmt.Fprintln(os.Stderr, "Recommended: calibrate this machine once for tighter speed estimates (5–8 min).")
+	fmt.Fprintln(os.Stderr, "Recommended: calibrate this machine once for tighter speed estimates (5–7 min).")
 	fmt.Fprintln(os.Stderr, "triaLM generates synthetic weights and runs llama-bench. No model downloads. It writes cache/calib/, calib.json and prefs.json under", home+".")
 	fmt.Fprint(os.Stderr, "Enter calibrates (recommended) · s or any other key skips: ")
 	key, e := calibrationKey(os.Stdin)
@@ -257,7 +299,7 @@ func maybeOfferCalibration(args []string) error {
 }
 func predictCalibrationMissing(home string) bool {
 	c, e := calib.Load(home)
-	if e != nil || len(c.Fits) == 0 {
+	if e != nil || !c.Usable() {
 		return true
 	}
 	engine, e := calib.FindEngine(home)

@@ -68,7 +68,7 @@ func machineCalibration() *calib.Calibration {
 	calibrationCache.key = key
 	calibrationCache.data = nil
 	c, e := calib.Load(home)
-	if e != nil || len(c.Fits) == 0 {
+	if e != nil || !c.Usable() {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
@@ -141,15 +141,21 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 	}
 	factors := &timingCalibration{}
 	for i, depth := range []int{0, 8192, 32768} {
-		factors.decode[i], _, _ = c.Factor(class, q, depth, in.Model.Layers, "decode")
-		factors.prefill[i], _, _ = c.Factor(class, q, depth, in.Model.Layers, "prefill")
+		// Timing can cross every bucket during a scenario. Partial coverage must
+		// keep the entire prediction simulated, including its uncertainty label.
+		var dok, pok bool
+		factors.decode[i], _, dok = c.Factor(class, q, depth, in.Model.Layers, "decode")
+		factors.prefill[i], _, pok = c.Factor(class, q, depth, in.Model.Layers, "prefill")
+		if !dok || !pok {
+			return
+		}
 	}
 	r.Timing.calibration = factors
 	r.Kind = "calibrated"
 	r.Accuracy.DecodePct = db
 	r.Accuracy.PrefillPct = pb
 	r.Accuracy.PrefillMeasureOnly = false
-	r.Accuracy.Basis = "calibrated on this machine; band from synthetic layer-fit log residuals (75% interval); real-model extrapolation awaits validation"
+	r.Accuracy.Basis = "calibrated on this machine; band from held-out synthetic layer error and repetition spread; context costs transfer per layer; real-model extrapolation awaits validation"
 	r.DecodeTPS0 = r.Timing.DecodeTPS(512)
 	r.PrefillTPS2k = r.Timing.PrefillTPS(0, 2048)
 	r.PrefillTPSP0 = r.Timing.PrefillTPS(0, sc.BasePromptTokens)
@@ -157,7 +163,7 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 	r.DecodeTPSDeep = r.Scenario.FollowUpDecodeT
 	r.Timing.VerifySeconds = map[int]float64{}
 	for _, f := range c.Fits {
-		if f.Class == class && f.Quant == q && f.Depth == 0 && strings.HasPrefix(f.Mode, "verify") {
+		if f.Class == class && f.Quant == q && f.Depth == 0 && f.Rejected == "" && f.BandPct >= 0 && strings.HasPrefix(f.Mode, "verify") {
 			n := 0
 			_, _ = fmt.Sscanf(f.Mode, "verify%d", &n)
 			if n > 0 {

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/predict"
 )
 
@@ -66,5 +67,36 @@ func TestPredictionJSONCarriesKind(t *testing.T) {
 	js := jsonResults([]predict.Result{r})
 	if len(js) != 1 || js[0].Kind != "calibrated" || js[0].VerifySeconds[2] != .03 {
 		t.Fatal(js)
+	}
+}
+
+func TestCalibrationPlanAndRefitNeedNoEngine(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("TRIALM_HOME", home)
+	// No PATH engine and no engines directory. Neither path fingerprints hardware.
+	t.Setenv("PATH", t.TempDir())
+	for _, args := range [][]string{{"--plan", "--json"}, {"--plan", "--quick"}} {
+		if e := cmdCalibrate(args); e != nil {
+			t.Fatal(args, e)
+		}
+	}
+	b, e := os.ReadFile(filepath.Join("..", "..", "internal", "calib", "testdata", "calib-quiet.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(filepath.Join(home, "calib.json"), b, 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e = cmdCalibrate([]string{"--refit", "--json"}); e != nil {
+		t.Fatal(e)
+	}
+	c, e := calib.Load(home)
+	if e != nil || c.FittingVersion != calib.FittingVersion || len(c.Fits) == 0 {
+		t.Fatal(c, e)
+	}
+	for _, args := range [][]string{{"--plan", "--refit"}, {"--status", "--refit"}, {"--plan", "--status"}} {
+		if e = cmdCalibrate(args); e == nil {
+			t.Fatal("conflicting modes accepted", args)
+		}
 	}
 }
