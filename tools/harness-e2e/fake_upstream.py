@@ -2,8 +2,40 @@
 # answers with a tool call for the first request of a conversation, text after.
 import json, sys, http.server, os
 
-LOG = sys.argv[2]
+LOG = ""
 SCRIPT = os.environ.get("FAKE_TOOL", "shell")
+
+
+def tool_call(tools, script):
+    # Fail on tool/schema drift instead of calling an unrelated first tool and
+    # treating its error as a successful round trip.
+    functions = {t["function"]["name"]: t["function"] for t in tools if t.get("type") == "function"}
+    candidates = ("shell", "exec_command", "shell_command") if script == "shell" else (script,)
+    name = next((n for n in candidates if n in functions), None)
+    if name is None:
+        raise ValueError(f"expected tool {script!r}; advertised: {', '.join(functions)}")
+    command = "echo tool-ok > tool.txt"
+    if name in ("Bash", "bash"):
+        args = {"command": command, "description": "write file"}
+    elif name in ("run_shell_command", "shell_command"):
+        args = {"command": command}
+    elif name == "run_commands":
+        args = {"commands": [command]}
+    elif name == "Write":
+        args = {"filepath": "tool.txt", "content": "tool-ok\n"}
+    elif name == "shell":
+        args = {"command": ["bash", "-lc", command]}
+    elif name == "exec_command":
+        args = {"cmd": command}
+    else:
+        raise ValueError(f"no fixture for tool {name!r}")
+    schema = functions[name].get("parameters", {})
+    properties = schema.get("properties", {})
+    args = {k: v for k, v in args.items() if k in properties}
+    missing = set(schema.get("required", [])) - args.keys()
+    if missing:
+        raise ValueError(f"{name} fixture missing required arguments: {', '.join(sorted(missing))}")
+    return name, json.dumps(args)
 
 
 class H(http.server.BaseHTTPRequestHandler):
@@ -28,8 +60,16 @@ class H(http.server.BaseHTTPRequestHandler):
             self.send_response(500); self.send_header("Content-Type", "application/json"); self.end_headers()
             self.wfile.write(b'{"error":{"code":500,"message":"Jinja Exception: System message must be at the beginning.","type":"server_error"}}')
             return
-        tools = [t["function"]["name"] for t in body.get("tools", []) if t.get("type") == "function"]
         has_tool_result = any(m.get("role") == "tool" for m in msgs)
+        greeting = "HARNESS_E2E_GREETING" in json.dumps(msgs)
+        call = None
+        if not has_tool_result and SCRIPT != "aider" and not greeting:
+            try:
+                call = tool_call(body.get("tools", []), SCRIPT)
+            except ValueError as e:
+                self.send_response(422); self.send_header("Content-Type", "application/json"); self.end_headers()
+                self.wfile.write(json.dumps({"error": {"message": str(e)}}).encode())
+                return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
@@ -39,23 +79,8 @@ class H(http.server.BaseHTTPRequestHandler):
             self.wfile.flush()
 
         base = {"id": "c1", "object": "chat.completion.chunk", "model": body.get("model")}
-        greeting = "HARNESS_E2E_GREETING" in json.dumps(msgs)
-        if not has_tool_result and tools and not greeting:
-            name = SCRIPT if SCRIPT in tools else tools[0]
-            if name == "Bash" or name == "bash":
-                args = json.dumps({"command": "echo tool-ok > tool.txt", "description": "write file"})
-            elif name == "run_shell_command":
-                args = json.dumps({"command": "echo tool-ok > tool.txt"})
-            elif name == "run_commands":
-                args = json.dumps({"commands": ["echo tool-ok > tool.txt"]})
-            elif name == "Write":
-                args = json.dumps({"file_path": "tool.txt", "content": "tool-ok\n"})
-            elif name == "apply_patch":
-                args = json.dumps({"input": "*** Begin Patch\n*** Add File: hello.txt\n+hello from cyrlm\n*** End Patch\n"})
-            elif name in ("shell", "exec_command", "shell_command"):
-                args = json.dumps({"command": ["bash", "-lc", "echo tool-ok > tool.txt; ls"]} if name == "shell" else {"cmd": "echo tool-ok > tool.txt; ls", "command": "echo tool-ok > tool.txt; ls"})
-            else:
-                args = "{}"
+        if call:
+            name, args = call
             send({**base, "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [{"index": 0, "id": "call_1", "type": "function", "function": {"name": name, "arguments": ""}}]}}]})
             send({**base, "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": args}}]}}]})
             send({**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens": 100, "completion_tokens": 20}})
@@ -68,4 +93,9 @@ class H(http.server.BaseHTTPRequestHandler):
         self.wfile.write(b"data: [DONE]\n\n")
 
 
-http.server.ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+if __name__ == "__main__":
+    LOG = sys.argv[2]
+    # Each invocation owns this log; reruns must not mix old tool results in.
+    with open(LOG, "w"):
+        pass
+    http.server.ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
