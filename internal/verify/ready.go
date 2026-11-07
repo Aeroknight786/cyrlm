@@ -178,7 +178,7 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 	processed := m.PromptTokens - m.CachedTokens
 	r.PrefillTPS = float64(processed) / m.TTFTSec
 	r.Samples = append(r.Samples, calib.RealSample{Mode: "prefill", Depth: m.CachedTokens, Prompt: processed, Generated: m.CompletionTokens, TokensEstimated: m.TokensEstimated, Speed: r.PrefillTPS, TTFTSec: m.TTFTSec})
-	detail := fmt.Sprintf("processed %d prompt tokens; first token in %s s; reading %s tok/s", processed, figure.BandNumber(m.TTFTSec, 20), figure.BandNumber(r.PrefillTPS, 20))
+	detail := fmt.Sprintf("processed %d prompt tokens. First token in %s s. Reading %s tok/s", processed, figure.BandNumber(m.TTFTSec, 20), figure.BandNumber(r.PrefillTPS, 20))
 	if m.TokensEstimated {
 		detail += " (token count estimated)"
 	}

@@ -6,7 +6,7 @@
 
 `verify.Ready` now keys decode speeds by the reported prompt count and also retains individual samples. Each sample carries its mode, actual depth, processed prompt count, generated count, estimation flag, speed and measured TTFT. The reading check displays the processed prompt count and TTFT. Known cached tokens become the starting depth of the prefill interval.
 
-`calib.RecordReal` stores each sample separately in the existing row format, including depth, prompt, generation count and the new estimation flag. Setup passes those samples through. `RealFactor` evaluates each observation against the uncalibrated predictor at its own depth or prompt interval, then takes the median of those normalized residuals. Prediction uses the resulting single scale for every depth of that operation. This preserves the physical depth slowdown.
+`calib.RecordReal` stores each sample separately in the existing row format, including depth, prompt, generation count and the new estimation flag. Setup passes those samples through. `RealFactor` evaluates each observation against the uncalibrated predictor at its own depth or prompt interval. It selects the most recent matching interval and takes the median residual of repetitions at that exact depth and prompt length. Different intervals remain separate. Prediction uses the resulting single scale for every depth of that operation. This preserves the physical depth slowdown.
 
 The Go replay uses Apple M5 24 GB, Qwen3.5 9B Q4_K_M, 65,536 context, two decode recordings of 8.96 tok/s at 65,536 and two 512-token prefill recordings of 368 tok/s from empty.
 
@@ -16,9 +16,9 @@ The Go replay uses Apple M5 24 GB, Qwen3.5 9B Q4_K_M, 65,536 context, two decode
 | Prefill over [0, 512), tok/s | 709.336641 | 368.000000 | 368.000000 |
 | Prefill over [32,768, 33,280), tok/s | 422.203286 | 368.000000 | 219.036774 |
 
-Focused tests cover distinct decode depths with a common normalized correction and a prefill interval [7,168, 10,241) crossing a depth bucket. Storage round-trip tests check every requested metadata field and exact model matching. Ready tests cover reported counts, estimated counts and cached prompt offsets. The model launcher reads the first decode sample and also accepts historical journals with a zero-depth map entry.
+Focused tests cover a conflicting shorter-depth recording, distinct decode depths with a common normalized correction and a prefill interval [7,168, 10,241) crossing a depth bucket. Storage round-trip tests check every requested metadata field and exact model matching. Ready tests cover reported counts, estimated counts and cached prompt offsets. The model launcher reads the first decode sample and also accepts historical journals with a zero-depth map entry.
 
-Compatibility decisions deserve attention. Historical rows retain their saved depth because their actual original count cannot be reconstructed. Historical prefill rows with no prompt length use the previous 512-token interval assumption. Calls through the older `RealMeasurement.Decode` and `Prefill` fields remain supported and their newly saved rows flag counts as estimated. Exported downloader and Ready signatures remain intact.
+Compatibility decisions deserve attention. Historical rows retain their saved depth because their actual original count cannot be reconstructed. Historical prefill rows with no prompt length use the previous 512-token interval assumption. Calls through the older `RealMeasurement.Decode` and `Prefill` fields remain supported and their newly saved rows flag counts as estimated. Legacy map inputs are ordered by depth for deterministic interval selection. Exported downloader and Ready signatures remain intact.
 
 ## 2. Repetitions retain extrapolation uncertainty
 
@@ -71,7 +71,7 @@ Small wiring changes outside those primary files are required in `internal/calib
 
 Tests added or updated are `internal/predict/p2fix_test.go`, `internal/calib/real_test.go`, `internal/calib/refit_test.go`, `internal/calib/runner_test.go`, `internal/calibrationcli/calibrate_test.go`, `internal/core/models_test.go`, `internal/verify/ready_test.go` and `internal/ui/tui/root_test.go`.
 
-The required deadcode command identified unused production helpers. A repository-wide reference search confirmed the selected deletions had no production callers. Budget cleanup removes `core.Session.Status`, `window.Generate`, `gguf.MergeSplits`, `gguf.File.buildIndex` and `gguf.ParseGGMLType`. Tests that only exercised the deleted GGUF helpers were removed. Window tests now call the active `generate` implementation directly. GGUF comments and its split-part warning were adjusted to remove the deleted API name. These edits touch `internal/ui/window/window.go`, `internal/ui/window/window_test.go`, and `internal/gguf/{gguf,split,summary,types,parse_test,summary_test}.go`. The unread timestamp field in `internal/ui/tui/calibration.go` was also removed.
+The required deadcode command identified unused production helpers. A repository-wide reference search confirmed the selected deletions had no production callers. Budget cleanup removes `responses.IsCustomTool`, `core.Session.Status`, `window.Generate`, `gguf.MergeSplits`, `gguf.File.buildIndex` and `gguf.ParseGGMLType`. The Responses test checks the custom marker directly in the schema. That cleanup touches `internal/api/responses/responses.go` and `internal/api/responses/responses_test.go`. Tests that only exercised the deleted GGUF helpers were removed. Window tests now call the active `generate` implementation directly. GGUF comments and its split-part warning were adjusted to remove the deleted API name. These edits touch `internal/ui/window/window.go`, `internal/ui/window/window_test.go`, and `internal/gguf/{gguf,split,summary,types,parse_test,summary_test}.go`. The unread timestamp field in `internal/ui/tui/calibration.go` was also removed.
 
 `FactorEvidence` was checked byte-for-byte against the base and is identical. Fitted constants remain identical. Work follows the four requested review items and the requested glyph and budget cleanup.
 
@@ -90,18 +90,18 @@ The required deadcode command identified unused production helpers. A repository
 
 | Budget | Before | After | Limit |
 |---|---:|---:|---:|
-| Product Go source lines | 28,545 | 28,496 | 28,500 |
+| Product Go source lines | 28,545 | 28,494 | 28,500 |
 | CLI and UI source lines | 5,501 | 5,500 | 5,500 |
 | cmd/trialm physical lines | 13 | 13 | 30 |
-| Native stripped binary, bytes | — | 11,659,490 | 14,000,000 |
+| Native stripped binary, bytes | 11,659,362 | 11,692,850 | 14,000,000 |
 
-The package ceilings also pass. The remaining deadcode findings are `responses.IsCustomTool`, `gguf.Parse` and `gguf.SplitPartNames`.
+The package ceilings also pass. The remaining deadcode findings are `gguf.Parse` and `gguf.SplitPartNames`.
 
 The CPU engine test generates its own 1.2 GB, two-layer Q4_K_M synthetic GGUF and removes it afterwards. It runs Homebrew llama-server with `-ngl 0`, `-dev none` and `--no-op-offload`. The final run reported short decode at 117 prompt tokens and target decode at 870 tokens for a requested depth of 512. Both generated 32 tokens and had exact engine counts. Reading processed 418 new tokens after 21 cached tokens, generated 16 tokens and measured TTFT at 1.894101417 seconds, giving 220.685121 tok/s. These timings exercise measurement plumbing under CPU test conditions.
 
 The sandbox cannot detect RAM for `TestRecordedFingerprintInvalidation`, so that existing integration test skips with its explicit RAM-detection message. Row persistence and normalization are covered independently. GPU calibration duration and GPU accuracy were not measured. Model weights were not downloaded and no admin action ran.
 
-Go evidence logs are under `/tmp/claude-501/p0b/` with prefixes `p2fix-before`, `p2fix-after`, `p2fix-focused-final`, `p2fix-real-engine`, `p2fix-resume`, `p2fix-budgets`, `p2fix-vet`, `p2fix-race-final` and `p2fix-deadcode`.
+Go evidence logs are under `/tmp/claude-501/p0b/` with prefixes `p2fix-before`, `p2fix-after`, `p2fix-focused-final`, `p2fix-real-engine`, `p2fix-resume`, `p2fix-budgets`, `p2fix-vet`, `p2fix-race-verified` and `p2fix-deadcode`.
 
 ## Review accuracy
 
@@ -109,7 +109,7 @@ All four targeted findings reproduce in Go. The reported 6.14 tok/s re-anchoring
 
 ## Patch handoff
 
-The single completion milestone is `/tmp/claude-501/p0b/p2fix-1.patch`, with `/tmp/claude-501/p0b/p2fix-1.txt`. It includes the new test and this report. All required gates passed before it was written. Applying the ordered series with `git apply --whitespace=nowarn` to a fresh `git archive HEAD` export reproduces the complete working tree byte-for-byte, including Git file modes and new files. Replay evidence is `/tmp/claude-501/p0b/p2fix-replay.txt`.
+The ordered series is `/tmp/claude-501/p0b/p2fix-1.patch` and `/tmp/claude-501/p0b/p2fix-2.patch`, each with its matching one-line `.txt` summary. The first milestone contains the four fixes, tests, goldens, glyph fix and initial cleanup. The second keeps distinct real intervals out of a shared median, adds conflicting-interval coverage, removes the unused Responses helper and updates this report. The patches include new files. All required gates passed before each patch was written. Applying the ordered series with `git apply --whitespace=nowarn` to a fresh `git archive HEAD` export reproduces the complete working tree byte-for-byte, including Git executable modes and new files. Replay evidence is `/tmp/claude-501/p0b/p2fix-replay.txt`.
 
 The changed TUI snapshots preserve renderer padding, including existing trailing spaces. The whitespace mode specified for patch replay accepts that snapshot content.
 

@@ -29,6 +29,10 @@ func TestRealCorrectionUsesMeasuredInterval(t *testing.T) {
 		{Mode: "decode", Depth: 65536, Prompt: 65536, Generated: 32, Speed: 8.96},
 		{Mode: "prefill", Prompt: 512, Generated: 16, Speed: 368},
 	})
+	// A conflicting shorter-depth observation must not dilute the 64K sample.
+	shorter := c.Rows[0]
+	shorter.Depth, shorter.Prompt, shorter.Seconds = 16384, 16384, 1.0/100
+	c.Rows = append([]calib.Row{shorter}, c.Rows...)
 	r := WithCalibration(in, c)
 	if math.Abs(r.Timing.DecodeTPS(65536)-8.96) > 1e-9 {
 		t.Fatal(r.Timing.DecodeTPS(65536))
@@ -42,12 +46,13 @@ func TestRealCorrectionUsesMeasuredInterval(t *testing.T) {
 	}
 	t.Logf("decode64=%g; prefill0=%g prefill32=%g", r.Timing.DecodeTPS(65536), short, deep)
 	// Normalize deep prompt intervals too, including intervals spanning a bucket.
+	c.Rows = []calib.Row{c.Rows[1], c.Rows[2]}
 	c.Rows[1].Depth, c.Rows[1].Prompt = 7168, 3073
 	c.Rows[1].Seconds = 1 / (.7 * base.Timing.PrefillTPS(7168, 10241))
-	c.Rows[0].Depth = 16384
+	c.Rows[0].Depth, c.Rows[0].Prompt = 16384, 16384
 	c.Rows[0].Seconds = 1 / (.6 * base.Timing.DecodeTPS(16384))
 	second := c.Rows[0]
-	second.Depth, second.Seconds = 65536, 1/(.6*base.Timing.DecodeTPS(65536))
+	second.Depth, second.Prompt, second.Seconds = 65536, 65536, 1/(.6*base.Timing.DecodeTPS(65536))
 	c.Rows = append(c.Rows, second)
 	r = WithCalibration(in, c)
 	for _, d := range []int{0, 8192, 16384, 32768, 65536} {

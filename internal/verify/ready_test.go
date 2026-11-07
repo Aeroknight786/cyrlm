@@ -59,7 +59,7 @@ func TestReadyFake(t *testing.T) {
 					t.Fatalf("actual usage lost: %+v", sample)
 				}
 			}
-			if !strings.Contains(r.Plain(), "processed 128 prompt tokens; first token in") {
+			if !strings.Contains(r.Plain(), "processed 128 prompt tokens. First token in") {
 				t.Fatal(r.Plain())
 			}
 			if r.Ready == bad {

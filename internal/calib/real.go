@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"math"
 	"os"
+	"slices"
 )
 
 // RealSample preserves the interval and token provenance of one timed request.
@@ -55,8 +57,8 @@ func (c *Calibration) appendReal(m RealMeasurement) {
 	samples := m.Samples
 	// Older callers have no token counts. Retain their speeds with flagged counts.
 	if len(samples) == 0 {
-		for d, speed := range m.Decode {
-			samples = append(samples, RealSample{Mode: "decode", Depth: d, Speed: speed, TokensEstimated: true})
+		for _, d := range slices.Sorted(maps.Keys(m.Decode)) {
+			samples = append(samples, RealSample{Mode: "decode", Depth: d, Speed: m.Decode[d], TokensEstimated: true})
 		}
 		samples = append(samples, RealSample{Mode: "prefill", Prompt: 512, Speed: m.Prefill, TokensEstimated: true})
 	}
@@ -69,10 +71,11 @@ func (c *Calibration) appendReal(m RealMeasurement) {
 	}
 }
 
-// RealFactor normalizes each observation at its own interval before combining
-// residuals. The caller supplies uncalibrated speeds and retains its prior band.
+// RealFactor uses the latest measured interval, pooling only its repetitions.
+// The caller supplies uncalibrated speeds and retains its prior band.
 func (c *Calibration) RealFactor(model, quant, engine, mode string, baseline func(Row) float64) (FactorResult, bool) {
-	var ratios []float64
+	samples := map[[2]int][]float64{}
+	var interval [2]int
 	for _, r := range c.Rows {
 		if r.Probe != "real" || r.Quant != quant || r.Seconds <= 0 || !finite(r.Seconds) {
 			continue
@@ -80,13 +83,15 @@ func (c *Calibration) RealFactor(model, quant, engine, mode string, baseline fun
 		var tag struct{ Model, Engine, Mode string }
 		if json.Unmarshal(r.Raw, &tag) == nil && tag.Model == model && tag.Engine == engine && tag.Mode == mode {
 			if predicted := baseline(r); predicted > 0 && finite(predicted) {
-				ratios = append(ratios, 1/r.Seconds/predicted)
+				interval = [2]int{r.Depth, r.Prompt}
+				samples[interval] = append(samples[interval], 1/r.Seconds/predicted)
 			}
 		}
 	}
+	ratios := samples[interval]
 	if len(ratios) == 0 {
 		return FactorResult{}, false
 	}
 	scale := median(ratios)
-	return FactorResult{Multiplier: scale, BandPct: int(math.Ceil(100 * spread(ratios) / scale)), Basis: "real-model interval correction; extrapolation retains default band"}, true
+	return FactorResult{Multiplier: scale, BandPct: int(math.Ceil(100 * spread(ratios) / scale)), Basis: "real-model interval correction. Extrapolation retains the default band"}, true
 }

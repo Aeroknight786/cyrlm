@@ -40,9 +40,22 @@ func TestRealIntervalsRoundTrip(t *testing.T) {
 			t.Fatal("matched another model")
 		}
 	}
+	// Conflicting evidence at a different depth must stay out of this median.
+	got.Rows[0].Seconds = 1
+	f, ok = got.RealFactor("model", "Q4", "engine", "decode", func(Row) float64 { return 10 })
+	if !ok || math.Abs(f.Multiplier-.896) > 1e-12 {
+		t.Fatal("mixed depths", f, ok)
+	}
+	// Repeats at the selected interval can be separated by another interval.
+	repeated := got.Rows[1]
+	got.Rows = append(got.Rows, got.Rows[0], repeated)
+	f, ok = got.RealFactor("model", "Q4", "engine", "decode", func(Row) float64 { return 10 })
+	if !ok || math.Abs(f.Multiplier-.896) > 1e-12 {
+		t.Fatal(f, ok)
+	}
 	legacy := Calibration{}
-	legacy.appendReal(RealMeasurement{Model: "old", Quant: "Q4", Engine: "engine", Decode: map[int]float64{65536: 8.96}, Prefill: 368})
-	if len(legacy.Rows) != 2 || !legacy.Rows[0].TokensEstimated || !legacy.Rows[1].TokensEstimated || legacy.Rows[1].Prompt != 512 {
+	legacy.appendReal(RealMeasurement{Model: "old", Quant: "Q4", Engine: "engine", Decode: map[int]float64{16384: 20, 65536: 8.96}, Prefill: 368})
+	if len(legacy.Rows) != 3 || legacy.Rows[0].Depth != 16384 || legacy.Rows[1].Depth != 65536 || !legacy.Rows[0].TokensEstimated || !legacy.Rows[1].TokensEstimated || !legacy.Rows[2].TokensEstimated || legacy.Rows[2].Prompt != 512 {
 		t.Fatal(legacy.Rows)
 	}
 }
