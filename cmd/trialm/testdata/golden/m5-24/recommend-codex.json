@@ -12,6 +12,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "metal",
@@ -56,6 +57,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "metal",
@@ -101,6 +103,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "lmstudio-mlx",
         "tuned": true,
         "backend": "mlx",
@@ -122,7 +125,8 @@
         "prefill_error_range_pct": 65,
         "no_speed_claim": false,
         "warnings": [
-          "LM Studio (MLX engine) uses MLX files; using MLX-MXFP4 instead of MXFP4"
+          "LM Studio (MLX engine) uses MLX files; using MLX-MXFP4 instead of MXFP4",
+          "MLX is not calibrated by llama-bench; these timings remain simulated"
         ],
         "assumptions": [
           "keep_alive_s=3600 (unverified for this version)",
@@ -146,6 +150,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "metal",
@@ -167,7 +172,7 @@
         "prefill_error_range_pct": 70,
         "no_speed_claim": false,
         "warnings": [
-          "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+          "trial stand-in: no cloud provider hosts this exact model, so trials use Qwen3.5 9B, the same family one size up, so trial answers are a little better than the local model. Speed is simulated from this file exactly; the answers, including any fine-tuning or style, are the stand-in's"
         ],
         "assumptions": [
           "default context: recent builds size the context to free memory (--fit); older builds default to 4096",
@@ -190,6 +195,7 @@
       "verdict": "usable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "metal",
@@ -211,7 +217,7 @@
         "prefill_error_range_pct": 55,
         "no_speed_claim": false,
         "warnings": [
-          "quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes"
+          "trial stand-in: no cloud provider hosts this exact model, so trials use Gemma 4 26B-A4B, the same family one size up, so trial answers are a little better than the local model. Speed is simulated from this file exactly; the answers, including any fine-tuning or style, are the stand-in's"
         ],
         "assumptions": [
           "default context: recent builds size the context to free memory (--fit); older builds default to 4096",

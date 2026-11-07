@@ -12,6 +12,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "cuda",
@@ -57,6 +58,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "cuda",
@@ -102,6 +104,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "cuda",
@@ -147,6 +150,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "cuda",
@@ -192,6 +196,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "cuda",

@@ -563,7 +563,7 @@ func Predict(in Input) Result {
 		res.Warnings = append(res.Warnings, w)
 	}
 	if in.Model.TrialStandIn != "" {
-		res.Warnings = append(res.Warnings, fmt.Sprintf("trial stand-in: no cloud provider hosts this exact model, so trials use its base model %s. Speed is simulated from this file exactly; behaviour (fine-tuning, abliteration, style) is the base model's", in.Model.TrialStandIn))
+		res.Warnings = append(res.Warnings, fmt.Sprintf("trial stand-in: no cloud provider hosts this exact model, so trials use %s. Speed is simulated from this file exactly; the answers, including any fine-tuning or style, are the stand-in's", in.Model.TrialStandIn))
 	} else if lowBit(q.Name) {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("quality caveat: %s is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than the cloud's %s weights the trial uses (often a few points on coding benchmarks, more tool-call errors). A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed", q.Name, in.Model.CloudPrecision))
 	} else if !in.Model.QuantMatchesCloud {

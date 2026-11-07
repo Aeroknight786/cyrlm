@@ -49,7 +49,7 @@ Nothing has been run. Run each step yourself (or let your coding agent run them,
 
 8. Start Codex CLI with qwen3.6:35b-a3b-trialm
    Everything is passed with -c overrides, so no Codex config file is edited, plain `codex` keeps working as before, and nothing depends on Codex's config layout (profiles moved to separate files in 0.134). Use the command the bridge printed: it has the real port and, when codex is not on your terminal's PATH, its full path. Web search is off because a local model cannot run OpenAI's hosted search.
-     codex -c model_providers.trialm.name=trialm -c model_providers.trialm.base_url=http://127.0.0.1:11535/v1 -c model_providers.trialm.wire_api=responses -c model_provider=trialm -c web_search=disabled -c model_context_window=65536 -c model_auto_compact_token_limit=52428 -m qwen3.6:35b-a3b-trialm
+     codex -c model_providers.trialm.name=trialm -c model_providers.trialm.base_url=http://127.0.0.1:11535/v1 -c model_providers.trialm.wire_api=responses -c model_providers.trialm.stream_idle_timeout_ms=600000 -c model_provider=trialm -c web_search=disabled -c model_context_window=65536 -c model_auto_compact_token_limit=52428 -m qwen3.6:35b-a3b-trialm
    then restart: Codex CLI: start a new session in your own terminal
 
 9. Verify the setup

@@ -12,6 +12,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "ollama",
         "tuned": true,
         "backend": "rocm",
@@ -60,6 +61,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "ollama",
         "tuned": true,
         "backend": "rocm",
@@ -108,6 +110,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "ollama",
         "tuned": true,
         "backend": "rocm",
@@ -156,6 +159,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "ollama",
         "tuned": true,
         "backend": "rocm",
@@ -204,6 +208,7 @@
       "verdict": "comfortable",
       "runtime_installed": false,
       "prediction": {
+        "kind": "simulated",
         "runtime": "llamacpp",
         "tuned": true,
         "backend": "vulkan",
@@ -225,7 +230,7 @@
         "prefill_error_range_pct": 65,
         "no_speed_claim": false,
         "warnings": [
-          "quality caveat: Q3_K_XL is a ~3-bit file chosen so this model fits and runs fast here; expect clearly more mistakes than the cloud's provider-dependent weights the trial uses (often a few points on coding benchmarks, more tool-call errors). A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed"
+          "trial stand-in: no cloud provider hosts this exact model, so trials use Devstral 2, the larger model of the same family, so trial answers are better than the local model. Speed is simulated from this file exactly; the answers, including any fine-tuning or style, are the stand-in's"
         ],
         "assumptions": [
           "default context: recent builds size the context to free memory (--fit); older builds default to 4096",

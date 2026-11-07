@@ -243,7 +243,7 @@ var models = []Model{
 		Layers: 36, FullAttnLayers: 36, KVHeads: 8, HeadDim: 128, QHeads: 32,
 		NativeCtx: 40960, Tools: true, Thinking: true,
 		Quants:       []Quant{gq("Q4_K_M", 5.03), gq("Q8_0", 8.71), est("MLX-4bit", 8.19)},
-		OpenRouterID: "qwen/qwen3-14b", TrialStandIn: "Qwen3 14B (same family, larger): no provider hosts the 8B, so trial answers are a little better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)", HFGGUFRepo: "Qwen/Qwen3-8B-GGUF",
+		OpenRouterID: "qwen/qwen3-14b", TrialStandIn: "Qwen3 14B, the same family one size up, so trial answers are a little better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)", HFGGUFRepo: "Qwen/Qwen3-8B-GGUF",
 	},
 	{
 		ID: "llama3.1-8b", Name: "Llama 3.1 8B Instruct", OllamaTag: "llama3.1:8b", Aliases: []string{"meta-llama/llama-3.1-8b-instruct", "llama3.1"},
@@ -287,7 +287,7 @@ var models = []Model{
 		Layers: 40, FullAttnLayers: 40, KVHeads: 8, HeadDim: 128, QHeads: 32,
 		NativeCtx: 131072, Tools: true,
 		Quants:       []Quant{gq("Q4_K_M", 14.3), gq("Q8_0", 25.1), est("MLX-4bit", 23.57)},
-		OpenRouterID: "mistralai/devstral-2512", TrialStandIn: "Devstral 2 (same family, larger): no provider hosts Devstral Small, so trial answers are better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)",
+		OpenRouterID: "mistralai/devstral-2512", TrialStandIn: "Devstral 2, the larger model of the same family, so trial answers are better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)",
 		HFGGUFRepo: "unsloth/Devstral-Small-2507-GGUF",
 	},
 	{
@@ -305,7 +305,7 @@ var models = []Model{
 		Layers: 28, FullAttnLayers: 28, KVHeads: 4, HeadDim: 128, QHeads: 28,
 		NativeCtx: 32768, Tools: true,
 		Quants:       []Quant{gq("Q4_K_M", 4.68), gq("Q8_0", 8.1), est("MLX-4bit", 7.62)},
-		OpenRouterID: "qwen/qwen3-coder-30b-a3b-instruct", TrialStandIn: "Qwen3 Coder 30B-A3B (a newer coding model): no provider hosts Qwen2.5-Coder 7B, so trial answers are better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)",
+		OpenRouterID: "qwen/qwen3-coder-30b-a3b-instruct", TrialStandIn: "Qwen3 Coder 30B-A3B, a newer and larger coding model, so trial answers are better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)",
 		HFGGUFRepo: "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
 	},
 }

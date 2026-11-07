@@ -30,10 +30,10 @@ type source struct {
 // provider hosts the exact model); checked against /api/v1/models on
 // 2026-11-07.
 var trialStandIns = map[string]string{
-	"qwen3.5-4b":           "Qwen3.5 9B (same family, larger): no provider hosts the 4B, so trial answers are a little better than the local model",
-	"gemma4-12b":           "Gemma 4 26B-A4B (same family, larger): no provider hosts the 12B, so trial answers are a little better than the local model",
-	"devstral-small-2-24b": "Devstral 2 (same family, larger): no provider hosts Devstral Small 2, so trial answers are better than the local model",
-	"granite-4.2-30b":      "Granite 4.2 8B (same family, smaller): no provider hosts the 30B, so trial answers are weaker than the local model",
+	"qwen3.5-4b":           "Qwen3.5 9B, the same family one size up, so trial answers are a little better than the local model",
+	"gemma4-12b":           "Gemma 4 26B-A4B, the same family one size up, so trial answers are a little better than the local model",
+	"devstral-small-2-24b": "Devstral 2, the larger model of the same family, so trial answers are better than the local model",
+	"granite-4.2-30b":      "Granite 4.2 8B, a smaller model of the same family, so trial answers are weaker than the local model",
 }
 
 // Sources: popular local-size models from major labs (Hugging Face

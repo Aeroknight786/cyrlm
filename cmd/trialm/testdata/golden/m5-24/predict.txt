@@ -1,14 +1,14 @@
 
 Qwen3.6 35B-A3B on what-if: Apple M5 (10-core GPU), 24 GB unified memory
-Scenario: Claude Code — 33k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
+Scenario: Claude Code — 12k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
 
 RUNTIME                                  FILE            CONTEXT  MEMORY        FIRST REPLY  FOLLOW-UP  WRITES AT  TASK*
 Ollama (defaults)                        Q4_K_M 22.1 GB  4k ⚠     ✗ 21.3/16 GB  —            —          —          —
-Ollama (tuned)                           Q4_K_M 22.1 GB  88k      ✗ 23.0/16 GB  —            —          —          —
-llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  256k     ✗ 26.3/16 GB  —            —          —          —
-llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  88k      ✗ 23.0/16 GB  —            —          —          —
+Ollama (tuned)                           Q4_K_M 22.1 GB  40k      ✗ 22.0/16 GB  —            —          —          —
+llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ✗ 21.3/16 GB  —            —          —          —
+llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  40k      ✗ 22.0/16 GB  —            —          —          —
 LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ✗ 21.5/16 GB  —            —          —          —
-LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  88k      ✗ 23.0/16 GB  —            —          —          —
+LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  40k      ✗ 22.0/16 GB  —            —          —          —
 
 FIRST REPLY = cold start (model load + the whole prompt). FOLLOW-UP = a typical later turn (new tokens only + the reply).
 * TASK = a 40-call agent task; at datacenter speed it would take about 2 min 00 s. "✗ breaks" = the harness prompt does not fit the context.
@@ -18,15 +18,16 @@ Tip: device spec partly assumed: a calibration probe would tighten this.
   · macOS lets the GPU use about 16 of 24 GB by default (raise with sudo sysctl iogpu.wired_limit_mb)
   · M5-generation matmul throughput assumed (GPU neural accelerators); little benchmark data yet
 
-  ⚠ Ollama (defaults): Claude Code's ~33k-token prompt does not fit the 4096-token context (Ollama default for 16 GiB of GPU memory): the prompt is silently truncated and the agent will misbehave
+  ⚠ Ollama (defaults): Claude Code's ~12k-token prompt does not fit the 4096-token context (Ollama default for 16 GiB of GPU memory): the prompt is silently truncated and the agent will misbehave
   ⚠ Ollama (defaults): does not fit: needs 21.3 GB, 16.0 GB available
   ⚠ quality caveat: the trial uses the cloud's provider-dependent weights; local Q4_K_M is typically 0–3 points worse on coding tasks and makes more tool-call mistakes
-  ⚠ Ollama (tuned): does not fit: needs 23.0 GB, 16.0 GB available
-  ⚠ llama.cpp (llama-server) (defaults): does not fit: needs 26.3 GB, 16.0 GB available
-  ⚠ llama.cpp (llama-server) (tuned): does not fit: needs 23.0 GB, 16.0 GB available
-  ⚠ LM Studio (llama.cpp engine) (defaults): Claude Code's ~33k-token prompt does not fit the 4096-token context (LM Studio (llama.cpp engine) default load setting): the middle of the conversation is silently cut
+  ⚠ Ollama (tuned): does not fit: needs 22.0 GB, 16.0 GB available
+  ⚠ llama.cpp (llama-server) (defaults): Claude Code's ~12k-token prompt does not fit the 4096-token context (model native context, reduced to fit free memory): requests will be rejected with a context error
+  ⚠ llama.cpp (llama-server) (defaults): does not fit: needs 21.3 GB, 16.0 GB available
+  ⚠ llama.cpp (llama-server) (tuned): does not fit: needs 22.0 GB, 16.0 GB available
+  ⚠ LM Studio (llama.cpp engine) (defaults): Claude Code's ~12k-token prompt does not fit the 4096-token context (LM Studio (llama.cpp engine) default load setting): the middle of the conversation is silently cut
   ⚠ LM Studio (llama.cpp engine) (defaults): does not fit: needs 21.5 GB, 16.0 GB available
-  ⚠ LM Studio (llama.cpp engine) (tuned): does not fit: needs 23.0 GB, 16.0 GB available
+  ⚠ LM Studio (llama.cpp engine) (tuned): does not fit: needs 22.0 GB, 16.0 GB available
 
 Recommendation: no runtime gives a working Claude Code setup for this model here — try a smaller quant (--quant), a smaller model, or --ctx.
 
