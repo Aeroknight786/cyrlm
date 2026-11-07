@@ -103,6 +103,12 @@ type Input struct {
 	// Port overrides the runtime's usual port (the caller picks a free
 	// one when something else already uses it). 0 = the usual port.
 	Port int
+	// OwnedFileExists reports whether a file exists under the user's home
+	// (rel is home-relative, e.g. ".trialm/ollama/x.Modelfile"). When a
+	// setup made by cyrlm exists for this model and runtime, the plan keeps
+	// its "-cyrlm" model name, so the runtime does not create a second copy.
+	// nil = no such check.
+	OwnedFileExists func(rel string) bool
 }
 
 // Step kinds, in plan order.
@@ -249,10 +255,30 @@ func newBuilder(in Input) *builder {
 	if p.ID == "mlx-lm" {
 		plan.LocalModelName = mlxRepo(in.Model, in.Quant)
 	} else {
-		plan.LocalModelName = localName(in.Model, in.Quant)
+		plan.LocalModelName = b.localName()
 	}
-	b.fileName = safeFile(localName(in.Model, in.Quant))
+	b.fileName = safeFile(b.localName())
 	return b
+}
+
+// legacySuffix is the local model suffix setups made by cyrlm used.
+const legacySuffix = "-cyrlm"
+
+// localName is localName(model, quant), except that an existing cyrlm
+// setup for this model and runtime keeps its "-cyrlm" name.
+func (b *builder) localName() string {
+	name := localName(b.in.Model, b.in.Quant)
+	if b.in.OwnedFileExists == nil {
+		return name
+	}
+	legacy := strings.TrimSuffix(name, localSuffix) + legacySuffix
+	f := safeFile(legacy)
+	for _, rel := range []string{"ollama/" + f + ".Modelfile", "llamacpp/" + f + ".sh", "llamacpp/" + f + ".ps1"} {
+		if b.in.OwnedFileExists(".trialm/" + rel) {
+			return legacy
+		}
+	}
+	return name
 }
 
 // DefaultPort is the port a plan uses for runtime id unless told otherwise.
@@ -306,8 +332,11 @@ func localName(m catalog.Model, q catalog.Quant) string {
 			sb.WriteByte('-')
 		}
 	}
-	return sb.String() + "-trialm"
+	return sb.String() + localSuffix
 }
+
+// localSuffix marks model names that triaLM's setups created.
+const localSuffix = "-trialm"
 
 func safeFile(s string) string {
 	return strings.NewReplacer(":", "-", "/", "-", "\\", "-", " ", "-").Replace(s)

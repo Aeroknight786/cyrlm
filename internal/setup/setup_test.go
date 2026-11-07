@@ -857,3 +857,27 @@ func TestShellSyntax(t *testing.T) {
 		}
 	}
 }
+
+// A model set up by cyrlm keeps its "-cyrlm" name, so re-planning it does
+// not create a second copy in the runtime.
+func TestLegacyModelNameKept(t *testing.T) {
+	in := spec{model: "qwen3-8b", runtime: "ollama", goos: "linux", goarch: "amd64", backend: "cuda"}.input(t)
+	if got := build(t, in).LocalModelName; got != "qwen3:8b-trialm" {
+		t.Fatalf("new setup: got %q", got)
+	}
+	var asked []string
+	in.OwnedFileExists = func(rel string) bool {
+		asked = append(asked, rel)
+		return rel == ".trialm/ollama/qwen3-8b-cyrlm.Modelfile"
+	}
+	p := build(t, in)
+	if p.LocalModelName != "qwen3:8b-cyrlm" {
+		t.Fatalf("existing cyrlm setup: got %q (checked %v)", p.LocalModelName, asked)
+	}
+	file(t, mustStep(t, p, "configure-modelfile"), "~/.trialm/ollama/qwen3-8b-cyrlm.Modelfile")
+
+	in.OwnedFileExists = func(string) bool { return false }
+	if got := build(t, in).LocalModelName; got != "qwen3:8b-trialm" {
+		t.Fatalf("no cyrlm files: got %q", got)
+	}
+}

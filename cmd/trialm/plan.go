@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -71,6 +73,9 @@ func cmdPlan(args []string) error {
 		hp = &hh
 	}
 	input := setup.Input{Model: m, Quant: res.Quant, Profile: prof, Settings: res.Settings, Backend: res.Backend, Harness: hp, OS: t.OS, Arch: t.Arch}
+	if !t.Synthetic {
+		input.OwnedFileExists = ownedFileExists
+	}
 	for _, ir := range in.byProfile[prof.ID] {
 		input.Installed, input.InstalledVersion = true, ir.Version
 		input.Running = input.Running || ir.Running
@@ -159,4 +164,14 @@ func printPlan(p setup.Plan, why string, res predict.Result) {
 	}
 	fmt.Println()
 	fmt.Println()
+}
+
+// ownedFileExists reports whether ~/<rel> exists (rel starts with .trialm/).
+func ownedFileExists(rel string) bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(home, filepath.FromSlash(rel)))
+	return err == nil
 }
