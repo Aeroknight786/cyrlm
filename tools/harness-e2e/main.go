@@ -21,9 +21,9 @@ type spec struct{ id, pkg, version, binary, tool, extra string }
 
 var specs = []spec{
 	{"claude-code", "@anthropic-ai/claude-code", "2.1.319", "claude", "Bash", `-p "$TASK" --allowedTools Bash --permission-mode acceptEdits`},
-	{"codex", "@openai/codex", "0.167.0", "codex", "shell", `exec --skip-git-repo-check --full-auto "$TASK"`},
+	{"codex", "@openai/codex", "0.167.0", "codex", "shell", `exec --skip-git-repo-check --sandbox workspace-write -c approval_policy='"never"' "$TASK"`},
 	{"opencode", "opencode-ai", "1.19.5", "opencode", "bash", `run "$TASK"`},
-	{"aider", "aider-chat", "0.86.2", "aider", "aider", `--message "$TASK" --yes-always --no-git --no-check-update --no-show-model-warnings --analytics-disable --auto-test --test-cmd 'test -f .ran || { touch .ran; echo "FAIL: first run"; false; }' tool.txt`},
+	{"aider", "aider-chat", "0.86.2", "aider", "aider", `--message "$TASK" --yes-always --no-git --no-check-update --no-show-release-notes --no-show-model-warnings --analytics-disable --auto-test --test-cmd 'test -f .ran || { touch .ran; echo "FAIL: first run"; false; }' tool.txt`},
 	{"qwen-code", "@qwen-code/qwen-code", "0.26.9", "qwen", "run_shell_command", `--approval-mode auto-edit --allowed-tools run_shell_command -p "$TASK"`},
 	{"cline", "cline", "3.0.74", "cline", "run_commands", `--json -c "$PWD" "$TASK"`},
 	{"continue", "@continuedev/cli", "1.5.47", "cn", "Write", `-p "$TASK" --allow Write`},
@@ -39,6 +39,15 @@ type result struct {
 var commandRE = regexp.MustCompile(`(?m)^    (.+)$`)
 var pidRE = regexp.MustCompile(`(?:Stop: kill |\(pid )(\d+)`)
 
+const greetingTask = "Reply to HARNESS_E2E_GREETING"
+
+func toolFailure(id string, requests []byte) string {
+	if id == "codex" && strings.Contains(string(requests), "sandbox-exec: sandbox_apply: Operation not permitted") {
+		return "Codex shell blocked: sandbox-exec: sandbox_apply: Operation not permitted (nested macOS Seatbelt; rerun outside the outer sandbox)"
+	}
+	return "tool.txt does not contain tool-ok"
+}
+
 func port() (int, error) {
 	l, e := net.Listen("tcp", "127.0.0.1:0")
 	if e != nil {
@@ -48,7 +57,7 @@ func port() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 func env(root, bin string) []string {
-	return []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "HOME=" + root + "/home", "XDG_CONFIG_HOME=" + root + "/config", "XDG_DATA_HOME=" + root + "/data", "XDG_CACHE_HOME=" + root + "/cache", "XDG_STATE_HOME=" + root + "/state", "CLAUDE_CONFIG_DIR=" + root + "/claude", "CODEX_HOME=" + root + "/codex", "QWEN_HOME=" + root + "/qwen", "CONTINUE_GLOBAL_DIR=" + root + "/continue", "CLINE_DIR=" + root + "/cline", "TRIALM_HOME=" + root + "/trialm", "TMPDIR=" + root + "/tmp", "TERM=xterm", "OPENCODE_DISABLE_MODELS_FETCH=1", "CONTINUE_CLI_ENABLE_TELEMETRY=0", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1", "TASK=create tool.txt containing tool-ok using your shell tool"}
+	return []string{"PATH=" + bin + ":" + os.Getenv("PATH"), "HOME=" + root + "/home", "XDG_CONFIG_HOME=" + root + "/config", "XDG_DATA_HOME=" + root + "/data", "XDG_CACHE_HOME=" + root + "/cache", "XDG_STATE_HOME=" + root + "/state", "CLAUDE_CONFIG_DIR=" + root + "/claude", "CODEX_HOME=" + root + "/codex", "QWEN_HOME=" + root + "/qwen", "CONTINUE_GLOBAL_DIR=" + root + "/continue", "CLINE_DIR=" + root + "/cline", "TRIALM_HOME=" + root + "/trialm", "TMPDIR=" + root + "/tmp", "TERM=xterm", "OPENCODE_DISABLE_MODELS_FETCH=1", "CONTINUE_CLI_ENABLE_TELEMETRY=0", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1", "UV_TOOL_DIR=" + root + "/uv-tools", "UV_TOOL_BIN_DIR=" + bin, "UV_PYTHON_INSTALL_DIR=" + root + "/uv-python", "TASK=create tool.txt containing tool-ok using your shell tool"}
 }
 func run(ctx context.Context, dir string, environment []string, log string, name string, args ...string) error {
 	c := exec.CommandContext(ctx, name, args...)
@@ -161,13 +170,22 @@ func realMain() int {
 			if !*latest {
 				requirement += "==" + version
 			}
-			err = run(ctx, root, en, filepath.Join(logs, "install.log"), "uv", "tool", "install", "--python", "3.12", "--install-dir", filepath.Join(root, "uv-tools"), "--bin-dir", filepath.Join(root, "node_modules/.bin"), requirement)
+			err = run(ctx, root, en, filepath.Join(logs, "install.log"), "uv", "tool", "install", "--python", "3.12", requirement)
 		} else {
 			err = run(ctx, root, en, filepath.Join(logs, "install.log"), "npm", "install", "--no-audit", "--no-fund", "--prefix", root, s.pkg+"@"+version)
 		}
 		cancel()
 		if s.id == "cline" {
 			_ = os.Symlink("../cline/bin/cline", filepath.Join(root, "node_modules/.bin/cline"))
+		}
+		if err == nil {
+			helpCtx, helpCancel := context.WithTimeout(context.Background(), time.Minute)
+			cli := filepath.Join(root, "node_modules/.bin", s.binary)
+			err = run(helpCtx, root, en, filepath.Join(logs, "help.log"), cli, "--help")
+			if err == nil && s.id == "codex" {
+				err = run(helpCtx, root, en, filepath.Join(logs, "exec-help.log"), cli, "exec", "--help")
+			}
+			helpCancel()
 		}
 		for _, path := range []string{"trial", "bridge"} {
 			r := result{Harness: s.id, Path: path}
@@ -286,7 +304,8 @@ func exercise(repo, root, logs, bin string, en []string, s spec, path string) st
 	greetingEnv := append([]string{}, en...)
 	for i, v := range greetingEnv {
 		if strings.HasPrefix(v, "TASK=") {
-			greetingEnv[i] = "TASK=HARNESS_E2E_GREETING"
+			// Cline treats a single word as a command name, even when quoted.
+			greetingEnv[i] = "TASK=" + greetingTask
 		}
 	}
 	greetingCtx, greetingCancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -305,7 +324,8 @@ func exercise(repo, root, logs, bin string, en []string, s spec, path string) st
 	}
 	file, _ := os.ReadFile(filepath.Join(work, "tool.txt"))
 	if !strings.Contains(string(file), "tool-ok") {
-		return "tool.txt does not contain tool-ok"
+		requests, _ := os.ReadFile(filepath.Join(logs, path+"-requests.jsonl"))
+		return toolFailure(s.id, requests)
 	}
 	output, _ := os.ReadFile(filepath.Join(logs, path+"-cli.log"))
 	if !strings.Contains(string(output), "Done: the tool ran.") {

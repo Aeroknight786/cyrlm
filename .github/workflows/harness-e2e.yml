@@ -23,6 +23,10 @@ jobs:
         with:
           python-version: '3.12'
       - uses: astral-sh/setup-uv@v5
+      - name: Test harness fixtures
+        run: |
+          go test ./tools/harness-e2e
+          python3 -m unittest discover -s tools/harness-e2e -p 'test_*.py'
       - name: Run harnesses
         shell: bash
         run: |
