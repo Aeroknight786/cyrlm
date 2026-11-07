@@ -50,6 +50,9 @@ var prefillTab = map[string]prefillEff{
 
 // Timing computes simulated local timings. All methods are pure.
 type Timing struct {
+	calibration   *timingCalibration
+	VerifySeconds map[int]float64 // small-prompt verify costs at depth zero
+
 	Model              catalog.Model
 	WeightsBytesPerTok float64
 	KVElem             float64
@@ -66,7 +69,7 @@ type Timing struct {
 // DecodeSec is seconds to decode one token at context depth d.
 func (t *Timing) DecodeSec(d int) float64 {
 	bytes := t.WeightsBytesPerTok + t.Model.KVReadBytes(d, t.KVElem)
-	return (bytes/t.EffBandwidth + t.T0) / t.DecodeMult
+	return (bytes/t.EffBandwidth + t.T0) / t.DecodeMult / t.calibrationFactor("decode", d)
 }
 
 // DecodeTPS is decode tokens/s at depth d.
@@ -85,7 +88,7 @@ func (t *Timing) PrefillSec(from, to int) float64 {
 			n = to - x
 		}
 		mid := x + n/2
-		sec += float64(n) * (t.MatmulSecPerTok + t.Model.AttnFLOPs(mid)/t.AttnFLOPSEff)
+		sec += float64(n) * (t.MatmulSecPerTok + t.Model.AttnFLOPs(mid)/t.AttnFLOPSEff) / t.calibrationFactor("prefill", mid)
 	}
 	return sec / t.PrefillMult
 }
@@ -362,6 +365,8 @@ type Input struct {
 
 // Result is a prediction.
 type Result struct {
+	Kind string // simulated or calibrated
+
 	Model    catalog.Model
 	Quant    catalog.Quant
 	Runtime  runtime.Profile
@@ -386,7 +391,7 @@ type Result struct {
 
 // Predict runs a prediction.
 func Predict(in Input) Result {
-	res := Result{Model: in.Model, Runtime: in.Runtime, Target: in.Target}
+	res := Result{Kind: "simulated", Model: in.Model, Runtime: in.Runtime, Target: in.Target}
 	t := in.Target
 	// Backend.
 	backend := in.BackendOverride
@@ -562,6 +567,7 @@ func Predict(in Input) Result {
 	} else if !in.Model.QuantMatchesCloud {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("quality caveat: the trial uses the cloud's %s weights; local %s is typically 0–3 points worse on coding tasks and makes more tool-call mistakes", in.Model.CloudPrecision, q.Name))
 	}
+	applyCalibration(&res, in)
 	return res
 }
 

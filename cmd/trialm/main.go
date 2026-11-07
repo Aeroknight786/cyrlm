@@ -37,6 +37,7 @@ Easiest: let your coding agent do everything.
   trialm prompt --harness claude-code     prints a message; paste it into Claude Code (or codex, opencode, …)
 
 Commands:
+  trialm calibrate [--quick|--status]      optional one-time machine calibration
   trialm detect                           your machine and installed runtimes
   trialm recommend [--harness h]          best models + runtimes for this machine
   trialm try <model> --harness h          live trial: the real model, at this machine's speed
@@ -53,6 +54,7 @@ More commands and flags: trialm help --all
 const usageAll = `trialm — try a local model before you download it
 
 Usage:
+  trialm calibrate [--quick|--status] [--json]  optional machine calibration
   trialm detect   [--probe] [--json]           what's in this machine and which runtimes are installed
   trialm models                                 models in the catalog
   trialm runtimes                               runtime profiles (Ollama, llama.cpp, LM Studio, MLX)
@@ -99,6 +101,12 @@ Examples:
 
 func main() {
 	migrateHome()
+	if err := maybeOfferCalibration(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		if errors.Is(err, context.Canceled) {
+			os.Exit(130)
+		}
+	}
 	if len(os.Args) < 2 {
 		// Bare `trialm` becomes the home screen in v0.4; until then it shows
 		// the usage, successfully, so the installer's final step exits 0.
@@ -118,6 +126,8 @@ func main() {
 		}
 	}
 	switch os.Args[1] {
+	case "calibrate":
+		err = cmdCalibrate(args)
 	case "detect":
 		err = cmdDetect(args)
 	case "models":
@@ -166,6 +176,9 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
+		if errors.Is(err, context.Canceled) {
+			os.Exit(130)
+		}
 		os.Exit(1)
 	}
 }
@@ -658,38 +671,41 @@ func printJSON(v any) error {
 }
 
 type jsonResult struct {
-	Runtime          string   `json:"runtime"`
-	Tuned            bool     `json:"tuned"`
-	Backend          string   `json:"backend"`
-	Quant            string   `json:"quant"`
-	DownloadGB       float64  `json:"download_gb"`
-	ContextTokens    int      `json:"context_tokens"`
-	MemoryGB         float64  `json:"memory_gb"`
-	BudgetGB         float64  `json:"budget_gb"`
-	Fit              string   `json:"fit"`
-	DecodeTPS        float64  `json:"decode_tps"`
-	DecodeTPSDeep    float64  `json:"decode_tps_deep"`
-	PrefillTPS       float64  `json:"prefill_tps"`
-	ColdFirstReplyS  float64  `json:"cold_first_reply_s"`
-	FollowUpTTFTS    float64  `json:"follow_up_ttft_s"`
-	FollowUpTurnS    float64  `json:"follow_up_turn_s"`
-	SessionS         float64  `json:"session_s"`
-	CloudSessionS    float64  `json:"cloud_session_s"`
-	DecodeAccuracy   int      `json:"decode_error_range_pct"` // ± error covering ~3 in 4 predictions
-	PrefillAccuracy  int      `json:"prefill_error_range_pct"`
-	NoAccuracyClaim  bool     `json:"no_speed_claim"`
-	Warnings         []string `json:"warnings"`
-	Assumptions      []string `json:"assumptions"`
-	Unsupported      string   `json:"unsupported,omitempty"`
-	TuneSteps        []string `json:"tune_steps,omitempty"`
-	ContextReasoning string   `json:"context_note"`
+	Kind             string          `json:"kind"`
+	VerifySeconds    map[int]float64 `json:"verify_seconds,omitempty"`
+	Runtime          string          `json:"runtime"`
+	Tuned            bool            `json:"tuned"`
+	Backend          string          `json:"backend"`
+	Quant            string          `json:"quant"`
+	DownloadGB       float64         `json:"download_gb"`
+	ContextTokens    int             `json:"context_tokens"`
+	MemoryGB         float64         `json:"memory_gb"`
+	BudgetGB         float64         `json:"budget_gb"`
+	Fit              string          `json:"fit"`
+	DecodeTPS        float64         `json:"decode_tps"`
+	DecodeTPSDeep    float64         `json:"decode_tps_deep"`
+	PrefillTPS       float64         `json:"prefill_tps"`
+	ColdFirstReplyS  float64         `json:"cold_first_reply_s"`
+	FollowUpTTFTS    float64         `json:"follow_up_ttft_s"`
+	FollowUpTurnS    float64         `json:"follow_up_turn_s"`
+	SessionS         float64         `json:"session_s"`
+	CloudSessionS    float64         `json:"cloud_session_s"`
+	DecodeAccuracy   int             `json:"decode_error_range_pct"` // ± error covering ~3 in 4 predictions
+	PrefillAccuracy  int             `json:"prefill_error_range_pct"`
+	NoAccuracyClaim  bool            `json:"no_speed_claim"`
+	Warnings         []string        `json:"warnings"`
+	Assumptions      []string        `json:"assumptions"`
+	Unsupported      string          `json:"unsupported,omitempty"`
+	TuneSteps        []string        `json:"tune_steps,omitempty"`
+	ContextReasoning string          `json:"context_note"`
 }
 
 func jsonResults(rs []predict.Result) []jsonResult {
 	out := make([]jsonResult, 0, len(rs))
 	for _, r := range rs {
-		j := jsonResult{Runtime: r.Runtime.ID, Tuned: r.Settings.Tuned, Backend: r.Backend, Unsupported: r.Unsupported}
+		j := jsonResult{Kind: r.Kind, Runtime: r.Runtime.ID, Tuned: r.Settings.Tuned, Backend: r.Backend, Unsupported: r.Unsupported}
 		if r.Unsupported == "" {
+			j.VerifySeconds = r.Timing.VerifySeconds
 			j.Quant, j.DownloadGB = r.Quant.Name, float64(r.Quant.FileBytes)/1e9
 			j.ContextTokens, j.ContextReasoning = r.Settings.ContextTokens, r.Settings.ContextNote
 			j.MemoryGB, j.BudgetGB, j.Fit = r.Memory.TotalBytes/1e9, r.Memory.BudgetBytes/1e9, r.Memory.Level

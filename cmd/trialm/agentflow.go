@@ -142,6 +142,9 @@ func cmdRecommend(args []string) error {
 	for i, row := range rows {
 		r := row.r
 		rt := r.Runtime.Name
+		if r.Kind == "calibrated" {
+			rt += " calibrated"
+		}
 		if in.has(r.Runtime.ID) {
 			rt += " ●"
 		}
