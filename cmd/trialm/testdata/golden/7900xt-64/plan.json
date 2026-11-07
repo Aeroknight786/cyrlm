@@ -1,7 +1,7 @@
 {
   "decode_error_range_pct": 30,
   "prefill_error_range_pct": 75,
-  "plan_id": "50aa7a3282f6d5cb119e6d10b41a90451c89f67cea6ace6b5d1911ec181cbb8e",
+  "plan_id": "ebf1a12fca19ac7cb6d1a4613e2d7e4625af3130ce76e370e0d63c3546760c5c",
   "slug": "qwen3-6-35b-a3b-q4-k-m-ollama",
   "model": "qwen3.6-35b-a3b",
   "model_name": "Qwen3.6 35B-A3B",
@@ -143,7 +143,7 @@
   ],
   "predicted": {
     "DecodeTPS0": 96.7448279,
-    "DecodeTPSTarget": 80.5266855,
+    "DecodeTPSTarget": 65.2545775,
     "PrefillTPS": 1976.40772
   },
   "check_endpoint": "http://127.0.0.1:11535",

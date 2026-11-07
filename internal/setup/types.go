@@ -29,6 +29,7 @@ const (
 )
 
 type Step struct {
+	NativeRepo    string            `json:"native_repo,omitempty"`
 	DownloadBytes int64             `json:"download_bytes,omitempty"`
 	ID            string            `json:"id"`
 	Kind          Kind              `json:"kind"`

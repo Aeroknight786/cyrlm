@@ -60,7 +60,7 @@ func (s Session) Plan(ctx context.Context, o PlanOptions) (setup.Plan, error) {
 		Arch:            o.Target.Arch,
 		RAMBytes:        o.Target.RAMBytes,
 		DefaultGPUBytes: o.Target.GPUMemBytes,
-		Predicted:       verify.Predicted{DecodeTPS0: res.DecodeTPS0, DecodeTPSTarget: res.DecodeTPSDeep, PrefillTPS: res.PrefillTPS2k},
+		Predicted:       verify.Predicted{DecodeTPS0: res.DecodeTPS0, DecodeTPSTarget: res.Timing.DecodeTPS(res.Settings.ContextTokens), PrefillTPS: res.PrefillTPS2k},
 	}
 	if wired {
 		input.RequiredGPUBytes = res.Memory.TotalBytes
@@ -73,6 +73,10 @@ func (s Session) Plan(ctx context.Context, o PlanOptions) (setup.Plan, error) {
 		input.Installed = true
 		if p.ID == "llamacpp" || p.ID == "ollama" || p.ID == "mlx-lm" {
 			input.Binary = ir.Path
+		}
+		if p.ID == "llamacpp" && (ir.Path == "" || !strings.Contains(filepath.Base(ir.Path), "llama-server")) {
+			input.Installed = false
+			input.Binary = ""
 		}
 		input.InstalledVersion = ir.Version
 		input.Running = input.Running || ir.Running

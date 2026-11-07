@@ -42,16 +42,17 @@ type Executor struct {
 	mu         sync.Mutex
 }
 type Inverse struct {
-	Stopped  *proc.Record `json:"stopped,omitempty"`
-	Env      []string     `json:"env,omitempty"`
-	Model    bool         `json:"model,omitempty"`
-	Path     string       `json:"path,omitempty"`
-	Data     []byte       `json:"data,omitempty"`
-	Mode     os.FileMode  `json:"mode,omitempty"`
-	Existed  bool         `json:"existed,omitempty"`
-	PIDFile  string       `json:"pid_file,omitempty"`
-	Argv     []string     `json:"argv,omitempty"`
-	Category Kind         `json:"category"`
+	NativeRepo string       `json:"native_repo,omitempty"`
+	Stopped    *proc.Record `json:"stopped,omitempty"`
+	Env        []string     `json:"env,omitempty"`
+	Model      bool         `json:"model,omitempty"`
+	Path       string       `json:"path,omitempty"`
+	Data       []byte       `json:"data,omitempty"`
+	Mode       os.FileMode  `json:"mode,omitempty"`
+	Existed    bool         `json:"existed,omitempty"`
+	PIDFile    string       `json:"pid_file,omitempty"`
+	Argv       []string     `json:"argv,omitempty"`
+	Category   Kind         `json:"category"`
 }
 type Record struct {
 	State    string            `json:"state"`
@@ -243,7 +244,7 @@ func (e *Executor) Apply(ctx context.Context, p Plan, policy Policy) (Journal, e
 	return j, nil
 }
 func (e *Executor) inverse(s Step, slug string) (Inverse, error) {
-	inv := Inverse{Path: e.expand(s.Path), Category: s.Kind, Argv: s.Inverse, Env: s.Env, Model: s.Package == "ollama-model" || s.Package == "lms-import"}
+	inv := Inverse{NativeRepo: s.NativeRepo, Path: e.expand(s.Path), Category: s.Kind, Argv: s.Inverse, Env: s.Env, Model: s.Package == "ollama-model" || s.Package == "lms-import"}
 	if s.Kind == Fetch {
 		inv.Path = e.expand(s.Request.Dest)
 	}

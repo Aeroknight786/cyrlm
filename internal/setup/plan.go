@@ -166,24 +166,31 @@ func Build(in Input) (Plan, error) {
 			})
 			adapterBinary = dest + "/" + a.Entry
 		} else {
-			if in.OS == "windows" {
-				return p, errors.New("install LM Studio and bootstrap lms before setup on Windows")
-			}
 			installer := engine.LMSInstaller()
 			dest := "~/.trialm/engines/" + p.Slug
 			adapterEnv = []string{"HOME=" + dest + "/home"}
 			script := dest + "/install.sh"
+			installerArgs := []string{"sh", script, "--no-modify-path", "--quiet"}
+			if in.OS == "windows" {
+				installer = engine.LMSWindowsInstaller()
+				script = dest + "/install.ps1"
+				installerArgs = []string{"powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script}
+				adapterEnv = append(adapterEnv, "USERPROFILE="+dest+"/home", "LOCALAPPDATA="+dest+"/home/AppData/Local", "APPDATA="+dest+"/home/AppData/Roaming", "LMS_NO_MODIFY_PATH=1", "LMS_PRINT_QUIET=1")
+			}
 			p.Steps = append(p.Steps, Step{
 				ID:      "engine",
 				Kind:    RunInstaller,
 				Title:   "Install pinned LM Studio daemon",
 				Path:    dest,
 				Content: installer.Source,
-				Argv:    []string{"sh", script, "--no-modify-path", "--quiet"},
+				Argv:    installerArgs,
 				Env:     adapterEnv,
 				Request: &download.Request{URL: installer.URL, SHA256: installer.SHA256, Size: installer.Size, Dest: script},
 			})
 			adapterBinary = dest + "/home/.lmstudio/bin/lms"
+			if in.OS == "windows" {
+				adapterBinary += ".exe"
+			}
 			p.Warnings = append(p.Warnings, "The pinned LM Studio installer fetches its platform runtime. Its additional bytes are unknown.")
 		}
 	}
@@ -270,8 +277,10 @@ func Build(in Input) (Plan, error) {
 		if p.KVCacheType != "f16" || in.Settings.FlashAttention != in.Profile.Defaults.FlashAttention {
 			p.Warnings = append(p.Warnings, "Set the selected KV cache and flash attention in LM Studio's model load settings. Its CLI does not expose these switches.")
 		}
+		values["namespace"] = "trialm/" + p.Slug
 		importArgs, _ := engine.Args("lmstudio-import", values)
-		p.Steps = append(p.Steps, Step{ID: "import", Kind: Install, Title: "Import model into LM Studio", Package: "lms-import", Argv: importArgs})
+		p.Steps = append(p.Steps, Step{ID: "import", Kind: Install, Title: "Import model into LM Studio", Package: "lms-import", Argv: importArgs, NativeRepo: values["namespace"]})
+		values["model"] = values["namespace"] + "/" + path.Base(model)
 		argv, _ := engine.Args("lmstudio-load", values)
 		p.Steps = append(p.Steps, Step{ID: "load", Kind: Install, Title: "Load LM Studio model", Package: "lms-model", Argv: argv, Inverse: []string{"lms", "unload", p.LocalModelName}})
 		argv, _ = engine.Args("lmstudio", values)

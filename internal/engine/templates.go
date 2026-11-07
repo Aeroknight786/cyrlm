@@ -18,14 +18,15 @@ type Asset struct {
 }
 
 var data struct {
-	OllamaRelease string              `json:"ollama_release"`
-	MinimumBuild  int                 `json:"minimum_build"`
-	MaximumBuild  int                 `json:"maximum_build"`
-	OtherAssets   map[string]Asset    `json:"other_assets"`
-	LMSInstaller  Installer           `json:"lms_installer"`
-	Release       string              `json:"release"`
-	Assets        map[string]Asset    `json:"assets"`
-	Templates     map[string][]string `json:"templates"`
+	LMSWindowsInstaller Installer           `json:"lms_windows_installer"`
+	OllamaRelease       string              `json:"ollama_release"`
+	MinimumBuild        int                 `json:"minimum_build"`
+	MaximumBuild        int                 `json:"maximum_build"`
+	OtherAssets         map[string]Asset    `json:"other_assets"`
+	LMSInstaller        Installer           `json:"lms_installer"`
+	Release             string              `json:"release"`
+	Assets              map[string]Asset    `json:"assets"`
+	Templates           map[string][]string `json:"templates"`
 }
 
 func init() {
@@ -90,3 +91,5 @@ func OllamaAsset(goos, arch string) (Asset, error) {
 }
 
 func OllamaRelease() string { return data.OllamaRelease }
+
+func LMSWindowsInstaller() Installer { return data.LMSWindowsInstaller }

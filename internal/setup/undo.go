@@ -40,6 +40,11 @@ func (e *Executor) Undo(ctx context.Context, slug string, o UndoOptions) (Journa
 		if err = ctx.Err(); err != nil {
 			return j, err
 		}
+		if inv.NativeRepo != "" {
+			if err = e.undoNativeModels(j, inv); err != nil {
+				return j, err
+			}
+		}
 		if inv.Stopped != nil {
 			stopped := inv.Stopped
 			if _, err = proc.Start(ctx, proc.Options{Argv: stopped.Argv, Env: stopped.Env, PIDFile: inv.PIDFile, Log: stopped.Log, Health: stopped.Health}); err != nil {

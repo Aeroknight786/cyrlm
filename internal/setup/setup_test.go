@@ -176,6 +176,11 @@ func TestPauseResumeAndUndoRestoresBytes(t *testing.T) {
 	if err := os.WriteFile(config, original, 0640); err != nil {
 		t.Fatal(err)
 	}
+	originalInfo, err := os.Stat(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalMode := originalInfo.Mode().Perm()
 	data := []byte(strings.Repeat("x", 100))
 	digest := fmt.Sprintf("%x", sha256.Sum256(data))
 	p := basicPlan(Step{ID: "harness", Kind: Write, Title: "Write harness config", Path: config, Content: "replacement"}, Step{ID: "model", Kind: Fetch, Title: "Fetch model", Request: &download.Request{URL: "https://huggingface.co/org/repo/resolve/abc/model.gguf", SHA256: digest, Size: 100, Dest: "~/.trialm/models/test.gguf"}})
@@ -210,7 +215,7 @@ func TestPauseResumeAndUndoRestoresBytes(t *testing.T) {
 		t.Fatal("config restoration differs", err, string(restored))
 	}
 	info, _ := os.Stat(config)
-	if info.Mode().Perm() != 0640 {
+	if info.Mode().Perm() != originalMode {
 		t.Fatal("config mode lost")
 	}
 	var files []string
@@ -463,5 +468,109 @@ func TestJSONExpansionEscapesWindowsPaths(t *testing.T) {
 	_ = json.Unmarshal(b, &parsed)
 	if parsed["config"] != e.Root+"/harness/config.json" {
 		t.Fatal(parsed)
+	}
+}
+
+func TestWindowsLMStudioInstallerIsPinnedAndScoped(t *testing.T) {
+	in := fixture(t)
+	in.Profile, _ = engine.Get("lmstudio")
+	in.OS, in.Arch, in.Backend = "windows", "amd64", "cpu"
+	p, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := testExecutor(t)
+	if err = e.validate(p); err != nil {
+		t.Fatal(err)
+	}
+	installer := p.Steps[0]
+	if installer.Kind != RunInstaller || installer.Argv[0] != "powershell" || !strings.HasSuffix(installer.Request.Dest, ".ps1") {
+		t.Fatal(installer)
+	}
+	if fmt.Sprintf("%x", sha256.Sum256([]byte(installer.Content))) != installer.Request.SHA256 {
+		t.Fatal("Windows installer source lost its exact digest")
+	}
+	if !strings.Contains(strings.Join(installer.Env, "\n"), "LMS_NO_MODIFY_PATH=1") {
+		t.Fatal(installer.Env)
+	}
+}
+func TestUndoRemovesOnlyPinnedNativeImports(t *testing.T) {
+	for _, pointer := range []bool{false, true} {
+		t.Run(fmt.Sprint(pointer), func(t *testing.T) {
+			e := testExecutor(t)
+			root := filepath.Join(e.Home, ".lmstudio")
+			if pointer {
+				root = filepath.Join(e.Home, "custom-model-home")
+				if err := os.WriteFile(filepath.Join(e.Home, ".lmstudio-home-pointer"), []byte(root), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			data := []byte("pinned model")
+			digest := fmt.Sprintf("%x", sha256.Sum256(data))
+			source := filepath.Join(e.Root, "models", "model.gguf")
+			native := filepath.Join(root, "models", "trialm", "test", "model.gguf")
+			unrelated := filepath.Join(root, "models", "owner", "existing.gguf")
+			for _, file := range []string{source, native, unrelated} {
+				if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(file, data, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			p := basicPlan(Step{ID: "model", Kind: Fetch, Request: &download.Request{SHA256: digest, Dest: source}}, Step{ID: "import", Kind: Install, Package: "lms-import", NativeRepo: "trialm/test"})
+			j := Journal{Plan: p, State: "ready", Steps: []Record{{State: "done", Inverse: Inverse{Category: Fetch, Path: source}}, {State: "done", Inverse: Inverse{Category: Install, Model: true, NativeRepo: "trialm/test"}}, {State: "done", Inverse: Inverse{Category: Check}}}}
+			journalPath, _ := e.journalPath("test")
+			if err := save(journalPath, &j); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := e.Undo(context.Background(), "test", UndoOptions{Models: true}); err != nil {
+				t.Fatal(err)
+			}
+			for _, file := range []string{source, native} {
+				if _, err := os.Stat(file); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("model retained", file, err)
+				}
+			}
+			b, err := os.ReadFile(unrelated)
+			if err != nil || string(b) != string(data) {
+				t.Fatal("unrelated native model changed", err)
+			}
+		})
+	}
+}
+
+func TestReplacementPreservesInverseOwnership(t *testing.T) {
+	e := testExecutor(t)
+	data := []byte(strings.Repeat("x", 100))
+	digest := fmt.Sprintf("%x", sha256.Sum256(data))
+	e.Downloader = &resumeDownloader{data: data}
+	p := basicPlan(Step{ID: "model", Kind: Fetch, Request: &download.Request{URL: "https://huggingface.co/o/r/resolve/rev/a", SHA256: digest, Size: 100, Dest: "~/.trialm/models/a"}})
+	if _, err := e.Apply(context.Background(), p, Policy{PlanID: p.ID}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(p)
+	var replacement Plan
+	_ = json.Unmarshal(b, &replacement)
+	replacement.Steps[0].Request.Dest = "~/.trialm/models/b"
+	replacement.Seal()
+	if _, err := e.Apply(context.Background(), replacement, Policy{PlanID: replacement.ID}); err == nil || !strings.Contains(err.Error(), "model path") {
+		t.Fatal(err)
+	}
+	if !matchesDigest(e.expand(p.Steps[0].Request.Dest), digest) {
+		t.Fatal("original inverse lost its model")
+	}
+	if _, err := e.Undo(context.Background(), p.Slug, UndoOptions{Models: true}); err != nil {
+		t.Fatal(err)
+	}
+	j, err := e.Apply(context.Background(), replacement, Policy{PlanID: replacement.ID})
+	if err != nil || j.Prompts.Approvals != 2 {
+		t.Fatal(j.Prompts, err)
+	}
+	if _, err = e.Undo(context.Background(), p.Slug, UndoOptions{Models: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(e.expand(replacement.Steps[0].Request.Dest)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("replacement model escaped its inverse", err)
 	}
 }

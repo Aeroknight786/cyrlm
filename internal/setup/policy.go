@@ -119,7 +119,7 @@ func (e *Executor) validate(p Plan) error {
 		}
 		if s.Kind == RunInstaller {
 			digest := fmt.Sprintf("%x", sha256.Sum256([]byte(s.Content)))
-			if digest != s.Request.SHA256 || !slices.Equal(s.Argv, []string{"sh", s.Request.Dest, "--no-modify-path", "--quiet"}) {
+			if digest != s.Request.SHA256 || !slices.Equal(s.Argv, installerArgs(s.Request.Dest, p.OS)) {
 				return errors.New("installer source or argv differs from its pin")
 			}
 		}
@@ -133,7 +133,7 @@ func (e *Executor) validate(p Plan) error {
 				expected, _ = engine.Args("lmstudio-load", map[string]string{"model": s.ArgvModel(), "name": p.LocalModelName, "ctx": fmt.Sprint(p.ContextTokens)})
 			}
 			if s.Package == "lms-import" {
-				expected, _ = engine.Args("lmstudio-import", map[string]string{"model": s.ArgvModel()})
+				expected, _ = engine.Args("lmstudio-import", map[string]string{"model": s.ArgvModel(), "namespace": s.NativeRepo})
 			}
 			actual := append([]string(nil), s.Argv...)
 			if len(actual) > 0 && filepath.IsAbs(e.expand(actual[0])) {
@@ -141,13 +141,16 @@ func (e *Executor) validate(p Plan) error {
 				if base == "ollama" || base == "ollama.exe" {
 					actual[0] = "ollama"
 				}
-				if base == "lms" {
+				if base == "lms" || base == "lms.exe" {
 					actual[0] = "lms"
 				}
 			}
 			if expected == nil || !slices.Equal(expected, actual) {
 				return errors.New("install is not an allowlisted package template")
 			}
+		}
+		if s.NativeRepo != "" && s.NativeRepo != "trialm/"+p.Slug {
+			return errors.New("invalid native model namespace")
 		}
 		if s.Kind == Admin {
 			if len(s.Argv) != 3 || s.Argv[0] != "sudo" || s.Argv[1] != "sysctl" || !strings.HasPrefix(s.Argv[2], "iogpu.wired_limit_mb=") {
@@ -160,7 +163,7 @@ func (e *Executor) validate(p Plan) error {
 			}
 			executable := e.expand(s.Argv[0])
 			allowed := slices.Contains([]string{"llama-server", "llama-server.exe", "ollama", "lms", "mlx_lm.server", "trialm", "/opt/homebrew/bin/llama-server", "/usr/local/bin/llama-server", "/home/linuxbrew/.linuxbrew/bin/llama-server"}, executable)
-			if filepath.IsAbs(executable) && (inside(filepath.Join(e.Root, "engines"), executable) || filepath.Base(executable) == "ollama" || filepath.Base(executable) == "mlx_lm.server") {
+			if filepath.IsAbs(executable) && (inside(filepath.Join(e.Root, "engines"), executable) || filepath.Base(executable) == "ollama" || filepath.Base(executable) == "mlx_lm.server" || filepath.Base(executable) == "llama-server" || filepath.Base(executable) == "llama-server.exe") {
 				allowed = true
 			}
 			if !allowed {
@@ -194,7 +197,13 @@ func reconcile(j *Journal, p Plan) error {
 		if !ok {
 			continue
 		}
+		if j.Steps[i].State == "" || j.Steps[i].State == "undone" {
+			continue
+		}
 		next := p.Steps[n]
+		if old.Request != nil && next.Request != nil && old.Request.Dest != next.Request.Dest {
+			return errors.New("replacement changes a model path; undo the saved setup with --delete-models first")
+		}
 		if old.Kind != next.Kind || old.Path != next.Path {
 			return errors.New("replacement changes a step's ownership; undo the saved setup first")
 		}
@@ -206,7 +215,9 @@ func reconcile(j *Journal, p Plan) error {
 		}
 	}
 	j.Steps = records
-	j.Prompts.Approvals++
+	if j.State != "undone" {
+		j.Prompts.Approvals++
+	}
 	j.Prompts.Passwords = p.Prompts.Passwords
 	j.Prompts.AfterRestart = p.Prompts.AfterRestart
 	j.Report = nil
@@ -221,4 +232,11 @@ type ApprovalRequired struct {
 
 func (a *ApprovalRequired) Error() string {
 	return a.Reason + "; review the replacement plan and use --yes=" + a.Plan.ID
+}
+
+func installerArgs(path, goos string) []string {
+	if goos == "windows" {
+		return []string{"powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path}
+	}
+	return []string{"sh", path, "--no-modify-path", "--quiet"}
 }
