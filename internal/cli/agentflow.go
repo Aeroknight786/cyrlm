@@ -29,7 +29,7 @@ var agentPrompt string
 // ---------------------------------------------------------------- prompt
 
 func cmdPrompt(args []string) error {
-	fs := flag.NewFlagSet("prompt", flag.ExitOnError)
+	fs := flag.NewFlagSet("prompt", flag.ContinueOnError)
 	h := fs.String("harness", "", "harness the message is for (fills in --harness)")
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
@@ -45,14 +45,14 @@ func cmdPrompt(args []string) error {
 		p = strings.ReplaceAll(p, "You are running in <HARNESS> — use that as `--harness`", "Work out which coding tool you are running in and use it wherever <your-tool> appears as `--harness`")
 		p = strings.ReplaceAll(p, "<HARNESS>", "<your-tool>")
 	}
-	fmt.Print(p)
+	fmt.Fprint(out(), p)
 	return nil
 }
 
 // ---------------------------------------------------------------- recommend
 
 func cmdRecommend(args []string) error {
-	fs := flag.NewFlagSet("recommend", flag.ExitOnError)
+	fs := flag.NewFlagSet("recommend", flag.ContinueOnError)
 	var c common
 	c.register(fs, "all")
 	top := fs.Int("top", 5, "how many options to show")
@@ -61,7 +61,10 @@ func cmdRecommend(args []string) error {
 		return err
 	}
 	c.finish(fs)
-	if len(pos) > 0 {
+	if err := c.validateRequirements(); err != nil {
+		return err
+	}
+	if len(pos) > 0 && currentVerb != "find" {
 		return errors.New("usage: trialm recommend [--harness h] [--top n] [--json]")
 	}
 	sc, hh, err := scenarioFor(c.harness)
@@ -72,11 +75,20 @@ func cmdRecommend(args []string) error {
 	if err != nil {
 		return err
 	}
-	listing, err := (core.Session{}).Find(context.Background(), c.options(), t, sc, hh, "", *top)
+	query := strings.Join(pos, " ")
+	if query == "" && c.prefs.Model != "any" {
+		query = c.prefs.Model
+	}
+	listing, err := (core.Session{}).Find(commandContext, c.options(), t, sc, hh, query, *top)
 	if err != nil {
 		return err
 	}
 	rows, in := listing.Rows, listing.Installed
+	if currentVerb == "find" {
+		if err := saveListing(rows, hh.ID); err != nil {
+			return err
+		}
+	}
 	if c.jsonOut {
 		type jr struct {
 			Rank      int        `json:"rank"`
@@ -97,8 +109,8 @@ func cmdRecommend(args []string) error {
 		}
 		return printJSON(map[string]any{"machine": t.Name, "harness": hh.ID, "ranking": "speed tier (comfortable/usable/slow), then model size as a capability proxy — not a coding-quality score", "options": out})
 	}
-	fmt.Printf("\nBest local models for %s on %s\n\n", hh.Name, t.Name)
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(out(), "\nBest local models for %s on %s\n\n", hh.Name, t.Name)
+	w := tabwriter.NewWriter(out(), 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "#\tMODEL\tRUNTIME\tFILE\tFIRST REPLY\tFOLLOW-UP\tTASK*\tFEEL")
 	for i, row := range rows {
 		r := row.Result
@@ -114,7 +126,7 @@ func cmdRecommend(args []string) error {
 	}
 	w.Flush()
 	if len(rows) == 0 {
-		fmt.Println("No catalog model gives a working agent setup on this machine.")
+		fmt.Fprintln(out(), "No catalog model gives a working agent setup on this machine.")
 		return nil
 	}
 	allSlow := true
@@ -124,12 +136,12 @@ func cmdRecommend(args []string) error {
 		}
 	}
 	if allSlow {
-		fmt.Println("\n⚠ None of these will feel usable in a coding agent on this machine: every first reply takes minutes. A machine with a GPU or Apple Silicon makes a large difference.")
+		fmt.Fprintln(out(), "\n⚠ None of these will feel usable in a coding agent on this machine: every first reply takes minutes. A machine with a GPU or Apple Silicon makes a large difference.")
 	}
-	fmt.Printf("\n* TASK = a %d-call agent task (cloud: ~%s). Tuned settings. ● = runtime installed. More options: --top 20\n", sc.Turns, dur(rows[0].Result.Scenario.CloudSession))
-	fmt.Println("Ranked by speed tier, then model size (a rough capability proxy — triaLM does not score coding quality; try the top picks).")
-	fmt.Println("Each model shows the file that runs best here: its usual 4-bit file when that is fast, else a smaller 3-bit file (more mistakes; see the quality caveat in `trialm predict`).")
-	fmt.Printf("Try #1: %s\n\n", tryCmd(rows[0].Result, hh.ID))
+	fmt.Fprintf(out(), "\n* TASK = a %d-call agent task (cloud: ~%s). Tuned settings. ● = runtime installed. More options: --top 20\n", sc.Turns, dur(rows[0].Result.Scenario.CloudSession))
+	fmt.Fprintln(out(), "Ranked by speed tier, then model size (a rough capability proxy — triaLM does not score coding quality; try the top picks).")
+	fmt.Fprintln(out(), "Each model shows the file that runs best here: its usual 4-bit file when that is fast, else a smaller 3-bit file (more mistakes; see the quality caveat in `trialm predict`).")
+	fmt.Fprintf(out(), "Try #1: %s\n\n", tryCmd(rows[0].Result, hh.ID))
 	return nil
 }
 
@@ -145,7 +157,7 @@ func tryCmd(r predict.Result, harnessID string) string {
 // ---------------------------------------------------------------- verify
 
 func cmdVerify(args []string) error {
-	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	var c common
 	c.register(fs, "")
 	endpoint := fs.String("endpoint", "", "runtime URL (default: the runtime's usual local port)")
@@ -191,11 +203,11 @@ func cmdVerify(args []string) error {
 			pred = &r
 		}
 	} else if !c.jsonOut {
-		fmt.Printf("note: %q is not in the catalog; measuring without a prediction (pass --catalog-model to compare)\n", cm)
+		fmt.Fprintf(out(), "note: %q is not in the catalog; measuring without a prediction (pass --catalog-model to compare)\n", cm)
 	}
 
 	if !c.jsonOut {
-		fmt.Printf("\nMeasuring %s on %s at %s\n", *model, prof.Name, *endpoint)
+		fmt.Fprintf(out(), "\nMeasuring %s on %s at %s\n", *model, prof.Name, *endpoint)
 	}
 	progress := os.Stdout
 	if c.jsonOut {
@@ -214,7 +226,7 @@ func cmdVerify(args []string) error {
 			return err
 		}
 		if !c.jsonOut {
-			fmt.Printf("Checking %s's requests (greeting, tool call, tool result) against %s…\n", hh.Name, prof.Name)
+			fmt.Fprintf(out(), "Checking %s's requests (greeting, tool call, tool result) against %s…\n", hh.Name, prof.Name)
 		}
 		r := verify.HarnessCheckRun(ctx, *endpoint, *model, *apiKey, hh, prof.APIs)
 		hcheck = &r
@@ -239,16 +251,16 @@ func cmdVerify(args []string) error {
 		printHarnessCheck(*hcheck)
 	}
 	if saveErr != nil {
-		fmt.Printf("could not save the result: %v\n", saveErr)
+		fmt.Fprintf(out(), "could not save the result: %v\n", saveErr)
 		return nil
 	}
-	fmt.Printf("Saved: %s\n", path)
+	fmt.Fprintf(out(), "Saved: %s\n", path)
 	cfg := account.Load()
 	switch {
 	case *share || cfg.Share == account.ShareAlways:
 		return doShare(cfg, path, rep, true)
 	case cfg.Share == account.ShareAsk && cfg.CanShare():
-		fmt.Println("Help improve predictions for everyone: `trialm share --last` shows exactly what would be sent and asks first.")
+		fmt.Fprintln(out(), "Help improve predictions for everyone: `trialm share --last` shows exactly what would be sent and asks first.")
 	}
 	return nil
 }
@@ -315,19 +327,19 @@ func printHarnessCheck(hc verify.HarnessCheck) {
 		}
 		return "–"
 	}
-	fmt.Printf("\n%s compatibility (%s):\n", hc.Harness, hc.Path)
-	fmt.Printf("  %s greeting   %s tool call   %s follow-up after the tool result\n", mark(hc.Greeting), mark(hc.ToolCall), mark(hc.FollowUp))
+	fmt.Fprintf(out(), "\n%s compatibility (%s):\n", hc.Harness, hc.Path)
+	fmt.Fprintf(out(), "  %s greeting   %s tool call   %s follow-up after the tool result\n", mark(hc.Greeting), mark(hc.ToolCall), mark(hc.FollowUp))
 	if hc.Passed {
-		fmt.Println("  Ready: real requests in this tool's format work end to end.")
+		fmt.Fprintln(out(), "  Ready: real requests in this tool's format work end to end.")
 		return
 	}
-	fmt.Printf("  NOT READY: %s\n", hc.Error)
-	fmt.Println("  The speed numbers above are valid, but the coding tool will fail until this passes.")
+	fmt.Fprintf(out(), "  NOT READY: %s\n", hc.Error)
+	fmt.Fprintln(out(), "  The speed numbers above are valid, but the coding tool will fail until this passes.")
 }
 
 func printVerify(rep account.Report, res *verify.Result, havePred bool) {
-	fmt.Println()
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(out())
+	w := tabwriter.NewWriter(out(), 0, 0, 2, ' ', 0)
 	if havePred {
 		fmt.Fprintln(w, "\tMEASURED\tPREDICTED\tDIFFERENCE")
 	} else {
@@ -351,104 +363,32 @@ func printVerify(rep account.Report, res *verify.Result, havePred bool) {
 	row(fmt.Sprintf("Follow-up (%s new tokens)", sim.Kilo(rep.FollowUpTokens)), rep.FollowUpSec, secs)
 	w.Flush()
 	if rep.LoadSec.Measured == 0 {
-		fmt.Println("(model was already loaded: load time not measured)")
+		fmt.Fprintln(out(), "(model was already loaded: load time not measured)")
 	}
 	switch res.CacheCheck {
 	case verify.CacheReused:
-		fmt.Println("Prompt cache: reused on the follow-up ✓")
+		fmt.Fprintln(out(), "Prompt cache: reused on the follow-up ✓")
 	case verify.CacheNotReused:
-		fmt.Println("Prompt cache: ✗ NOT reused — every turn re-reads the whole conversation. Check the runtime's cache settings.")
+		fmt.Fprintln(out(), "Prompt cache: ✗ NOT reused — every turn re-reads the whole conversation. Check the runtime's cache settings.")
 	default:
-		fmt.Println("Prompt cache: inconclusive at this prompt size (rerun with --prompt-tokens 16000)")
+		fmt.Fprintln(out(), "Prompt cache: inconclusive at this prompt size (rerun with --prompt-tokens 16000)")
 	}
 	for _, n := range res.Notes {
 		if !strings.Contains(n, "prompt cache") && !strings.Contains(n, "too fast") {
-			fmt.Printf("note: %s\n", n)
+			fmt.Fprintf(out(), "note: %s\n", n)
 		}
 	}
-	fmt.Println()
+	fmt.Fprintln(out())
 }
 
 // ---------------------------------------------------------------- account
-
-func cmdLogin(args []string) error {
-	fs := flag.NewFlagSet("login", flag.ExitOnError)
-	key := fs.String("key", "", "account key (default: read from stdin)")
-	apiURL := fs.String("api", "", "account server URL")
-	fs.Bool("openrouter", true, "store your OpenRouter key (default)")
-	acctKey := fs.Bool("account", false, "store a triaLM account key instead (needs an account server)")
-	if _, err := parseInterspersed(fs, args); err != nil {
-		return err
-	}
-	cfg := account.Load()
-	if !*acctKey {
-		k := strings.TrimSpace(*key)
-		if k == "" {
-			fmt.Print("Paste your OpenRouter key (https://openrouter.ai/keys; input is visible, it is stored only on this machine): ")
-			line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-			k = strings.TrimSpace(line)
-		}
-		if k == "" {
-			return errors.New("no key entered")
-		}
-		cfg.OpenRouterKey = k
-		if err := cfg.Save(); err != nil {
-			return err
-		}
-		dir, _ := account.Dir()
-		fmt.Printf("OpenRouter key saved (%s) in %s — trials will use it.\n", account.Mask(k), dir)
-		return nil
-	}
-	if *apiURL != "" {
-		cfg.APIURL = *apiURL
-	}
-	k := strings.TrimSpace(*key)
-	if k == "" {
-		fmt.Print("Paste your triaLM key (from your account page; input is visible): ")
-		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil && line == "" {
-			return errors.New("no key entered")
-		}
-		k = strings.TrimSpace(line)
-	}
-	if k == "" {
-		return errors.New("no key entered")
-	}
-	cfg.Key = k
-	if cfg.APIURL != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		me, err := cfg.CheckKey(ctx)
-		if err != nil {
-			return fmt.Errorf("key not accepted: %w", err)
-		}
-		fmt.Printf("Logged in as %s", me.Account)
-		if me.CreditsUSD > 0 {
-			fmt.Printf(" · trial credits $%.2f", me.CreditsUSD)
-		}
-		fmt.Println()
-	} else {
-		fmt.Println("Key saved. (No account server configured yet: set one with `trialm config set api-url <url>`.)")
-	}
-	return cfg.Save()
-}
-
-func cmdLogout(args []string) error {
-	cfg := account.Load()
-	cfg.Key, cfg.OpenRouterKey = "", ""
-	if err := cfg.Save(); err != nil {
-		return err
-	}
-	fmt.Println("Logged out: keys removed from this machine.")
-	return nil
-}
 
 func cmdConfig(args []string) error {
 	cfg := account.Load()
 	if len(args) == 0 || args[0] == "get" {
 		key := "(not logged in)"
 		if cfg.LoggedIn() {
-			key = cfg.MaskedKey()
+			key = "configured"
 		}
 		api := cfg.APIURL
 		if api == "" {
@@ -457,9 +397,9 @@ func cmdConfig(args []string) error {
 		dir, _ := account.Dir()
 		or := "(none)"
 		if cfg.OpenRouterKey != "" {
-			or = account.Mask(cfg.OpenRouterKey)
+			or = "configured"
 		}
-		fmt.Printf("key         %s\nopenrouter  %s\napi-url     %s\nshare       %s   (ask | always | never)\nfiles       %s\n", key, or, api, cfg.Share, dir)
+		fmt.Fprintf(out(), "key         %s\nopenrouter  %s\napi-url     %s\nshare       %s   (ask | always | never)\nfiles       %s\n", key, or, api, cfg.Share, dir)
 		return nil
 	}
 	if args[0] != "set" || len(args) != 3 {
@@ -481,12 +421,12 @@ func cmdConfig(args []string) error {
 	if err := cfg.Save(); err != nil {
 		return err
 	}
-	fmt.Printf("%s = %s\n", args[1], args[2])
+	fmt.Fprintf(out(), "%s = %s\n", args[1], args[2])
 	return nil
 }
 
 func cmdShare(args []string) error {
-	fs := flag.NewFlagSet("share", flag.ExitOnError)
+	fs := flag.NewFlagSet("share", flag.ContinueOnError)
 	last := fs.Bool("last", false, "share the most recent verification")
 	yes := fs.Bool("yes", false, "don't ask (you have already reviewed the payload)")
 	dry := fs.Bool("dry-run", false, "only show what would be sent")
@@ -507,7 +447,7 @@ func cmdShare(args []string) error {
 		return err
 	}
 	b, _ := json.MarshalIndent(rep, "", "  ")
-	fmt.Printf("This is everything that would be sent (no prompts, file paths, hostnames or usernames):\n\n%s\n\n", b)
+	fmt.Fprintf(out(), "This is everything that would be sent (no prompts, file paths, hostnames or usernames):\n\n%s\n\n", b)
 	if *dry {
 		return nil
 	}
@@ -520,22 +460,22 @@ func cmdShare(args []string) error {
 
 func doShare(cfg account.Config, path string, rep account.Report, confirmed bool) error {
 	if rep.SharedID != "" {
-		fmt.Printf("Already shared (id %s).\n", rep.SharedID)
+		fmt.Fprintf(out(), "Already shared (id %s).\n", rep.SharedID)
 		return nil
 	}
 	if !cfg.CanShare() {
 		if !cfg.LoggedIn() {
-			fmt.Println("Not shared: sharing is not available in this version yet (the result is saved on this machine).")
+			fmt.Fprintln(out(), "Not shared: sharing is not available in this version yet (the result is saved on this machine).")
 		} else {
-			fmt.Println("Not shared: sharing is not available in this version yet (the result is saved on this machine).")
+			fmt.Fprintln(out(), "Not shared: sharing is not available in this version yet (the result is saved on this machine).")
 		}
 		return nil
 	}
 	if !confirmed {
-		fmt.Print("Share this result? [y/N] ")
+		fmt.Fprint(out(), "Share this result? [y/N] ")
 		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 		if a := strings.ToLower(strings.TrimSpace(line)); a != "y" && a != "yes" {
-			fmt.Println("Not shared.")
+			fmt.Fprintln(out(), "Not shared.")
 			return nil
 		}
 	}
@@ -546,6 +486,6 @@ func doShare(cfg account.Config, path string, rep account.Report, confirmed bool
 		return err
 	}
 	_ = account.MarkShared(path, id)
-	fmt.Printf("Shared — thank you (id %s).\n", id)
+	fmt.Fprintf(out(), "Shared — thank you (id %s).\n", id)
 	return nil
 }

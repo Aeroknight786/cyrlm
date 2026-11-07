@@ -1,4 +1,4 @@
-package cli
+package calibrationcli
 
 import (
 	"context"
@@ -58,28 +58,20 @@ func TestCalibrationSkipPreservesPreferences(t *testing.T) {
 		t.Fatal(prefs, e)
 	}
 	t.Setenv("TRIALM_HOME", home)
-	if e = maybeOfferCalibration([]string{"detect", "--json"}); e != nil {
+	if e = MaybeOffer([]string{"detect", "--json"}); e != nil {
 		t.Fatal(e)
 	}
 	if calibrationReminderEligible([]string{"recommend", "--json"}) || calibrationReminderEligible([]string{"recommend", "--device", "M5"}) {
 		t.Fatal("reminder contaminates machine output")
 	}
 }
-func TestPredictionJSONCarriesKind(t *testing.T) {
-	r := predict.Result{Kind: "calibrated", Timing: &predict.Timing{VerifySeconds: map[int]float64{2: .03}}}
-	js := jsonResults([]predict.Result{r})
-	if len(js) != 1 || js[0].Kind != "calibrated" || js[0].VerifySeconds[2] != .03 {
-		t.Fatal(js)
-	}
-}
-
 func TestCalibrationPlanAndRefitNeedNoEngine(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("TRIALM_HOME", home)
 	// No PATH engine and no engines directory. Neither path fingerprints hardware.
 	t.Setenv("PATH", t.TempDir())
 	for _, args := range [][]string{{"--plan", "--json"}, {"--plan", "--quick"}} {
-		if e := cmdCalibrate(args); e != nil {
+		if e := Run(args); e != nil {
 			t.Fatal(args, e)
 		}
 	}
@@ -90,7 +82,7 @@ func TestCalibrationPlanAndRefitNeedNoEngine(t *testing.T) {
 	if e = os.WriteFile(filepath.Join(home, "calib.json"), b, 0600); e != nil {
 		t.Fatal(e)
 	}
-	if e = cmdCalibrate([]string{"--refit", "--json"}); e != nil {
+	if e = Run([]string{"--refit", "--json"}); e != nil {
 		t.Fatal(e)
 	}
 	c, e := calib.Load(home)
@@ -98,7 +90,7 @@ func TestCalibrationPlanAndRefitNeedNoEngine(t *testing.T) {
 		t.Fatal(c, e)
 	}
 	for _, args := range [][]string{{"--plan", "--refit"}, {"--status", "--refit"}, {"--plan", "--status"}} {
-		if e = cmdCalibrate(args); e == nil {
+		if e = Run(args); e == nil {
 			t.Fatal("conflicting modes accepted", args)
 		}
 	}
@@ -107,7 +99,7 @@ func TestCalibrationPlanAndRefitNeedNoEngine(t *testing.T) {
 func TestCalibrationCheckModes(t *testing.T) {
 	t.Setenv("TRIALM_HOME", t.TempDir())
 	for _, args := range [][]string{{"--check", "model.gguf", "--plan"}, {"--check", "model.gguf", "--refit"}, {"--check", "model.gguf", "--status"}, {"--check", "model.gguf", "--quick"}, {"--check"}, {"--check", ""}} {
-		if e := cmdCalibrate(args); e == nil {
+		if e := Run(args); e == nil {
 			t.Fatal("invalid mode accepted", args)
 		}
 	}

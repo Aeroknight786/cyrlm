@@ -1,4 +1,4 @@
-package cli
+package calibrationcli
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/terminal"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -17,7 +18,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/runtime"
 )
 
-func cmdCalibrate(args []string) error {
+func Run(args []string) error {
 	fs := flag.NewFlagSet("calibrate", flag.ContinueOnError)
 	quick := fs.Bool("quick", false, "about 2 min; the two default hybrid and sliding MoE picks")
 	plan := fs.Bool("plan", false, "print the grid and estimated M5 seconds without running a benchmark")
@@ -59,11 +60,11 @@ func cmdCalibrate(args []string) error {
 		if *jsonOut {
 			return json.NewEncoder(os.Stdout).Encode(map[string]any{"v": 1, "type": "calibration_plan", "estimated_seconds": calib.EstimatedSeconds(steps), "estimate_basis": "Apple M5, llama-bench 11960; includes cold synthetic generation; allow about 25% variation", "steps": steps})
 		}
-		fmt.Printf("Calibration plan: %d steps, about %.0f seconds (%.0f min) on the M5. Allow about 25%% variation.\n", len(steps), calib.EstimatedSeconds(steps), calib.EstimatedSeconds(steps)/60)
+		fmt.Fprintf(out(), "Calibration plan: %d steps, about %.0f seconds (%.0f min) on the M5. Allow about 25%% variation.\n", len(steps), calib.EstimatedSeconds(steps), calib.EstimatedSeconds(steps)/60)
 		for i, s := range steps {
-			fmt.Printf("[%d/%d] %s · about %.0f s\n", i+1, len(steps), s.Description(), s.EstimatedSeconds)
+			fmt.Fprintf(out(), "[%d/%d] %s · about %.0f s\n", i+1, len(steps), s.Description(), s.EstimatedSeconds)
 		}
-		fmt.Println("Estimate from the owner's per-step timings, including generation and warm-up. No hard stop; Ctrl-C saves finished rows for resume.")
+		fmt.Fprintln(out(), "Estimate from the owner's per-step timings, including generation and warm-up. No hard stop; Ctrl-C saves finished rows for resume.")
 		return nil
 	}
 	if *refit {
@@ -78,12 +79,12 @@ func cmdCalibrate(args []string) error {
 		if *jsonOut {
 			return json.NewEncoder(os.Stdout).Encode(map[string]any{"v": 1, "type": "calibration_refit", "calibration": c})
 		}
-		fmt.Printf("Rebuilt %d fits from %d saved rows. Coverage: %s\n", len(c.Fits), len(c.Rows), strings.Join(c.Coverage, ", "))
+		fmt.Fprintf(out(), "Rebuilt %d fits from %d saved rows. Coverage: %s\n", len(c.Fits), len(c.Rows), strings.Join(c.Coverage, ", "))
 		for _, f := range c.Fits {
 			if f.Rejected != "" {
-				fmt.Printf("%s/%s depth %d %s: rejected (%s)\n", f.Class, f.Quant, f.Depth, f.Mode, f.Rejected)
+				fmt.Fprintf(out(), "%s/%s depth %d %s: rejected (%s)\n", f.Class, f.Quant, f.Depth, f.Mode, f.Rejected)
 			} else {
-				fmt.Printf("%s/%s depth %d %s: about %.2gx speed, ±%d%%\n", f.Class, f.Quant, f.Depth, f.Mode, f.Multiplier, f.BandPct)
+				fmt.Fprintf(out(), "%s/%s depth %d %s: about %.2gx speed, ±%d%%\n", f.Class, f.Quant, f.Depth, f.Mode, f.Multiplier, f.BandPct)
 			}
 		}
 		return nil
@@ -129,8 +130,7 @@ func cmdCalibrate(args []string) error {
 	if e != nil {
 		return fail(e)
 	}
-	var commonFlags common
-	t, _, e := commonFlags.target()
+	t, _, e := calibrationTarget(ctx)
 	if e != nil {
 		return fail(e)
 	}
@@ -209,11 +209,11 @@ func calibrationStatus(ctx context.Context, home, engine string, engineErr error
 	if jsonOut {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{"v": 1, "type": "calibration_status", "status": state, "message": reason, "calibration": c})
 	}
-	fmt.Printf("Calibration: %s. %s\n", state, reason)
+	fmt.Fprintf(out(), "Calibration: %s. %s\n", state, reason)
 	if c != nil {
-		fmt.Printf("Run: %s · %.0f seconds · %d raw samples · complete: %t\nCoverage: %s\n", c.Started.Format("2006-01-02"), c.WallSeconds, len(c.Rows), c.Complete, strings.Join(c.Coverage, ", "))
+		fmt.Fprintf(out(), "Run: %s · %.0f seconds · %d raw samples · complete: %t\nCoverage: %s\n", c.Started.Format("2006-01-02"), c.WallSeconds, len(c.Rows), c.Complete, strings.Join(c.Coverage, ", "))
 		for _, n := range c.Notes {
-			fmt.Println(n)
+			fmt.Fprintln(out(), n)
 		}
 	}
 	return nil
@@ -273,7 +273,7 @@ func saveCalibrationChoice(home, choice string) error {
 	}
 	return os.Rename(f.Name(), filepath.Join(home, "prefs.json"))
 }
-func maybeOfferCalibration(args []string) error {
+func MaybeOffer(args []string) error {
 	if len(args) > 0 && args[0] != "detect" && args[0] != "recommend" {
 		return nil
 	}
@@ -288,14 +288,14 @@ func maybeOfferCalibration(args []string) error {
 	if _, ok := prefs["calibration_offer"]; ok {
 		if len(args) > 0 && args[0] == "recommend" && calibrationReminderEligible(args) && predictCalibrationMissing(home) {
 			line := "calibrate this machine for tighter numbers: trialm calibrate"
-			if isCalibrationTTY(os.Stderr) && os.Getenv("NO_COLOR") == "" {
+			if terminal.IsTTY(os.Stderr) && os.Getenv("NO_COLOR") == "" {
 				line = "\x1b[2m" + line + "\x1b[0m"
 			}
 			fmt.Fprintln(os.Stderr, line)
 		}
 		return nil
 	}
-	if !calibrationPromptEligible(args, isCalibrationTTY(os.Stdin), isCalibrationTTY(os.Stdout), os.Getenv) {
+	if !calibrationPromptEligible(args, terminal.IsTTY(os.Stdin), terminal.IsTTY(os.Stdout), os.Getenv) {
 		return nil
 	}
 
@@ -305,7 +305,7 @@ func maybeOfferCalibration(args []string) error {
 	fmt.Fprintln(os.Stderr, "Recommended: calibrate this machine once for tighter speed estimates (5–7 min).")
 	fmt.Fprintln(os.Stderr, "triaLM writes synthetic models (random weights, real shapes) and runs llama-bench on them. No model downloads. It needs about 6 GB of free disk for temporary files, deleted as it goes, and keeps only calib.json and prefs.json under", home+".")
 	fmt.Fprint(os.Stderr, "Enter calibrates (recommended) · s or any other key skips: ")
-	key, e := calibrationKey(os.Stdin)
+	key, e := terminal.Key(os.Stdin)
 	fmt.Fprintln(os.Stderr)
 	if e != nil {
 		return e
@@ -321,7 +321,7 @@ func maybeOfferCalibration(args []string) error {
 		return e
 	}
 	if choice == "accepted" {
-		return cmdCalibrate(nil)
+		return Run(nil)
 	}
 	return nil
 }

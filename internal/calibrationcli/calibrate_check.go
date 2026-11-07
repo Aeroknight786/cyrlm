@@ -1,4 +1,4 @@
-package cli
+package calibrationcli
 
 import (
 	"context"
@@ -30,8 +30,7 @@ func calibrationCheck(ctx context.Context, home, engine, path string, jsonOut bo
 	if fp.Hash != c.Fingerprint.Hash {
 		return errors.New("calibration is stale; run trialm calibrate before --check")
 	}
-	var flags common
-	target, _, err := flags.target()
+	target, _, err := calibrationTarget(ctx)
 	if err != nil {
 		return err
 	}
@@ -59,9 +58,9 @@ func calibrationCheck(ctx context.Context, home, engine, path string, jsonOut bo
 		if !v.InsideBand {
 			result = "MISSED band"
 		}
-		fmt.Printf("%s at %s: measured %s tok/s, calibrated %s tok/s ±%d%%; error %+.0f%%; %s (%s)\n", mode, sim.Kilo(v.Depth), bandNumber(v.MeasuredTPS, 10), bandNumber(v.PredictedTPS, v.BandPct), v.BandPct, v.ErrorPct, result, v.LoadMode)
+		fmt.Fprintf(out(), "%s at %s: measured %s tok/s, calibrated %s tok/s ±%d%%; error %+.0f%%; %s (%s)\n", mode, sim.Kilo(v.Depth), bandNumber(v.MeasuredTPS, 10), bandNumber(v.PredictedTPS, v.BandPct), v.BandPct, v.ErrorPct, result, v.LoadMode)
 	}
-	fmt.Println("Saved validation rows in calib.json. Synthetic fits are unchanged.")
+	fmt.Fprintln(out(), "Saved validation rows in calib.json. Synthetic fits are unchanged.")
 	return nil
 }
 

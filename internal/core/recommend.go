@@ -208,6 +208,14 @@ func BestFileFor(c Options, m catalog.Model, t predict.Target, sc predict.Scenar
 		if err != nil {
 			continue // this file does not exist for any runtime here
 		}
+		filtered := rs[:0]
+		for _, r := range rs {
+			if oops(c, r) {
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		rs = filtered
 		best, mine := Recommend(rs, in, hh)
 		pick := best
 		if mine != nil && best != nil && mine.Scenario.Session.Seconds() <= best.Scenario.Session.Seconds()*1.05 {
@@ -285,4 +293,8 @@ func PredictAll(c Options, m catalog.Model, t predict.Target, sc predict.Scenari
 		}
 	}
 	return out, nil
+}
+
+func oops(c Options, r predict.Result) bool {
+	return (c.MaxDownloadGB > 0 && float64(r.Quant.FileBytes)/1e9 > c.MaxDownloadGB) || (c.MinTPS > 0 && r.DecodeTPSDeep < c.MinTPS) || (c.MaxTurn > 0 && r.Scenario.FollowUpTurn.Seconds() > c.MaxTurn) || (c.MinBits > 0 && r.Model.TotalParamsB > 0 && float64(r.Quant.FileBytes)*8/(r.Model.TotalParamsB*1e9) < c.MinBits)
 }

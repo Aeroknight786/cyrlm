@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/terminal"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,36 +22,30 @@ import (
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/hw"
+	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/paths"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/runtime"
 	"github.com/aeroknight786/trialm/internal/server"
 	"github.com/aeroknight786/trialm/internal/sim"
+	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/tok"
+	"github.com/aeroknight786/trialm/internal/trial"
 	"github.com/aeroknight786/trialm/internal/upstream"
+	"math"
 )
 
 var version = "0.2.1-dev"
 
-const usage = `trialm — try a local coding model before you download it
+const usage = `triaLM — try a local coding model before you download it
 
-Easiest: let your coding agent do everything.
-  trialm prompt --harness claude-code     prints a message; paste it into Claude Code (or codex, opencode, …)
+  trialm find [model]        ranked models for this machine
+  trialm try [model]         a private, paced cloud trial
+  trialm setup <model>       review a local setup plan (execution in v0.5)
+  trialm launch [tool]       daily launch (arrives in v0.5)
+  trialm key                 OpenRouter sign-in
 
-Commands:
-  trialm calibrate [--quick|--status]      optional one-time machine calibration
-  trialm detect                           your machine and installed runtimes
-  trialm recommend [--harness h]          best models + runtimes for this machine
-  trialm try <model> [--harness h]          live trial: the real model, at this machine's speed
-  trialm plan <model> [--runtime r]       exact setup steps (nothing is run)
-  trialm verify --runtime r --model m     measure your real setup and check your coding tool works with it
-  trialm bridge --harness h               connect a coding tool to a local runtime it can't talk to directly (e.g. Codex)
-  trialm login                            store your OpenRouter key (in your own terminal, never in a chat)
-  trialm version
-
-Flags: --harness claude-code|codex|opencode|aider|cline|continue|zed|qwen-code
-       --runtime ollama|llamacpp|lmstudio|lmstudio-mlx|mlx-lm   --quant Q4_K_M   --ctx N   --json
-More commands and flags: trialm help --all
+Flags: --plain --json. More: trialm help advanced
 `
 const usageAll = `trialm — try a local model before you download it
 
@@ -100,90 +95,6 @@ Examples:
   trialm serve qwen3-coder:30b --runtime llamacpp --upstream mock
 `
 
-func runLegacy() {
-	migrateHome()
-	if err := maybeOfferCalibration(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		if errors.Is(err, context.Canceled) {
-			os.Exit(130)
-		}
-	}
-	if len(os.Args) < 2 {
-		// Bare `trialm` becomes the home screen in v0.4; until then it shows
-		// the usage, successfully, so the installer's final step exits 0.
-		fmt.Print(usage)
-		return
-	}
-	var err error
-	args := os.Args[2:]
-	if backgroundable[os.Args[1]] && paths.Getenv("DETACHED") == "" {
-		if rest, _, bg := takeFlag(args, "background", false); bg {
-			rest, logPath, _ := takeFlag(rest, "log", true)
-			if err := startBackground(os.Args[1], rest, logPath); err != nil {
-				fmt.Fprintln(os.Stderr, "error:", err)
-				os.Exit(1)
-			}
-			return
-		}
-	}
-	switch os.Args[1] {
-	case "calibrate":
-		err = cmdCalibrate(args)
-	case "detect":
-		err = cmdDetect(args)
-	case "models":
-		err = cmdModels(args)
-	case "runtimes":
-		err = cmdRuntimes(args)
-	case "predict":
-		err = cmdPredict(args)
-	case "serve":
-		err = cmdServe(args, false)
-	case "try":
-		err = cmdServe(args, true)
-	case "bridge":
-		err = cmdBridge(args)
-	case "bg":
-		err = cmdBg(args)
-	case "inspect":
-		err = cmdInspect(args)
-	case "recommend":
-		err = cmdRecommend(args)
-	case "verify":
-		err = cmdVerify(args)
-	case "plan":
-		err = cmdPlan(args)
-	case "prompt":
-		err = cmdPrompt(args)
-	case "login":
-		err = cmdLogin(args)
-	case "logout":
-		err = cmdLogout(args)
-	case "share":
-		err = cmdShare(args)
-	case "config":
-		err = cmdConfig(args)
-	case "version", "--version", "-v":
-		fmt.Println("trialm", version)
-	case "help", "--help", "-h":
-		if len(args) > 0 && (args[0] == "--all" || args[0] == "all") {
-			fmt.Print(usageAll)
-		} else {
-			fmt.Print(usage)
-		}
-	default:
-		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
-		os.Exit(2)
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		if errors.Is(err, context.Canceled) {
-			os.Exit(130)
-		}
-		os.Exit(1)
-	}
-}
-
 // migrateHome moves a cyrlm installation (~/.cyrlm and the old config
 // directory) into ~/.trialm once, and says so on stderr.
 func migrateHome() {
@@ -219,7 +130,7 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	var pos []string
 	for {
 		if err := fs.Parse(args); err != nil {
-			return nil, err
+			return nil, &exitError{2, err.Error()}
 		}
 		rest := fs.Args()
 		if len(rest) == 0 {
@@ -232,6 +143,8 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 
 // common flags shared by predict/serve/try.
 type common struct {
+	prefs                                        store.Preferences
+	minTPS, maxTurn, minBits                     float64
 	runtime, quant, harness, device, kv, backend string
 	ctx                                          int
 	ram, vram                                    float64
@@ -254,6 +167,30 @@ func (c *common) register(fs *flag.FlagSet, defaultRuntime string) {
 	fs.BoolVar(&c.probe, "probe", false, "measure memory bandwidth (CPU-only accuracy)")
 	fs.BoolVar(&c.jsonOut, "json", false, "JSON output")
 	fs.BoolVar(&c.verbose, "verbose", false, "show low-level details and assumptions")
+	// New requirement flags are aliases of the same values used by the old CLI.
+	c.prefs, _ = store.Default().Preferences()
+	if currentVerb == "find" || currentVerb == "try" || currentVerb == "setup" {
+		c.harness = c.prefs.Tool
+		c.ctx = c.prefs.Context
+		c.device = c.prefs.Hardware
+	}
+	fs.StringVar(&c.harness, "for", c.harness, "coding tool")
+	fs.StringVar(&c.device, "as", c.device, "what-if device")
+	fs.StringVar(&c.prefs.Model, "model", c.prefs.Model, "model family filter")
+	fs.StringVar(&c.prefs.Use, "use", c.prefs.Use, "agent | chat")
+	fs.StringVar(&c.prefs.Priority, "want", c.prefs.Priority, "balanced | speed | quality | long")
+	fs.StringVar(&c.prefs.Priority, "priority", c.prefs.Priority, "ranking priority")
+	fs.StringVar(&c.prefs.ContextVia, "context-via", c.prefs.ContextVia, "native | yarn")
+	fs.StringVar(&c.prefs.ContextVia, "yarn", c.prefs.ContextVia, "opt-in YaRN (arrives in v0.6)")
+	fs.StringVar(&c.prefs.QualityFloor, "quality-floor", c.prefs.QualityFloor, "3bit-ok | 4bit+")
+	fs.Float64Var(&c.prefs.MaxDownloadGB, "max-gb", c.prefs.MaxDownloadGB, "download cap in GB")
+	fs.StringVar(&c.prefs.Engines, "engines", c.prefs.Engines, "stable+new | installed | stable")
+	fs.StringVar(&c.prefs.Boosts, "boosts", c.prefs.Boosts, "off | auto | everything")
+	fs.StringVar(&c.prefs.Privacy, "privacy", c.prefs.Privacy, "repo | playground | predict-only")
+	fs.Float64Var(&c.minTPS, "min-tps", 0, "minimum writing speed")
+	fs.Float64Var(&c.maxTurn, "max-turn", 0, "maximum follow-up seconds")
+	fs.Float64Var(&c.minBits, "min-bits", 0, "minimum file bits per weight")
+
 }
 
 // finish applies flag interactions after parsing.
@@ -263,11 +200,14 @@ func (c *common) finish(fs *flag.FlagSet) {
 			c.tunedSet = true
 		}
 	})
+	if c.prefs.Boosts == "off" {
+		c.tuned = false
+	}
 	if c.defaults {
 		c.tuned = false
 	}
 	switch fs.Name() {
-	case "try", "serve", "recommend", "plan":
+	case "try", "serve", "recommend", "find", "setup", "plan":
 		if c.harness == "" {
 			h, note := harness.DetectInstalled()
 			c.harness = h.ID
@@ -314,7 +254,7 @@ func scenarioFor(h string) (predict.Scenario, harness.Harness, error) {
 // ---------------------------------------------------------------- detect
 
 func cmdDetect(args []string) error {
-	fs := flag.NewFlagSet("detect", flag.ExitOnError)
+	fs := flag.NewFlagSet("detect", flag.ContinueOnError)
 	var c common
 	c.register(fs, "")
 	if _, err := parseInterspersed(fs, args); err != nil {
@@ -341,7 +281,7 @@ func cmdDetect(args []string) error {
 // ---------------------------------------------------------------- models
 
 func cmdModels(args []string) error {
-	fs := flag.NewFlagSet("models", flag.ExitOnError)
+	fs := flag.NewFlagSet("models", flag.ContinueOnError)
 	jsonOut := fs.Bool("json", false, "JSON output")
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
@@ -355,7 +295,7 @@ func cmdModels(args []string) error {
 }
 
 func cmdRuntimes(args []string) error {
-	fs := flag.NewFlagSet("runtimes", flag.ExitOnError)
+	fs := flag.NewFlagSet("runtimes", flag.ContinueOnError)
 	jsonOut := fs.Bool("json", false, "JSON output")
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
@@ -378,11 +318,11 @@ func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scena
 	return core.ChooseRuntime(c.options(), t, m, sc, h)
 }
 func (c common) options() core.Options {
-	return core.Options{Runtime: c.runtime, Quant: c.quant, Context: c.ctx, KV: c.kv, Backend: c.backend, Probe: c.probe, Tuned: c.tuned, Device: c.device, RAM: c.ram, VRAM: c.vram}
+	return core.Options{Runtime: c.runtime, Quant: c.quant, Context: c.ctx, KV: c.kv, Backend: c.backend, Probe: c.probe, Tuned: c.tuned, Device: c.device, RAM: c.ram, VRAM: c.vram, Use: c.prefs.Use, Priority: c.prefs.Priority, MaxDownloadGB: c.prefs.MaxDownloadGB, MinTPS: c.minTPS, MaxTurn: c.maxTurn, MinBits: c.minBits}
 }
 
 func cmdPredict(args []string) error {
-	fs := flag.NewFlagSet("predict", flag.ExitOnError)
+	fs := flag.NewFlagSet("predict", flag.ContinueOnError)
 	var c common
 	c.register(fs, "all")
 	pos, err := parseInterspersed(fs, args)
@@ -420,7 +360,7 @@ func cmdPredict(args []string) error {
 	_, hh, _ := scenarioFor(c.harness)
 	printPrediction(m, t, sc, results, inst)
 	printRecommendation(results, inst, hh)
-	fmt.Println()
+	fmt.Fprintln(out())
 	return nil
 }
 
@@ -431,34 +371,93 @@ func cmdServe(args []string, try bool) error {
 	if try {
 		name = "try"
 	}
-	fs := flag.NewFlagSet(name, flag.ExitOnError)
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	var c common
 	c.register(fs, "")
 	up := fs.String("upstream", "auto", "auto | trialm | openrouter | mock | base URL")
 	upModel := fs.String("upstream-model", "", "upstream model id")
 	keyEnv := fs.String("key-env", "", "env var with the upstream API key")
 	provider := fs.String("provider", "", "OpenRouter provider slug(s) to pin")
-	port := fs.Int("port", 11434, "listen port")
+	defaultPort := 11434
+	if try {
+		defaultPort = 11535
+	}
+	port := fs.Int("port", defaultPort, "listen port")
 	host := fs.String("host", "127.0.0.1", "listen address")
 	launch := fs.Bool("launch", false, "launch the harness (try)")
 	logFile := fs.String("log", "", "write request logs to this file (also works in the foreground)")
 	allowOrigin := fs.String("allow-origin", "", "extra allowed browser origins (comma-separated)")
 	force := fs.Bool("force", false, "serve even if the model does not fit")
+	zdr := fs.Bool("zdr", false, "require zero data retention")
+	budget := fs.Float64("budget", c.prefs.BudgetUSD, "per-trial USD cap")
+	pace := fs.String("pace", "p50", "p50 | p90 local pacing")
+	serve := fs.Bool("serve", false, "serve in the foreground without launching a tool")
+	here := fs.Bool("here", false, "launch in this terminal")
+	window := fs.Bool("window", false, "open a trial window (arrives in v0.4)")
+	playground := fs.Bool("playground", false, "use a scratch working directory")
 	pos, err := parseInterspersed(fs, args)
 	if err != nil {
 		return err
 	}
 	c.finish(fs)
+	if *pace != "p50" && *pace != "p90" {
+		return &exitError{2, "--pace must be p50|p90"}
+	}
+	if *budget <= 0 || math.IsNaN(*budget) || math.IsInf(*budget, 0) {
+		return &exitError{2, "--budget must be a finite positive USD amount"}
+	}
+	if *window {
+		return needs("--here or --serve", "trial windows arrive in v0.4")
+	}
+	if *here {
+		*launch = true
+	}
+	if *serve && *launch {
+		return &exitError{2, "choose --serve or --launch"}
+	}
+	if try && !*serve && !*launch && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) {
+		*launch = true
+	}
 	portSet := false
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "port" {
 			portSet = true
 		}
 	})
-	if len(pos) != 1 {
+	if err := c.validateRequirements(); err != nil {
+		return err
+	}
+	if len(pos) == 0 && (!try || currentVerb != "try") {
 		return fmt.Errorf("usage: trialm %s <model> [flags]", name)
 	}
-	m, err := lookupModel(pos[0])
+	if try && len(pos) == 0 {
+		sc, hh, e := scenarioFor(c.harness)
+		if e != nil {
+			return e
+		}
+		t, _, e := c.target()
+		if e != nil {
+			return e
+		}
+		listing, e := (core.Session{}).Find(commandContext, c.options(), t, sc, hh, c.prefs.Model, 1)
+		if c.prefs.Model == "any" {
+			listing, e = (core.Session{}).Find(commandContext, c.options(), t, sc, hh, "", 1)
+		}
+		if e != nil {
+			return e
+		}
+		if len(listing.Rows) == 0 {
+			return &exitError{4, "no working trial recipe; use trialm find"}
+		}
+		if e = saveListing(listing.Rows, hh.ID); e != nil {
+			return e
+		}
+	}
+	modelName, err := resolveRecipe(pos, &c)
+	if err != nil {
+		return err
+	}
+	m, err := lookupModel(modelName)
 	if err != nil {
 		return err
 	}
@@ -478,9 +477,60 @@ func cmdServe(args []string, try bool) error {
 	res, why := prepared.Result, prepared.Why
 	prof := res.Runtime
 	// Upstream first, so a missing key is the first thing a user sees.
+	if c.prefs.Privacy == "predict-only" {
+		printPrediction(m, t, sc, []predict.Result{res}, installed{})
+		return emit("result", map[string]any{"prediction": jsonResults([]predict.Result{res}), "privacy": "predict-only"}, core.Next{Cmd: "trialm setup " + m.OllamaTag + " --dry-run --json", Why: "review local setup"})
+	}
 	client, upDesc, err := buildUpstream(*up, *upModel, *keyEnv, *provider, m)
 	if err != nil {
 		return err
+	}
+	fidelity := "offline timing demo · no model"
+	var spending *trial.Budget
+	if uc, ok := client.(*upstream.OpenAICompat); ok {
+		fidelity = "custom endpoint · precision and privacy unverified"
+		if uc.BaseURL == upstream.OpenRouterBaseURL {
+			endpoints, e := (openrouter.Client{Key: uc.APIKey}).Endpoints(commandContext, uc.Model)
+			if e != nil {
+				return e
+			}
+			endpoint, e := trial.Select(endpoints, trial.Policy{ZDR: *zdr, Tools: c.prefs.Use != "chat", Context: res.Settings.ContextTokens, Provider: *provider, Quant: res.Quant.Name})
+			if e != nil {
+				return needs("--privacy predict-only", e.Error())
+			}
+			uc.Extra = map[string]any{"provider": trial.Provider(endpoint, *zdr)}
+			rates, e := trial.Prices(endpoint.Pricing)
+			if e != nil {
+				return e
+			}
+			spending = trial.NewBudget(client, rates, *budget)
+			client = spending
+			fidelity = trial.Fidelity(m, res.Quant, endpoint)
+			if e = privacyNotice(); e != nil {
+				return e
+			}
+		}
+	}
+	fmt.Fprintln(out(), "Trial fidelity:", fidelity)
+	if *pace == "p90" {
+		res.Timing = trial.Pessimistic(res.Timing, res.Accuracy.DecodePct, res.Accuracy.PrefillPct)
+	}
+	if try && currentVerb == "try" && !*launch && !*serve && paths.Getenv("DETACHED") == "" {
+		return needs("--serve or --here", "a trial needs a terminal or foreground server mode")
+	}
+	if *playground || c.prefs.Privacy == "playground" {
+		dir := filepath.Join(trialmHome(), "playground")
+		if err = os.MkdirAll(dir, 0700); err != nil {
+			return err
+		}
+		old, e := os.Getwd()
+		if e != nil {
+			return e
+		}
+		if e = os.Chdir(dir); e != nil {
+			return e
+		}
+		defer os.Chdir(old)
 	}
 	if try {
 		printPrediction(m, t, sc, []predict.Result{res}, installed{})
@@ -494,7 +544,7 @@ func cmdServe(args []string, try bool) error {
 	if *allowOrigin != "" {
 		origins = strings.Split(*allowOrigin, ",")
 	}
-	logW := os.Stdout
+	logW := out()
 	var logPath string
 	if *launch || *logFile != "" {
 		logPath = launchLogPath(*logFile, time.Now())
@@ -509,6 +559,17 @@ func cmdServe(args []string, try bool) error {
 		logW = f
 	}
 	srv := server.New(server.Config{
+		TrialSummary: func(records []sim.Record) string {
+			spend := 0.0
+			if spending != nil {
+				spend = spending.Spent()
+			}
+			report := trial.Summarize(records, spend, fidelity)
+			if jsonMode {
+				_ = emit("result", report, core.Next{Cmd: "trialm setup " + m.OllamaTag + " --dry-run --json", Why: "review local setup"})
+			}
+			return report.Plain(max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct))
+		},
 		Device: dev, Upstream: client, DeviceName: t.Name, RuntimeName: prof.Name, Log: logW, AllowOrigins: origins,
 		Model: api.ModelInfo{
 			Name: m.OllamaTag + "-trialm", Family: m.Family, ParameterSize: m.ParamLabel(), Quantization: res.Quant.Name,
@@ -521,20 +582,25 @@ func cmdServe(args []string, try bool) error {
 		return fmt.Errorf("cannot listen on %s:%d: %w", *host, *port, err)
 	}
 	printServeBanner(m, t, prof, why, res, upDesc, bound, *port, c.verbose, !try)
+	if jsonMode {
+		if err = emit("progress", map[string]any{"ready": true, "endpoint": fmt.Sprintf("http://127.0.0.1:%d", bound), "fidelity": fidelity}); err != nil {
+			return err
+		}
+	}
 	if c.harness != "" {
 		setup := hh.SetupFor(harness.Options{Port: bound, Model: m.OllamaTag + "-trialm", Tuned: c.tuned, ContextTokens: res.Settings.ContextTokens, Protocol: hh.ProtocolFor(prof.APIs)})
 		if err := setup.WriteFiles(); err != nil {
 			_ = srv.Shutdown(context.Background())
 			return err
 		}
-		fmt.Printf("── Connect %s ─────────────────────────────────────────\n\n%s\n", hh.Name, setup.Render())
+		fmt.Fprintf(out(), "── Connect %s ─────────────────────────────────────────\n\n%s\n", hh.Name, setup.Render())
 		if *launch {
 			go func() { _ = srv.Serve() }()
-			fmt.Printf("Launching %s… (simulation log: %s)\n\n", hh.Name, logPath)
+			fmt.Fprintf(out(), "Launching %s… (simulation log: %s)\n\n", hh.Name, logPath)
 			lerr := setup.Launch()
 			_ = srv.Shutdown(context.Background())
-			fmt.Println()
-			fmt.Println(srv.Summary())
+			fmt.Fprintln(out())
+			fmt.Fprintln(out(), srv.Summary())
 			return lerr
 		}
 	}
@@ -573,10 +639,10 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 		switch {
 		case acct.CanShare():
 			kind = "trialm"
-		case os.Getenv(nonEmptyStr(keyEnv, "OPENROUTER_API_KEY")) != "" || acct.OpenRouterKey != "":
+		case os.Getenv(nonEmptyStr(keyEnv, "OPENROUTER_API_KEY")) != "" || store.Default().Key() != "":
 			kind = "openrouter"
 		default:
-			return nil, "", errors.New("the trial runs the real model in the cloud and needs your OpenRouter key: run `trialm login` yourself in a terminal (never paste the key into a chat). Get a key at https://openrouter.ai/keys. For an offline timing demo, use --upstream mock")
+			return nil, "", needs("trialm key or --upstream mock", "the trial needs your OpenRouter key; never paste it into a chat")
 		}
 	}
 	switch kind {
@@ -617,10 +683,10 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 	}
 	key := paths.LookupEnv(keyEnv)
 	if key == "" && base == upstream.OpenRouterBaseURL {
-		key = acct.OpenRouterKey
+		key = store.Default().Key()
 	}
 	if key == "" && base == upstream.OpenRouterBaseURL {
-		return nil, "", fmt.Errorf("no OpenRouter key: run `trialm login` yourself in a terminal (or set %s), or use --upstream mock for an offline timing demo", keyEnv)
+		return nil, "", needs("trialm key or --key-env "+keyEnv, "no OpenRouter key")
 	}
 	extra := map[string]any{}
 	if base == upstream.OpenRouterBaseURL && provider != "" {
@@ -633,6 +699,24 @@ func buildUpstream(kind, model, keyEnv, provider string, m catalog.Model) (upstr
 // ---------------------------------------------------------------- helpers
 
 func printJSON(v any) error {
+	if jsonMode {
+		kind := "result"
+		switch currentVerb {
+		case "find":
+			kind = "recipes"
+		case "setup":
+			kind = "plan"
+		}
+		if err := emit(kind, v); err != nil {
+			return err
+		}
+		next := []core.Next{{Cmd: "trialm find --json", Why: "find another model"}}
+		if currentVerb == "find" {
+			next = []core.Next{{Cmd: "trialm try 1", Why: "try the top recipe"}, {Cmd: "trialm setup 1 --dry-run --json", Why: "review local setup"}}
+		}
+		return emit("result", map[string]any{"ok": true}, next...)
+	}
+
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)

@@ -33,10 +33,12 @@ func (s Session) Emit(kind string, data any, next ...Next) {
 }
 
 type Options struct {
-	Runtime, Quant, KV, Backend, Device string
-	Context                             int
-	RAM, VRAM                           float64
-	Probe, Tuned                        bool
+	Runtime, Quant, KV, Backend, Device     string
+	Use, Priority                           string
+	MaxDownloadGB, MinTPS, MaxTurn, MinBits float64
+	Context                                 int
+	RAM, VRAM                               float64
+	Probe, Tuned                            bool
 }
 type Detection struct {
 	System   *hw.System            `json:"system"`
@@ -84,7 +86,7 @@ func (s Session) Find(ctx context.Context, o Options, t predict.Target, sc predi
 		if err := ctx.Err(); err != nil {
 			return out, err
 		}
-		if !m.Tools && hh.ID != "aider" {
+		if o.Use != "chat" && !m.Tools && hh.ID != "aider" {
 			continue
 		}
 		if query != "" && !strings.Contains(strings.ToLower(m.OllamaTag+" "+m.Name+" "+m.ID), strings.ToLower(query)) {

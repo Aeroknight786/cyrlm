@@ -42,7 +42,7 @@ var runtimeEndpoints = []struct{ id, name, url string }{
 // deterministic runtime failures into errors the harness shows instead of
 // retrying. No timing is simulated.
 func cmdBridge(args []string) error {
-	fs := flag.NewFlagSet("bridge", flag.ExitOnError)
+	fs := flag.NewFlagSet("bridge", flag.ContinueOnError)
 	rt := fs.String("runtime", "", "runtime to connect to: llamacpp | ollama | lmstudio | mlx-lm (default: the first one answering)")
 	endpoint := fs.String("endpoint", "", "runtime base URL, e.g. http://127.0.0.1:8080")
 	model := fs.String("model", "", "model name as the runtime knows it (default: the runtime's first model)")
@@ -81,7 +81,7 @@ func cmdBridge(args []string) error {
 	if key == "" {
 		key = "local"
 	}
-	logW := os.Stdout
+	logW := out()
 	if *logFile != "" {
 		if err := os.MkdirAll(filepath.Dir(*logFile), 0o700); err != nil {
 			return err
@@ -102,21 +102,21 @@ func cmdBridge(args []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot listen on 127.0.0.1:%d: %w", *port, err)
 	}
-	fmt.Printf("\ntrialm bridge → %s at %s, model %s", rtName, base, *model)
+	fmt.Fprintf(out(), "\ntrialm bridge → %s at %s, model %s", rtName, base, *model)
 	if *ctxTokens > 0 {
-		fmt.Printf(", context %d tokens", *ctxTokens)
+		fmt.Fprintf(out(), ", context %d tokens", *ctxTokens)
 	}
-	fmt.Println()
-	fmt.Printf("  Endpoints on http://127.0.0.1:%d — OpenAI (/v1/chat/completions, /v1/responses), Anthropic (/v1/messages), Ollama (/api/*)\n", bound)
-	fmt.Println("  Real local inference, no simulation. Requests are reshaped for the model's chat template; runtime errors are shown, not retried.")
-	fmt.Println()
+	fmt.Fprintln(out())
+	fmt.Fprintf(out(), "  Endpoints on http://127.0.0.1:%d — OpenAI (/v1/chat/completions, /v1/responses), Anthropic (/v1/messages), Ollama (/api/*)\n", bound)
+	fmt.Fprintln(out(), "  Real local inference, no simulation. Requests are reshaped for the model's chat template; runtime errors are shown, not retried.")
+	fmt.Fprintln(out())
 	if hh.ID != "" {
 		setup := hh.SetupFor(harness.Options{Port: bound, Model: *model, Tuned: true, ContextTokens: *ctxTokens, Protocol: "openai-chat", Bridge: true})
 		if err := setup.WriteFiles(); err != nil {
 			_ = srv.Shutdown(context.Background())
 			return err
 		}
-		fmt.Printf("── Connect %s ─────────────────────────────────────────\n\n%s\n", hh.Name, setup.Render())
+		fmt.Fprintf(out(), "── Connect %s ─────────────────────────────────────────\n\n%s\n", hh.Name, setup.Render())
 	}
 	printRunning("")
 	return serveUntilSignal(srv)
@@ -212,7 +212,7 @@ func printRunning(extra string) {
 	if goruntime.GOOS == "windows" {
 		stop = fmt.Sprintf("Stop-Process -Id %d", os.Getpid())
 	}
-	fmt.Printf("Running (pid %d). Stop with Ctrl-C, or from another terminal: %s%s\n\n", os.Getpid(), stop, extra)
+	fmt.Fprintf(out(), "Running (pid %d). Stop with Ctrl-C, or from another terminal: %s%s\n\n", os.Getpid(), stop, extra)
 }
 
 func serveUntilSignal(srv *server.Server) error {
@@ -230,8 +230,8 @@ func serveUntilSignal(srv *server.Server) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	fmt.Println()
-	fmt.Print(srv.Summary())
+	fmt.Fprintln(out())
+	fmt.Fprint(out(), srv.Summary())
 	return nil
 }
 
@@ -335,13 +335,13 @@ func detach(argv []string, logPath, readyURL string, timeout time.Duration, self
 		}
 		if ok(url) {
 			if self {
-				fmt.Print(readFile(logPath))
+				fmt.Fprint(out(), readFile(logPath))
 			}
 			stop := fmt.Sprintf("kill %d", c.Process.Pid)
 			if goruntime.GOOS == "windows" {
 				stop = fmt.Sprintf("Stop-Process -Id %d", c.Process.Pid)
 			}
-			fmt.Printf("✓ Started in the background and answering at %s (pid %d). Log: %s. Stop: %s\n", strings.TrimSuffix(url, "/health"), c.Process.Pid, logPath, stop)
+			fmt.Fprintf(out(), "✓ Started in the background and answering at %s (pid %d). Log: %s. Stop: %s\n", strings.TrimSuffix(url, "/health"), c.Process.Pid, logPath, stop)
 			return nil
 		}
 	}
@@ -391,7 +391,7 @@ func tail(p string, n int) string {
 //
 //	trialm bg --log ~/.trialm/logs/llama.log --ready http://127.0.0.1:8080/health -- llama-server …
 func cmdBg(args []string) error {
-	fs := flag.NewFlagSet("bg", flag.ExitOnError)
+	fs := flag.NewFlagSet("bg", flag.ContinueOnError)
 	logPath := fs.String("log", "", "log file (required)")
 	ready := fs.String("ready", "", "URL that answers 2xx once the program is ready (required)")
 	timeout := fs.Duration("timeout", 10*time.Minute, "how long to wait for --ready (model loads can be slow)")

@@ -1,6 +1,6 @@
 //go:build !windows
 
-package cli
+package terminal
 
 import (
 	"io"
@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// isCalibrationTTY checks the actual terminal ioctl through the OS's stty,
+// IsTTY checks the actual terminal ioctl through the OS's stty,
 // avoiding treating /dev/null (also a character device) as an interactive TTY.
-func isCalibrationTTY(f *os.File) bool {
+func IsTTY(f *os.File) bool {
 	st, e := f.Stat()
 	if e != nil || st.Mode()&os.ModeCharDevice == 0 {
 		return false
@@ -24,7 +24,7 @@ func isCalibrationTTY(f *os.File) bool {
 }
 
 // Read one key with the terminal mode restored before any benchmark starts.
-func calibrationKey(f *os.File) (byte, error) {
+func Key(f *os.File) (byte, error) {
 	get := exec.Command("stty", "-g")
 	get.Stdin = f
 	old, e := get.Output()

@@ -1,13 +1,17 @@
 package cli
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/core"
+	"github.com/aeroknight786/trialm/internal/ui"
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
+
 	"time"
 
 	"github.com/aeroknight786/trialm/internal/harness"
@@ -30,19 +34,26 @@ func freePort(from int) int {
 // cmdPlan prints the exact steps to set up a model locally. It never runs
 // them: a person or their coding agent executes them, one at a time.
 func cmdPlan(args []string) error {
-	fs := flag.NewFlagSet("plan", flag.ExitOnError)
+	fs := flag.NewFlagSet("plan", flag.ContinueOnError)
 	var c common
 	c.register(fs, "")
+	dry := fs.Bool("dry-run", false, "print the plan and its approval hash")
+	var yes approval
+	fs.Var(&yes, "yes", "approve this plan_id (execution arrives in v0.5)")
 	force := fs.Bool("force", false, "plan even if the model does not fit")
 	pos, err := parseInterspersed(fs, args)
 	if err != nil {
 		return err
 	}
 	c.finish(fs)
-	if len(pos) != 1 {
+	if len(pos) != 1 && currentVerb != "setup" {
 		return errors.New("usage: trialm plan <model> [--runtime r] [--defaults] [--harness h] [--quant q] [--ctx n] [--json]")
 	}
-	m, err := lookupModel(pos[0])
+	modelName, err := resolveRecipe(pos, &c)
+	if err != nil {
+		return err
+	}
+	m, err := lookupModel(modelName)
 	if err != nil {
 		return err
 	}
@@ -97,73 +108,34 @@ func cmdPlan(args []string) error {
 	if portNote != "" {
 		plan.Warnings = append(plan.Warnings, portNote)
 	}
+	if currentVerb == "setup" {
+		b, err := json.Marshal(plan)
+		if err != nil {
+			return err
+		}
+		id := fmt.Sprintf("%x", sha256.Sum256(b))
+		if yes != "" && yes != "true" && string(yes) != id {
+			return &exitError{4, "setup plan changed; review trialm setup --dry-run and approve its new --yes=<plan_id>"}
+		}
+		next := core.Next{Cmd: "trialm setup " + modelName + " --yes=" + id + " --json", Why: "approve this reviewed plan; execution arrives in v0.5"}
+		if c.jsonOut {
+			if err = emit("plan", map[string]any{"plan_id": id, "plan": plan}); err != nil {
+				return err
+			}
+			return emit("result", map[string]any{"plan_id": id, "ready": false, "execution": "arrives in v0.5"}, next)
+		}
+		ui.PrintPlan(out(), plan, why, res)
+		fmt.Fprintln(out(), "plan_id:", id)
+		if !*dry {
+			fmt.Fprintln(out(), "Execution arrives in v0.5. Nothing has been run.")
+		}
+		return nil
+	}
 	if c.jsonOut {
 		return printJSON(plan)
 	}
-	printPlan(plan, why, res)
+	ui.PrintPlan(out(), plan, why, res)
 	return nil
-}
-
-func printPlan(p setup.Plan, why string, res predict.Result) {
-	mode := "default settings"
-	if p.Tuned {
-		mode = "tuned settings"
-	}
-	fmt.Printf("\nSetup plan: %s (%s, %s) with %s, %s\n", p.ModelName, p.Quant, gb(float64(p.DownloadBytes)), p.RuntimeName, mode)
-	fmt.Printf("  runtime chosen: %s\n", why)
-	fmt.Printf("  context %d tokens · %s · serves at %s as %q\n", p.ContextTokens, cacheLabel(p.KVCacheType), p.Endpoint, p.LocalModelName)
-	fmt.Printf("  expected: first reply %s, then ~%s per turn, writing at %.0f tok/s\n",
-		dur(res.Scenario.ColdFirstReply), dur(res.Scenario.FollowUpTurn), res.DecodeTPSDeep)
-	if p.Harness != "" {
-		mark := "✓"
-		if !p.HarnessCompatible {
-			mark = "✗"
-		}
-		fmt.Printf("  %s %s\n", mark, p.HarnessNote)
-	}
-	fmt.Println("\nNothing has been run. Run each step yourself (or let your coding agent run them, with your approval):")
-	for i, s := range p.Steps {
-		flags := []string{}
-		if s.Optional {
-			flags = append(flags, "optional")
-		}
-		if s.NeedsAdmin {
-			flags = append(flags, "needs admin")
-		}
-		if s.DownloadBytes > 0 {
-			flags = append(flags, "downloads "+gb(float64(s.DownloadBytes)))
-		}
-		if s.Confidence == "low" {
-			flags = append(flags, "check the docs link: command not verified for every version")
-		}
-		extra := ""
-		if len(flags) > 0 {
-			extra = "  [" + strings.Join(flags, ", ") + "]"
-		}
-		fmt.Printf("\n%d. %s%s\n", i+1, s.Title, extra)
-		if s.Why != "" {
-			fmt.Printf("   %s\n", s.Why)
-		}
-		for _, cmd := range s.Commands {
-			for _, line := range strings.Split(strings.TrimRight(cmd.Run, "\n"), "\n") {
-				fmt.Printf("     %s\n", line)
-			}
-		}
-		for _, f := range s.Files {
-			fmt.Printf("   %s %s:\n", map[string]string{"create": "Create", "merge": "Merge into", "append": "Append to"}[f.Merge], f.Path)
-			for _, line := range strings.Split(strings.TrimRight(f.Content, "\n"), "\n") {
-				fmt.Printf("     %s\n", line)
-			}
-		}
-		if s.Restart != "" {
-			fmt.Printf("   then restart: %s\n", s.Restart)
-		}
-	}
-	for _, w := range p.Warnings {
-		fmt.Printf("\n⚠ %s", w)
-	}
-	fmt.Println()
-	fmt.Println()
 }
 
 // ownedFileExists reports whether ~/<rel> exists (rel starts with .trialm/).
@@ -175,3 +147,9 @@ func ownedFileExists(rel string) bool {
 	_, err = os.Stat(filepath.Join(home, filepath.FromSlash(rel)))
 	return err == nil
 }
+
+type approval string
+
+func (a *approval) String() string     { return string(*a) }
+func (a *approval) Set(v string) error { *a = approval(v); return nil }
+func (a *approval) IsBoolFlag() bool   { return true }

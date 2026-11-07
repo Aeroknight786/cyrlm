@@ -36,8 +36,9 @@ const OllamaVersion = "0.13.5"
 
 // Config configures the server.
 type Config struct {
-	Device   *sim.Device
-	Upstream upstream.Client
+	TrialSummary func([]sim.Record) string
+	Device       *sim.Device
+	Upstream     upstream.Client
 	// Model describes the simulated model for discovery endpoints.
 	Model api.ModelInfo
 	// DeviceName and RuntimeName are used in logs and the summary.
@@ -603,7 +604,7 @@ func (s *Server) logRecord(n int, rec sim.Record, pl *sim.Plan, prep *sim.Prepar
 		fmt.Fprintf(&b, "     ↳ ⚠ generation stopped: the context window (%d tokens) is full\n", prep.Ctx)
 	}
 	if rec.CloudLagSec > 0.5 {
-		fmt.Fprintf(&b, "     ↳ the cloud was %s slower than your simulated device here (shown at cloud speed)\n", sim.FormatDur(rec.CloudLagSec))
+		fmt.Fprintf(&b, "     ↳ cloud-bound: the cloud was %s slower than your simulated device here (shown at cloud speed)\n", sim.FormatDur(rec.CloudLagSec))
 	}
 	if rec.Error != "" {
 		fmt.Fprintf(&b, "     ↳ ✗ %s\n", rec.Error)
@@ -661,6 +662,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) Summary() string {
 	if s.cfg.Device == nil {
 		return fmt.Sprintf("trialm bridge relayed %d request(s) to %s\n", s.bridgeN.Load(), s.cfg.Upstream.Describe())
+	}
+	if s.cfg.TrialSummary != nil {
+		return s.cfg.TrialSummary(s.cfg.Device.Stats().Snapshot())
 	}
 	return s.cfg.Device.Stats().Summarize().Report(s.cfg.DeviceName, s.cfg.RuntimeName, s.cfg.Model.Name)
 }

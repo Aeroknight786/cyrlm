@@ -1,6 +1,6 @@
 //go:build windows
 
-package cli
+package terminal
 
 import (
 	"fmt"
@@ -9,11 +9,11 @@ import (
 	"syscall"
 )
 
-func isCalibrationTTY(f *os.File) bool {
+func IsTTY(f *os.File) bool {
 	var mode uint32
 	return syscall.GetConsoleMode(syscall.Handle(f.Fd()), &mode) == nil
 }
-func calibrationKey(f *os.File) (byte, error) {
+func Key(f *os.File) (byte, error) {
 	h := syscall.Handle(f.Fd())
 	var mode uint32
 	if e := syscall.GetConsoleMode(h, &mode); e != nil {
