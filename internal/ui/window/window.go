@@ -73,6 +73,9 @@ func Opener(goos, script, dir string, getenv func(string) string, look func(stri
 // Generate writes a private executable script. Completion is recorded even
 // after the harness exits with an error, so the parent can resume its card.
 func Generate(s store.Store, goos, exe, dir string, args []string) (string, string, error) {
+	return generate(s, goos, exe, dir, "try", args)
+}
+func generate(s store.Store, goos, exe, dir, verb string, args []string) (string, string, error) {
 	raw := make([]byte, 12)
 	if _, e := rand.Read(raw); e != nil {
 		return "", "", e
@@ -89,7 +92,7 @@ func Generate(s store.Store, goos, exe, dir string, args []string) (string, stri
 	script := filepath.Join(run, id+ext)
 	exit := filepath.Join(run, id+".exit")
 	started := filepath.Join(run, id+".started")
-	full := append([]string{"try", "--plain", "--here"}, args...)
+	full := append([]string{verb, "--plain", "--here"}, args...)
 	var body string
 	if goos == "windows" {
 		quoted := []string{}
@@ -112,17 +115,20 @@ func Generate(s store.Store, goos, exe, dir string, args []string) (string, stri
 }
 
 type Launcher struct {
-	Platform, Executable, Directory string
-	Getenv                          func(string) string
-	Lookup                          func(string) (string, error)
-	Open                            func([]string) error
-	AckTimeout                      time.Duration
+	Platform, Executable, Directory, Verb string
+	Getenv                                func(string) string
+	Lookup                                func(string) (string, error)
+	Open                                  func([]string) error
+	AckTimeout                            time.Duration
 }
 
 func Run(ctx context.Context, s store.Store, args []string, w io.Writer) error {
 	return (Launcher{}).Run(ctx, s, args, w)
 }
 func (l Launcher) Run(ctx context.Context, s store.Store, args []string, w io.Writer) error {
+	if l.Verb == "" {
+		l.Verb = "try"
+	}
 	exe, e := os.Executable()
 	if e != nil {
 		return e
@@ -158,15 +164,15 @@ func (l Launcher) Run(ctx context.Context, s store.Store, args []string, w io.Wr
 			return nil
 		}
 	}
-	fallback := Command(exe, append([]string{"try", "--here"}, args...))
+	fallback := Command(exe, append([]string{l.Verb, "--here"}, args...))
 	if l.Platform == "windows" {
 		q := []string{psQuote(exe)}
-		for _, a := range append([]string{"try", "--here"}, args...) {
+		for _, a := range append([]string{l.Verb, "--here"}, args...) {
 			q = append(q, psQuote(a))
 		}
 		fallback = "& " + strings.Join(q, " ")
 	}
-	id, script, e := Generate(s, l.Platform, exe, dir, args)
+	id, script, e := generate(s, l.Platform, exe, dir, l.Verb, args)
 	if e != nil {
 		return e
 	}

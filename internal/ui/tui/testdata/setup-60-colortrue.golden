@@ -1,6 +1,11 @@
-Set up locally
-Setup execution arrives in v0.5.
-Review the plan: trialm setup --dry-run
-No engine or model has been installed.
+Set up Qwen3.6 35B-A3B · IQ3_XXS · llama.cpp
+1 approval · 0 OS password prompts · 13.2 GB download
+  install  llama.cpp b12182 · 31.0 MB · sha256 pinned
+  fetch    Qwen3.6-35B-A3B.gguf
+  write    Save owned launcher
+  start    llama-server :8080 · in-process bridge
+  check    speed · greeting · tool call · follow-up
+Not touched · Codex config, shell profile, other models
+Go? [Y/n]
 
-[36mesc[m [90mback[m[90m  [m[36mq[m [90mquit[m
+[36menter[m [90mapprove[m[90m  [m[36mn[m [90mback[m[90m  [m[36mesc[m [90mback[m

@@ -1,10 +1,11 @@
 triaLM  what-if: Apple M5 (10-core GPU), 24 GB unified memory
-Ready setups: none yet · setup arrives in v0.5
-❯ Find or try another
+● Qwen3.6 35B-A3B · llama.cpp · ready (stopped)
+❯ Launch codex with it  enter
+Find or try another  f
 
 Trials history
   Nov 6 · qwen3.6:35b-a3b · not rated
 Popular configs: c claims gallery
 v0.6.1 available · trialm update
 
-enter find  f needs  t history  c claims  / search  q quit
+enter launch  f needs  t history  q quit

@@ -14,6 +14,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/selfupdate"
+	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/store"
 )
 
@@ -93,6 +94,36 @@ func SessionConfig(ctx context.Context, s store.Store, p store.Preferences, o co
 			return n.Version + " available · trialm update"
 		}
 		return ""
+	}
+	cfg.ReadySetups = (core.Session{}).ReadySetups
+	cfg.Plan = func(ctx context.Context, row core.Row, p store.Preferences) (setup.Plan, error) {
+		r := row.Result
+		h, e := harness.Get(p.Tool)
+		if e != nil {
+			return setup.Plan{}, e
+		}
+		opts := o
+		opts.Runtime = r.Runtime.ID
+		opts.Quant = r.Quant.Name
+		opts.Context = p.Context
+		d, e := (core.Session{}).Detect(ctx, opts)
+		if e != nil {
+			return setup.Plan{}, e
+		}
+		return (core.Session{}).Plan(ctx, core.PlanOptions{Options: opts, Model: r.Model, Target: d.Target, Scenario: h.Scenario, Harness: h, WireHarness: true})
+	}
+	cfg.Apply = func(ctx context.Context, p setup.Plan, sink core.Sink) (setup.Journal, error) {
+		session := core.Session{Sink: sink}
+		e, err := session.SetupExecutor()
+		if err != nil {
+			return setup.Journal{}, err
+		}
+		e.Admin = setup.OSAdmin
+		j, err := e.Apply(ctx, p, setup.Policy{PlanID: p.ID})
+		if err == nil {
+			session.SetupResult(ctx, j)
+		}
+		return j, err
 	}
 	return cfg
 }

@@ -52,7 +52,15 @@ func cmdPlan(args []string) error {
 				_, err = executor.Undo(commandContext, slug, setup.UndoOptions{Models: *models, Engines: *engines})
 				return err
 			}
-			_, err = executor.Resume(commandContext, slug, string(yes))
+			approval := string(yes)
+			if approval == "true" {
+				approval = ""
+			}
+			j, e := executor.Resume(commandContext, slug, approval)
+			err = e
+			if err == nil {
+				session.SetupResult(commandContext, j)
+			}
 			return setupError(err)
 		}
 		if *undo {
@@ -111,7 +119,10 @@ func cmdPlan(args []string) error {
 			return nil
 		}
 	}
-	_, err = executor.Apply(commandContext, plan, setup.Policy{PlanID: plan.ID})
+	j, err := executor.Apply(commandContext, plan, setup.Policy{PlanID: plan.ID})
+	if err == nil {
+		session.SetupResult(commandContext, j)
+	}
 	return setupError(err)
 }
 func setupError(err error) error {

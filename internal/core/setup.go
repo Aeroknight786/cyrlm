@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/paths"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/setup"
+	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/verify"
 )
 
@@ -136,4 +138,25 @@ func (s Session) Status(ctx context.Context, slug string) (setup.Journal, error)
 		s.Emit("setup_status", j, Next{Cmd: "trialm setup --json", Why: "resume saved setup"})
 	}
 	return j, err
+}
+
+// SetupResult closes the agent contract after the journal reaches Ready.
+func (s Session) SetupResult(ctx context.Context, j setup.Journal) {
+	if j.State != "ready" || j.Report == nil || !j.Report.Ready {
+		return
+	}
+	p := j.Plan
+	enginePath := ""
+	for _, step := range p.Steps {
+		if step.Kind == setup.Start && step.ID != "bridge" && len(step.Argv) > 0 {
+			enginePath = step.Argv[0]
+			break
+		}
+	}
+	if err := calib.RecordReal(ctx, store.Default().Dir, enginePath, calib.RealMeasurement{Model: p.Model, Quant: p.Quant, Engine: p.Runtime, Decode: j.Report.DecodeTPS, Prefill: j.Report.PrefillTPS}); err == nil {
+		s.Emit("setup_calibrated", true)
+	} else {
+		s.Emit("setup_log", setup.Update{Lines: []string{"Calibration was not saved · " + err.Error()}})
+	}
+	s.Emit("result", map[string]any{"ready": true}, Next{Cmd: "trialm launch " + p.Harness, Why: "open this Ready setup"})
 }
