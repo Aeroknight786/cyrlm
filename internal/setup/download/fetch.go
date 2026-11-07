@@ -18,6 +18,15 @@ import (
 
 type metadata struct{ URL, Validator string }
 
+// defaultClient has no overall timeout (files are many GB) but gives up on a
+// server that stops answering; a cancelled or failed fetch resumes later.
+var defaultClient = http.Client{Transport: &http.Transport{
+	Proxy:                 http.ProxyFromEnvironment,
+	TLSHandshakeTimeout:   15 * time.Second,
+	ResponseHeaderTimeout: 60 * time.Second,
+	IdleConnTimeout:       90 * time.Second,
+}}
+
 // Fetch retrieves and verifies one file. Partial bytes and their validator are
 // kept beside the destination so interrupted transfers can be resumed.
 func (c Client) Fetch(ctx context.Context, r Request) (Result, error) {
@@ -107,7 +116,7 @@ func (c Client) transfer(ctx context.Context, r Request, part, meta string) (int
 			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 			req.Header.Set("If-Range", m.Validator)
 		}
-		client := http.Client{Timeout: 0}
+		client := defaultClient
 		if c.HTTP != nil {
 			client = *c.HTTP
 		}
