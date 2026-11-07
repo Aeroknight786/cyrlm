@@ -41,6 +41,7 @@ type setupView struct {
 	events     chan setupEvent
 	cancel     context.CancelFunc
 	calibrated bool
+	failed     bool // a finished run that did not reach Ready
 }
 
 func (m *Root) planSetup() tea.Cmd {
@@ -95,6 +96,7 @@ func (m *Root) setupEvent(v setupEvent) tea.Cmd {
 		if v.journal.Report != nil {
 			m.setup.report = v.journal.Report
 		}
+		m.setup.failed = v.err != nil
 		if v.err != nil {
 			m.message = v.err.Error()
 		} else if v.journal.State == "ready" {
@@ -198,6 +200,9 @@ func (m *Root) setupBody() string {
 	}
 	if m.busy {
 		return strings.TrimSuffix(b, "\n") // the footer says ctrl-c pauses
+	}
+	if m.setup.failed {
+		return b + "Not Ready yet. enter tries again (finished steps are kept)."
 	}
 	return b + "Go? [Y/n]"
 }

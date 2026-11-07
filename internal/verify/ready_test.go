@@ -130,7 +130,7 @@ func TestReadyMissingUsageAndSlowDepth(t *testing.T) {
 	}))
 	defer s.Close()
 	r, err := Ready(context.Background(), ReadyOptions{Endpoint: s.URL, ContextTokens: 512, Predicted: Predicted{DecodeTPSTarget: 1e9}})
-	if err != nil || r.Ready || r.Failing != "spill" || !strings.Contains(r.Plain(), "below 50%") || !strings.Contains(r.Plain(), "estimated") || !strings.Contains(r.Plain(), "cache unknown") || !strings.Contains(r.Plain(), "inconclusive") {
+	if err != nil || r.Ready || r.Failing != "spill" || !strings.Contains(r.Plain(), "below 25%") || !strings.Contains(r.Plain(), "estimated") || !strings.Contains(r.Plain(), "cache unknown") || !strings.Contains(r.Plain(), "inconclusive") {
 		t.Fatalf("%+v %v", r, err)
 	}
 }

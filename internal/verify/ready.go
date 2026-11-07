@@ -114,6 +114,13 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 	}
 	decodeAt := func(depths []int) bool {
 		for _, depth := range depths {
+			if o.Progress != nil && depth > 0 { // a deep prompt can take minutes
+				wait := "a while"
+				if r.PrefillTPS > 0 {
+					wait = "about " + figure.Exact(math.Round(float64(depth)/r.PrefillTPS/10)*10, "s", figure.Simulated, "verify:prefill").String()
+				}
+				o.Progress(fmt.Sprintf("decode: reading a %dK prompt first to time writing there (%s)", depth/1024, wait))
+			}
 			ask := "Write a detailed explanation of a software cache."
 			m, _, e := fitted(ctx, c, depth, func(n int) *llm.Request {
 				if n <= 0 {
@@ -238,11 +245,17 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 	}
 	target := o.Predicted.DecodeTPSTarget
 	if target > 0 && o.ContextTokens > 0 {
+		// Below half the prediction is a warning (our model can be wrong at
+		// depth; the measurement is recorded for calibration). Only a
+		// collapse below a quarter blocks Ready as a likely spill.
 		actual := r.DecodeTPS[o.ContextTokens]
-		ok := actual >= target*.5
+		ok := actual >= target*.25
 		detail := "writing at depth is within the spill threshold"
+		if actual < target*.5 {
+			detail = fmt.Sprintf("writing at %dK is %.0f%% of predicted: slower than we modeled; recorded for calibration", o.ContextTokens/1024, 100*actual/target)
+		}
 		if !ok {
-			detail = "writing at depth is below 50% of predicted; likely spill or mmap thrash"
+			detail = "writing at depth is below 25% of predicted; likely spill or mmap thrash"
 		}
 		r.add(o, "spill", ok, detail)
 	}
