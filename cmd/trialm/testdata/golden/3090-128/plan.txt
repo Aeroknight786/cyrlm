@@ -20,4 +20,4 @@ Setup plan Qwen3.6 35B-A3B · Q4_K_M · llama.cpp (llama-server)
 7/7 check · Verify Ready
 Kept as they are · drivers and OS startup services, existing model caches, harness defaults
 Resolve Hugging Face file digests on this machine before applying this what-if plan.
-plan_id 5be1dd2e433aee03f44dde97e8215b6cd8d1de895c6eedefe93a5aadce5c4085
+plan_id 9d3e2d27fe814bb29417ed89eb4e993df3d3570a414a518a3788c01ae8c6e8d4
