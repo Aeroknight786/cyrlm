@@ -1,6 +1,6 @@
 # triaLM refactor status
 
-*Updated 2026-11-07 (P1a merged). The plan is [PLAN.md](PLAN.md); this file says where each phase stands and what only the owner can check.*
+*Updated 2026-11-07 (P1a merged; P1b implemented on its working branch). The plan is [PLAN.md](PLAN.md); this file says where each phase stands and what only the owner can check.*
 
 ## Where things are
 
@@ -9,7 +9,8 @@
 | **P0a** rename + safety net | `main` = tag **v0.2.0** (released) | Done. Release assets and both installers are on `releases/latest`; installs checked on clean macOS and Linux runners; the old `ccr-db94bc6e-e47992` installers forward to triaLM. |
 | **P0b** harness fixes + M5 calibration | `trialm-refactor` (pushed, not released) | Done except the owner checks below. Not tagged v0.2.1 and not merged to `main` until those pass. |
 | **P1a** core + agent CLI + private trial | `trialm-refactor` (pushed, not released) | Done against local fakes; the live OpenRouter checks below are yours. Details: [P1A_REPORT.md](P1A_REPORT.md). |
-| P1b, P2 | — | Not started. |
+| **P1b** new Charm CLI | this branch, not released | Implemented; [P1B_REPORT.md](P1B_REPORT.md). Owner checks: real agent prompt counts, macOS TCC and native consoles. Six CLIs pass both harness paths here; Codex is blocked by nested Seatbelt. |
+| P2 | — | Not started. |
 
 ## P0b: what is done
 

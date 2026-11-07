@@ -31,9 +31,11 @@ func ReadMeter(s store.Store) Meter {
 	}
 	return m
 }
-func Track(ctx context.Context, s store.Store, id string, band int, row store.TrialEntry, report func() trial.Report) {
+func Track(ctx context.Context, s store.Store, id string, band int, row store.TrialEntry, report func() trial.Report) <-chan struct{} {
+	done := make(chan struct{})
 	if id == "" {
-		return
+		close(done)
+		return done
 	}
 	save := func() {
 		r := report()
@@ -53,6 +55,7 @@ func Track(ctx context.Context, s store.Store, id string, band int, row store.Tr
 		_ = runStore(s).Write(id+".meter.json", m)
 	}
 	go func() {
+		defer close(done)
 		save()
 		tick := time.NewTicker(time.Second)
 		defer tick.Stop()
@@ -66,4 +69,5 @@ func Track(ctx context.Context, s store.Store, id string, band int, row store.Tr
 			}
 		}
 	}()
+	return done
 }

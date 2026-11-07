@@ -54,7 +54,7 @@ func cmdRecommend(args []string) error {
 	if *claims {
 		return printClaims(c.jsonOut)
 	}
-	if len(pos) > 0 && (strings.Contains(strings.Join(pos, " "), " --") || strings.Contains(strings.Join(pos, " "), "https://")) {
+	if len(pos) > 0 && (strings.Contains(strings.Join(pos, " "), " -") || strings.Contains(strings.Join(pos, " "), "https://")) {
 		fmt.Fprintln(out(), "claim parsing arrives in v0.6")
 		return emit("result", map[string]any{"message": "claim parsing arrives in v0.6"}, core.Next{Cmd: "trialm find --claims", Why: "browse sourced claims"})
 	}

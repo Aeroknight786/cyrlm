@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -479,5 +480,95 @@ func TestHeadlessCodeAgainstFake(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "")
 	if s.Key() != "fake-secret" {
 		t.Fatal("key not saved")
+	}
+}
+
+func TestInterruptMapsToExit130(t *testing.T) {
+	m := fixture(t)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if cmd == nil || !errors.Is(m.Error, context.Canceled) {
+		t.Fatal(m.Error)
+	}
+	if !errors.Is(terminalResult(tea.ErrInterrupted, m.Error), context.Canceled) {
+		t.Fatal("interrupt would not map to exit 130")
+	}
+}
+
+func TestFirstScreenUsesSavedBudget(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{First}
+	m.cfg.Preferences.BudgetUSD = 5
+	if !strings.Contains(m.View().Content, "5.00 USD") {
+		t.Fatal(m.View().Content)
+	}
+}
+
+func TestPastesReachMaskedInputAndChat(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{First}
+	m.Update(key("p"))
+	m.Update(tea.PasteMsg{Content: "fake-secret-key"})
+	if m.secret != "fake-secret-key" || strings.Contains(m.View().Content, "fake-secret-key") {
+		t.Fatal("masked paste did not reach the input safely")
+	}
+	m.chat = newChat(context.Background(), nil)
+	m.stack = []Screen{Chat}
+	m.Update(tea.PasteMsg{Content: "hello pasted chat"})
+	if m.chat.input.Value() != "hello pasted chat" {
+		t.Fatal(m.chat.input.Value())
+	}
+	m.stack = []Screen{Search}
+	m.search.Focus()
+	m.Update(tea.PasteMsg{Content: "qwen"})
+	if m.search.Value() != "qwen" {
+		t.Fatal(m.search.Value())
+	}
+	m.cfg.Start = Recipes
+	m.cfg.Preferences.Model = "llama-server -m file.gguf -ngl 999"
+	m = New(m.cfg)
+	if m.screen() != ClaimCard || strings.Count(m.View().Content, "claim parsing arrives in v0.6") != 1 {
+		t.Fatal(m.View().Content)
+	}
+}
+
+func TestFormPreservesExplicitValues(t *testing.T) {
+	m := fixture(t)
+	cfg := m.cfg
+	cfg.Preferences.Model = "qwen3:8b"
+	cfg.Preferences.Tool = "zed"
+	cfg.Preferences.Context = 98304
+	cfg.Preferences.BudgetUSD = 3.5
+	cfg.ASCII = true
+	cfg.NoColor = true
+	m = New(cfg)
+	p := m.cfg.Preferences
+	if p.Model != "qwen3:8b" || p.Tool != "zed" || p.Context != 98304 || p.BudgetUSD != 3.5 {
+		t.Fatal(p)
+	}
+	m.busy = true
+	m.stack = []Screen{First}
+	for _, r := range m.View().Content {
+		if r > 127 {
+			t.Fatalf("ASCII spinner/frame contains %q", r)
+		}
+	}
+	m.busy = false
+	m.stack = []Screen{Recipes}
+	m.listing.Rows = nil
+	if strings.Contains(m.footer(), "enter") || strings.Contains(m.footer(), "window") {
+		t.Fatal(m.footer())
+	}
+}
+
+func TestFailedPasteReturnsToKeyChoices(t *testing.T) {
+	m := fixture(t)
+	m.cfg.Authorize = func(context.Context, string) error { return errors.New("private upstream failure") }
+	m.stack = []Screen{First}
+	m.Update(key("p"))
+	m.Update(tea.PasteMsg{Content: "fake-secret"})
+	_, cmd := m.Update(key("enter"))
+	m.Update(cmd())
+	if m.screen() != First || m.password != nil || strings.Contains(m.View().Content, "fake-secret") {
+		t.Fatal(m.screen(), m.View().Content)
 	}
 }

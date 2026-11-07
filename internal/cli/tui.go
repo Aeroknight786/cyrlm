@@ -34,6 +34,7 @@ func runTUI(ctx context.Context, verb string, args []string) error {
 	if err != nil {
 		return err
 	}
+	p.Tool = h.ID
 	if p.Context == 0 {
 		p.Context = max(49152, ((h.Scenario.MinContext+16383)/16384)*16384)
 	}

@@ -38,11 +38,9 @@ func RunChat(ctx context.Context, client upstream.Client) error {
 	m.chat.input.Prompt = "You: "
 	m.chat.input.CharLimit = 16000
 	m.chat.input.Focus()
-	_, err := tea.NewProgram(m, programOptions()...).Run()
-	if err != nil {
-		return err
-	}
-	return m.Error
+	opts := append(programOptions(), tea.WithContext(ctx))
+	_, err := tea.NewProgram(m, opts...).Run()
+	return terminalResult(err, m.Error)
 }
 func (c *chatModel) resize(w, h int) {
 	c.log.SetWidth(max(10, w-2))

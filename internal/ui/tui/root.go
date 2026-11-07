@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -134,23 +135,28 @@ func New(cfg Config) *Root {
 		start = First
 	}
 	m := &Root{autoQuality: cfg.Preferences.QualityFloor == "", cfg: cfg, stack: []Screen{start}, width: 80, height: 24, theme: newPalette(cfg.NoColor, cfg.ASCII), spin: spinner.New(spinner.WithSpinner(spinner.Dot)), bar: progress.New(progress.WithWidth(36), progress.WithDefaultBlend(), progress.WithoutPercentage())}
+	if cfg.ASCII {
+		m.spin = spinner.New(spinner.WithSpinner(spinner.Line))
+	}
 	m.search = textinput.New()
 	m.search.Prompt = "Search models: "
 	m.search.CharLimit = 500
 	m.history, _ = cfg.Store.History()
 	_ = cfg.Store.Read("credits.json", &m.balance)
 	m.makeFields()
+	if cfg.Start == Recipes && isClaimText(cfg.Preferences.Model) {
+		m.replace(ClaimCard)
+		m.message = "claim parsing arrives in v0.6"
+	}
 	return m
 }
 func Run(cfg Config) error {
 	cfg.NoColor = cfg.NoColor || os.Getenv("NO_COLOR") != ""
 	cfg.ASCII = cfg.ASCII || asciiTerminal(nativeOS, os.Getenv)
 	m := New(cfg)
-	_, err := tea.NewProgram(m, programOptions()...).Run()
-	if err != nil {
-		return err
-	}
-	return m.Error
+	opts := append(programOptions(), tea.WithContext(m.cfg.Context))
+	_, err := tea.NewProgram(m, opts...).Run()
+	return terminalResult(err, m.Error)
 }
 func (m *Root) screen() Screen   { return m.stack[len(m.stack)-1] }
 func (m *Root) push(s Screen)    { m.stack = append(m.stack, s); m.message = "" }
@@ -340,6 +346,10 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.authURL = ""
 		_ = m.cfg.Store.Read("credits.json", &m.balance)
 		if v.err != nil {
+			if m.screen() == Paste {
+				m.back()
+				m.password = nil
+			}
 			m.message = "Could not connect OpenRouter. Press p to paste a key or try again."
 			return m, nil
 		}
@@ -400,6 +410,23 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Tick(time.Second, func(t time.Time) tea.Msg { return pulseMsg(t) })
 		}
 	case tea.PasteMsg:
+		if m.screen() == Paste && m.busy {
+			return m, nil
+		}
+		if m.screen() == Paste && m.password != nil {
+			_, cmd := m.password.Update(v)
+			return m, cmd
+		}
+		if m.screen() == Chat && !m.chat.busy {
+			var cmd tea.Cmd
+			m.chat.input, cmd = m.chat.input.Update(v)
+			return m, cmd
+		}
+		if m.screen() == Search && !isClaimText(v.Content) {
+			var cmd tea.Cmd
+			m.search, cmd = m.search.Update(v)
+			return m, cmd
+		}
 		if m.screen() == Recipes || m.screen() == Home || m.screen() == Search {
 			m.push(ClaimCard)
 			m.message = "claim parsing arrives in v0.6"
@@ -444,6 +471,9 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, m.chat.update(v)
 		}
+		if m.screen() == Paste && m.busy {
+			return m, nil
+		}
 		if m.screen() == Paste {
 			if key == "esc" {
 				if m.headless != nil {
@@ -473,6 +503,11 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if key == "enter" {
+				if isClaimText(m.search.Value()) {
+					m.replace(ClaimCard)
+					m.message = "claim parsing arrives in v0.6"
+					return m, nil
+				}
 				m.cfg.Preferences.Model = m.search.Value()
 				m.replace(Recipes)
 				return m, m.find()
@@ -669,11 +704,19 @@ func (m *Root) makeFields() {
 		f.Focus()
 		m.fields = append(m.fields, f)
 	}
-	add("Tool", &p.Tool, "codex", "claude-code", "opencode", "aider", "qwen-code", "cline", "continue", "generic")
+	add("Tool", &p.Tool, "codex", "claude-code", "opencode", "aider", "qwen-code", "cline", "continue", "zed", "generic")
 	add("Use", &p.Use, "agent", "chat")
-	add("Model", &p.Model, "any", "qwen3.6", "gpt-oss")
+	models := []string{"any", "qwen3.6", "gpt-oss"}
+	if p.Model != "" && p.Model != "any" && p.Model != "qwen3.6" && p.Model != "gpt-oss" {
+		models = append(models, p.Model)
+	}
+	add("Model", &p.Model, models...)
 	add("Priority", &p.Priority, "speed", "balanced", "quality", "long")
-	ctx := huh.NewSelect[int]().Options(huh.NewOption("48k", 49152), huh.NewOption("64k", 65536), huh.NewOption("128k", 131072), huh.NewOption("256k", 262144)).Value(&p.Context).Inline(true)
+	ctxOptions := []huh.Option[int]{huh.NewOption("48k", 49152), huh.NewOption("64k", 65536), huh.NewOption("128k", 131072), huh.NewOption("256k", 262144)}
+	if p.Context != 0 && p.Context != 49152 && p.Context != 65536 && p.Context != 131072 && p.Context != 262144 {
+		ctxOptions = append(ctxOptions, huh.NewOption(strconv.Itoa(p.Context)+" tokens", p.Context))
+	}
+	ctx := huh.NewSelect[int]().Options(ctxOptions...).Value(&p.Context).Inline(true)
 	ctx.WithKeyMap(huh.NewDefaultKeyMap())
 	ctx.WithWidth(32)
 	m.labels = append(m.labels, "Context (native)")
@@ -684,7 +727,11 @@ func (m *Root) makeFields() {
 	add("Engines", &p.Engines, "stable+new", "stable", "installed")
 	add("Speed boosts", &p.Boosts, "auto", "off", "everything")
 	add("Trial", &p.Privacy, "repo", "playground", "predict-only")
-	budget := huh.NewSelect[float64]().Options(huh.NewOption("$1", 1.), huh.NewOption("$2", 2.), huh.NewOption("$5", 5.), huh.NewOption("$10", 10.)).Value(&p.BudgetUSD).Inline(true)
+	budgetOptions := []huh.Option[float64]{huh.NewOption("$1", 1.), huh.NewOption("$2", 2.), huh.NewOption("$5", 5.), huh.NewOption("$10", 10.)}
+	if p.BudgetUSD != 1 && p.BudgetUSD != 2 && p.BudgetUSD != 5 && p.BudgetUSD != 10 {
+		budgetOptions = append(budgetOptions, huh.NewOption(figure.Exact(p.BudgetUSD, "USD", figure.Measured, "prefs:budget").String(), p.BudgetUSD))
+	}
+	budget := huh.NewSelect[float64]().Options(budgetOptions...).Value(&p.BudgetUSD).Inline(true)
 	budget.WithKeyMap(huh.NewDefaultKeyMap())
 	budget.WithWidth(32)
 	budget.WithTheme(m.formTheme())
@@ -701,6 +748,12 @@ func (m *Root) makeFields() {
 
 }
 func (m *Root) footer() string {
+	if m.busy || (m.screen() == Chat && m.chat.busy) {
+		return "ctrl-c stop"
+	}
+	if m.screen() == Recipes && len(m.listing.Rows) == 0 {
+		return "r needs  / search  q quit"
+	}
 	switch m.screen() {
 	case First:
 		return "enter browser  p paste  s skip  q quit"
@@ -791,3 +844,15 @@ func needsCloudKey(args []string) bool {
 	}
 	return true
 }
+
+func terminalResult(err, modelError error) error {
+	if errors.Is(err, tea.ErrInterrupted) {
+		return context.Canceled
+	}
+	if err != nil {
+		return err
+	}
+	return modelError
+}
+
+func isClaimText(s string) bool { return strings.Contains(s, " -") || strings.Contains(s, "://") }

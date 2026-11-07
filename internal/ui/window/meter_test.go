@@ -15,7 +15,7 @@ func TestMeterCheckpointsAndFinalCard(t *testing.T) {
 	defer cancel()
 	_ = runStore(s).Write("active.json", map[string]string{"ID": "a"})
 	row := store.TrialEntry{At: time.Now(), Model: "fake"}
-	Track(ctx, s, "a", 60, row, func() trial.Report {
+	done := Track(ctx, s, "a", 60, row, func() trial.Report {
 		return trial.Report{Requests: 2, SpendKnown: true, SpendUSD: .01, LocalSeconds: 10}
 	})
 	deadline := time.Now().Add(time.Second)
@@ -35,4 +35,5 @@ func TestMeterCheckpointsAndFinalCard(t *testing.T) {
 		t.Fatal(e)
 	}
 	cancel()
+	<-done
 }

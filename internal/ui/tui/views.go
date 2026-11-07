@@ -42,7 +42,7 @@ func (m *Root) body() string {
 		if len(m.detection.Runtimes) > 0 {
 			engine = fmt.Sprintf("%d installed", len(m.detection.Runtimes))
 		}
-		return title + "  feel a local model before you download it\n✓ " + machine + "\n✓ Coding tools  " + tools + "\n· Engines       " + engine + "\n\nConnect OpenRouter: real cloud answers, paced to this machine.\nTrials use providers that do not store your repo. Cap $2."
+		return title + "  feel a local model before you download it\n✓ " + machine + "\n✓ Coding tools  " + tools + "\n· Engines       " + engine + "\n\nConnect OpenRouter: real cloud answers, paced to this machine.\nTrials use providers that do not store your repo. Cap " + figure.Exact(m.cfg.Preferences.BudgetUSD, "USD", figure.Measured, "prefs:budget").String() + "."
 	case Paste:
 		if m.password == nil {
 			return "OpenRouter key"
@@ -110,7 +110,7 @@ func (m *Root) body() string {
 		return b
 	case ClaimCard:
 		if m.message == "claim parsing arrives in v0.6" {
-			return "Claim\nclaim parsing arrives in v0.6"
+			return "Claim"
 		}
 		cs := Claims()
 		c := cs[min(max(0, m.selected), len(cs)-1)]

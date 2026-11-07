@@ -506,6 +506,8 @@ func cmdServe(args []string, try bool) error {
 		}
 	})
 	if try && selectedMode == Interactive && !explicitLaunch && !*here && !*serve && paths.Getenv("DETACHED") == "" {
+		c.prefs.BudgetUSD = *budget
+		c.prefs.ZDR = *zdr
 		return runTrialTUI(commandContext, c, res, args, *window)
 	}
 	prof := res.Runtime
