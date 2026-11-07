@@ -55,8 +55,11 @@ func TestChatHarnessStreamingCheck(t *testing.T) {
 		fmt.Fprint(w, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":2}}\n\ndata: [DONE]\n\n")
 	}))
 	defer ts.Close()
-	h, _ := harness.Get("qwen-code")
-	hc := HarnessCheckRun(context.Background(), ts.URL, "m", "secret", h, []string{"openai-chat"})
+	// The checker itself, against an engine directly (the fake splits the
+	// tool name across deltas, which the checker must reassemble).
+	hc := HarnessCheck{Harness: "qwen-code"}
+	runChatCheck(context.Background(), &hc, ts.URL+"/v1/chat/completions", "m", "secret")
+	hc.Passed = hc.Greeting == checkPass && hc.ToolCall == checkPass && hc.FollowUp == checkPass
 	if !hc.Passed {
 		t.Fatalf("check %+v", hc)
 	}

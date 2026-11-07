@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -515,15 +516,8 @@ func line(rs []Row, base bool) (float64, float64, bool) {
 	}
 	return a, b, finite(a) && finite(b)
 }
-func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
-func contains(ss []string, s string) bool {
-	for _, v := range ss {
-		if s == v {
-			return true
-		}
-	}
-	return false
-}
+func finite(v float64) bool               { return !math.IsNaN(v) && !math.IsInf(v, 0) }
+func contains(ss []string, s string) bool { return slices.Contains(ss, s) }
 
 // directFactor returns only accepted evidence with an identifiable band.
 func (c *Calibration) directFactor(class, q string, depth, layers int, m string) (float64, int, bool) {

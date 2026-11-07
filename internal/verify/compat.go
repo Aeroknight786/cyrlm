@@ -66,8 +66,13 @@ func HarnessCheckRun(ctx context.Context, endpoint, model, apiKey string, h harn
 		}
 		go func() { _ = srv.Serve() }()
 		defer srv.Shutdown(context.Background())
-		hc.Path = "Responses API via trialm bridge → " + base + "/v1/chat/completions"
-		runResponsesCheck(ctx, &hc, fmt.Sprintf("http://127.0.0.1:%d/v1/responses", port), model)
+		if h.ID == "codex" {
+			hc.Path = "Responses API via trialm bridge → " + base + "/v1/chat/completions"
+			runResponsesCheck(ctx, &hc, fmt.Sprintf("http://127.0.0.1:%d/v1/responses", port), model)
+		} else {
+			hc.Path = "Chat Completions via trialm bridge → " + base + "/v1/chat/completions"
+			runChatCheck(ctx, &hc, fmt.Sprintf("http://127.0.0.1:%d/v1/chat/completions", port), model, "")
+		}
 	} else {
 		hc.Path = "Chat Completions at " + base + "/v1/chat/completions"
 		runChatCheck(ctx, &hc, base+"/v1/chat/completions", model, apiKey)

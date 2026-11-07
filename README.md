@@ -29,6 +29,18 @@ Prefer a terminal? `curl -fsSL https://github.com/aeroknight786/trialm/releases/
 - **Exact setup**: install the runtime, download the exact file, apply tuned settings, connect your tool — each step shown and approved.
 - **A check**: measured speed vs the prediction, on your machine.
 
+## Use it from your own agent or app
+
+Once a model is set up (`trialm`, then Enter on it), any program can use it:
+
+```bash
+trialm launch --serve
+```
+
+This starts the engine if needed and prints one local address that speaks every common API: OpenAI Chat Completions and Responses (`http://127.0.0.1:11535/v1`), Anthropic Messages (`/v1/messages`) and Ollama (`/api/chat`). Point your agent's base URL there, use the model name it prints, and any API key. Ctrl-C stops the route; the engine stays warm for 15 minutes.
+
+You don't need to know the model's chat template. Local engines format requests with the model's own template, and many reject what agents send: a system message after the first, two user messages in a row, tool layouts. triaLM's route reshapes every request so the template accepts it, for every agent and every protocol. Known tools (Claude Code, Codex, OpenCode, Aider, Qwen Code, Cline, Continue) go through the same route: `trialm launch <tool>` wires them up for you.
+
 ## Good to know
 
 - **Privacy**: during the trial, what your coding tool sends to the model (prompts, code it read, command output) goes to OpenRouter's model providers. After setup, everything runs on your machine.

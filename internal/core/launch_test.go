@@ -126,9 +126,10 @@ func TestLaunchPrintStartReuseBridgeStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reused.Bridge != nil {
-		t.Fatal("unneeded bridge")
+	if reused.Bridge == nil { // every tool goes through the bridge, which normalises for strict templates
+		t.Fatal("opencode reached the engine without the bridge")
 	}
+	_ = reused.Bridge.Shutdown(ctx)
 	after, ok := proc.Status(ctx, j.Steps[0].Inverse.PIDFile)
 	if !ok || after.PID != record.PID {
 		t.Fatal("engine restarted")

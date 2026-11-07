@@ -56,8 +56,8 @@ func cmdLaunch(args []string) error {
 	if len(pos) > 0 {
 		tool = pos[0]
 	}
-	if *serve && tool != "cline" && tool != "continue" && tool != "zed" {
-		return &exitError{2, "--serve needs cline, continue or zed"}
+	if *serve && tool == "" {
+		tool = "generic" // any agent: every protocol on one local route
 	}
 	rows, err := session.ReadySetups(commandContext)
 	if err != nil {

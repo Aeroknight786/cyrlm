@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -67,17 +68,13 @@ func (h Harness) CompatibleWith(apis []string) bool {
 }
 
 // NeedsBridge reports whether the harness should reach a runtime with
-// these APIs through `trialm bridge`: always for Codex (local runtimes'
-// Responses endpoints miss namespaced tools and reject Codex's message
-// layout), and for any harness whose protocol the runtime lacks, as long
-// as the runtime has Chat Completions for the bridge to call.
-func (h Harness) NeedsBridge(apis []string) bool {
-	hasChat := false
-	for _, a := range apis {
-		hasChat = hasChat || a == "openai-chat"
-	}
-	return hasChat && (h.ID == "codex" || h.ProtocolFor(apis) == "")
-}
+// these APIs through triaLM's bridge: whenever the runtime has Chat
+// Completions for the bridge to call. Local engines apply the model's own
+// chat template, and strict ones (Qwen, Gemma, Mistral) reject what tools
+// send: Claude Code's mid-conversation system messages, Codex's message
+// layout. The bridge normalises every request (upstream.NormalizeForTemplates)
+// and speaks each tool's protocol.
+func (h Harness) NeedsBridge(apis []string) bool { return slices.Contains(apis, "openai-chat") }
 
 // ProtocolFor returns the harness's preferred protocol among apis ("" if
 // none matches).
