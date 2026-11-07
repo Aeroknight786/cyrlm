@@ -11,7 +11,7 @@ import (
 
 	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/catalog"
-	"github.com/aeroknight786/trialm/internal/runtime"
+	runtime "github.com/aeroknight786/trialm/internal/engine"
 )
 
 func calibrationFixture(t *testing.T) (Input, Result, *calib.Calibration) {

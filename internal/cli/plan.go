@@ -1,57 +1,63 @@
 package cli
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
-	"net"
 	"os"
-	"path/filepath"
-	"time"
 
 	"github.com/aeroknight786/trialm/internal/core"
-	"github.com/aeroknight786/trialm/internal/harness"
-	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/setup"
+	"github.com/aeroknight786/trialm/internal/terminal"
 	"github.com/aeroknight786/trialm/internal/ui"
 )
 
-// freePort returns from, or the next port up to from+20 nothing listens on.
-func freePort(from int) int {
-	for p := from; p <= from+20; p++ {
-		c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", p), 300*time.Millisecond)
-		if err != nil {
-			return p
-		}
-		c.Close()
-	}
-	return from
-}
-
-// cmdPlan prints the exact steps to set up a model locally. It never runs
-// them: a person or their coding agent executes them, one at a time.
 func cmdPlan(args []string) error {
-	fs := flag.NewFlagSet("plan", flag.ContinueOnError)
+	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	var c common
 	c.register(fs, "")
 	dry := fs.Bool("dry-run", false, "print the plan and its approval hash")
-	var yes approval
-	fs.Var(&yes, "yes", "approve this plan_id (execution arrives in v0.5)")
+	undo := fs.Bool("undo", false, "reverse a saved setup")
+	models := fs.Bool("delete-models", false, "delete this setup's model files during undo")
+	engines := fs.Bool("remove-engine", false, "remove this setup's engine during undo")
+	var yes setup.Approval
+	fs.Var(&yes, "yes", "approve this exact plan_id")
 	force := fs.Bool("force", false, "plan even if the model does not fit")
 	pos, err := parseInterspersed(fs, args)
 	if err != nil {
 		return err
 	}
 	c.finish(fs)
-	if currentVerb == "setup" {
-		if err := c.validateRequirements(); err != nil {
-			return err
-		}
+	if err := c.validateRequirements(); err != nil {
+		return err
 	}
-	if len(pos) != 1 && currentVerb != "setup" {
-		return errors.New("usage: trialm plan <model> [--runtime r] [--defaults] [--harness h] [--quant q] [--ctx n] [--json]")
+	session := core.Session{Sink: func(e core.Event) {
+		if events != nil {
+			events.Handle(e)
+		}
+	}}
+	executor, err := session.SetupExecutor()
+	if err != nil {
+		return err
+	}
+	executor.Admin = setup.OSAdmin
+	if *undo || len(pos) == 0 && !*dry {
+		slug := ""
+		if len(pos) > 0 {
+			slug = pos[0]
+		} else {
+			slug, _ = setup.Latest(executor.Root)
+		}
+		if slug != "" {
+			if *undo {
+				_, err = executor.Undo(commandContext, slug, setup.UndoOptions{Models: *models, Engines: *engines})
+				return err
+			}
+			_, err = executor.Resume(commandContext, slug, string(yes))
+			return setupError(err)
+		}
+		if *undo {
+			return errors.New("no saved setup to undo")
+		}
 	}
 	modelName, err := resolveRecipe(pos, &c)
 	if err != nil {
@@ -65,95 +71,57 @@ func cmdPlan(args []string) error {
 	if err != nil {
 		return err
 	}
-	t, _, err := c.target()
+	target, _, err := c.target()
 	if err != nil {
 		return err
 	}
-	prof, why, err := chooseRuntime(c, t, m, sc, hh)
+	plan, err := session.Plan(commandContext, core.PlanOptions{
+		Options:     c.options(),
+		Model:       m,
+		Target:      target,
+		Scenario:    sc,
+		Harness:     hh,
+		WireHarness: c.harness != "",
+		Force:       *force,
+	})
 	if err != nil {
 		return err
 	}
-	res := predict.Predict(predict.Input{Model: m, QuantName: c.quant, Runtime: prof, Target: t, Tuned: c.tuned,
-		CtxOverride: c.ctx, KVCacheType: c.kv, Scenario: sc, BackendOverride: c.backend})
-	if res.Unsupported != "" {
-		return errors.New(res.Unsupported)
+	if yes != "" && yes != "true" && string(yes) != plan.ID {
+		return &exitError{4, "setup plan changed; review trialm setup --dry-run and approve its new --yes=<plan_id>"}
 	}
-	if res.Memory.Level == predict.FitNo && !*force {
-		return fmt.Errorf("%s does not fit with %s here (needs %.1f GB, %.1f GB available); try a smaller --quant or --ctx, or --force",
-			m.Name, prof.Name, res.Memory.TotalBytes/(1<<30), res.Memory.BudgetBytes/(1<<30))
+	if !c.jsonOut {
+		ui.PrintPlan(out(), plan)
 	}
-	in := detectInstalled(t)
-	var hp *harness.Harness
-	if c.harness != "" {
-		hp = &hh
+	if currentVerb == "plan" && c.jsonOut {
+		return printJSON(plan)
 	}
-	input := setup.Input{Model: m, Quant: res.Quant, Profile: prof, Settings: res.Settings, Backend: res.Backend, Harness: hp, OS: t.OS, Arch: t.Arch}
-	if !t.Synthetic {
-		input.OwnedFileExists = ownedFileExists
+	if *dry || currentVerb == "plan" {
+		return emit("result", map[string]any{"plan_id": plan.ID, "ready": false})
 	}
-	for _, ir := range in.ByProfile[prof.ID] {
-		input.Installed, input.InstalledVersion = true, ir.Version
-		input.Running = input.Running || ir.Running
-	}
-	// trialm starts llama-server / mlx_lm.server itself: if the usual port is
-	// taken by something that is not that runtime, plan on the next free one.
-	portNote := ""
-	if !t.Synthetic && !input.Running && (prof.ID == "llamacpp" || prof.ID == "mlx-lm") {
-		def := setup.DefaultPort(prof)
-		if p := freePort(def); p != def {
-			input.Port = p
-			portNote = fmt.Sprintf("Port %d is already used by another program on this machine, so this plan uses %d everywhere (server, health check, bridge, verify).", def, p)
+	if yes == "" {
+		if c.jsonOut || !terminal.IsTTY(os.Stdin) {
+			return needs("--yes="+plan.ID, "approve the reviewed setup plan")
 		}
-	}
-	plan, err := setup.Build(input)
-	if err != nil {
-		return err
-	}
-	if portNote != "" {
-		plan.Warnings = append(plan.Warnings, portNote)
-	}
-	if currentVerb == "setup" {
-		b, err := json.Marshal(plan)
+		approved, err := ui.ConfirmSetup(out(), os.Stdin)
 		if err != nil {
 			return err
 		}
-		id := fmt.Sprintf("%x", sha256.Sum256(b))
-		if yes != "" && yes != "true" && string(yes) != id {
-			return &exitError{4, "setup plan changed; review trialm setup --dry-run and approve its new --yes=<plan_id>"}
+		if !approved {
+			return nil
 		}
-		next := core.Next{Cmd: "trialm setup " + modelName + " --yes=" + id + " --json", Why: "approve this reviewed plan; execution arrives in v0.5"}
-		if c.jsonOut {
-			if err = emit("plan", map[string]any{"plan_id": id, "plan": plan}); err != nil {
-				return err
-			}
-			return emit("result", map[string]any{"plan_id": id, "ready": false, "execution": "arrives in v0.5"}, next)
-		}
-		ui.PrintPlan(out(), plan, why, res)
-		fmt.Fprintln(out(), "plan_id:", id)
-		if !*dry {
-			fmt.Fprintln(out(), "Execution arrives in v0.5. Nothing has been run.")
-		}
-		return nil
 	}
-	if c.jsonOut {
-		return printJSON(plan)
-	}
-	ui.PrintPlan(out(), plan, why, res)
-	return nil
+	_, err = executor.Apply(commandContext, plan, setup.Policy{PlanID: plan.ID})
+	return setupError(err)
 }
-
-// ownedFileExists reports whether ~/<rel> exists (rel starts with .trialm/).
-func ownedFileExists(rel string) bool {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return false
+func setupError(err error) error {
+	var approval *setup.ApprovalRequired
+	if errors.As(err, &approval) {
+		return &exitError{3, err.Error()}
 	}
-	_, err = os.Stat(filepath.Join(home, filepath.FromSlash(rel)))
-	return err == nil
+	var ready *setup.NotReady
+	if errors.As(err, &ready) {
+		return &exitError{4, err.Error()}
+	}
+	return err
 }
-
-type approval string
-
-func (a *approval) String() string     { return string(*a) }
-func (a *approval) Set(v string) error { *a = approval(v); return nil }
-func (a *approval) IsBoolFlag() bool   { return true }

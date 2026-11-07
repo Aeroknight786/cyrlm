@@ -1,272 +1,156 @@
 {
+  "decode_error_range_pct": 30,
+  "prefill_error_range_pct": 75,
+  "plan_id": "ebf1a12fca19ac7cb6d1a4613e2d7e4625af3130ce76e370e0d63c3546760c5c",
+  "slug": "qwen3-6-35b-a3b-q4-k-m-ollama",
   "model": "qwen3.6-35b-a3b",
   "model_name": "Qwen3.6 35B-A3B",
   "quant": "Q4_K_M",
   "runtime": "ollama",
   "runtime_name": "Ollama",
   "backend": "rocm",
-  "harness": "codex",
   "os": "linux",
   "arch": "amd64",
-  "tuned": true,
+  "harness": "codex",
+  "local_model_name": "qwen3.6:35b-a3b-trialm",
   "context_tokens": 65536,
   "kv_cache_type": "f16",
-  "flash_attention": true,
-  "keep_alive_s": -1,
+  "tuned": true,
   "endpoint": "http://127.0.0.1:11434",
-  "local_model_name": "qwen3.6:35b-a3b-trialm",
-  "download_bytes": 22134528992,
-  "harness_compatible": true,
-  "harness_note": "Codex CLI connects through `trialm bridge`, which passes its requests to Ollama's Chat Completions API at http://127.0.0.1:11434 as model qwen3.6:35b-a3b-trialm.",
+  "download_bytes": 23678076164,
+  "prompts": {
+    "approvals": 1,
+    "passwords": 0
+  },
   "steps": [
     {
-      "id": "check",
+      "id": "decompressor",
       "kind": "check",
-      "title": "Check what is already installed",
-      "why": "triaLM did not find Ollama. These read-only commands confirm what is installed and running, and that there is room for the 22.1 GB download. A failing version command means the runtime is not installed or not on PATH.",
-      "commands": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "ollama --version"
-        },
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "curl -s http://127.0.0.1:11434/api/version"
-        },
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "codex --version"
-        },
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "df -h \"$HOME\""
-        }
-      ],
-      "confidence": "high",
-      "docs": [
-        "https://github.com/ollama/ollama#download"
+      "title": "Check zstd is installed for the Ollama archive",
+      "argv": [
+        "zstd",
+        "--version"
       ]
     },
     {
-      "id": "install-ollama",
+      "id": "engine",
       "kind": "install",
-      "title": "Install Ollama",
-      "why": "Official install script: installs /usr/local/bin/ollama (with CUDA/ROCm libraries when it finds a GPU) and an `ollama` systemd service that starts the server on port 11434. It uses sudo.",
-      "commands": [
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "curl -fsSL https://ollama.com/install.sh | sh"
-        }
-      ],
-      "needs_admin": true,
-      "confidence": "high",
-      "docs": [
-        "https://github.com/ollama/ollama#download",
-        "https://docs.ollama.com/linux"
-      ]
+      "title": "Install pinned user-space Ollama v0.40.15",
+      "request": {
+        "URL": "https://github.com/ollama/ollama/releases/download/v0.40.15/ollama-linux-amd64.tar.zst",
+        "SHA256": "628c018404a4206493efd38e46251c154ede5141b8b8dc85c659b3b027c47379",
+        "Size": 1543547172,
+        "Dest": "~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama.archive",
+        "Reuse": null,
+        "Token": ""
+      },
+      "path": "~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama"
     },
     {
-      "id": "download-model",
-      "kind": "download",
-      "title": "Download Qwen3.6 35B-A3B Q4_K_M (22.1 GB)",
-      "why": "Pulls the exact Q4_K_M GGUF from Hugging Face (unsloth/Qwen3.6-35B-A3B-GGUF) — the file triaLM's prediction is based on. If Ollama reports an unsupported architecture for this file, use the library build instead: `ollama pull qwen3.6:35b-a3b`.",
-      "commands": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "ollama pull hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M"
-        }
-      ],
       "download_bytes": 22134528992,
-      "undo": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "ollama rm hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M"
-        }
-      ],
-      "confidence": "high",
-      "docs": [
-        "https://huggingface.co/docs/hub/ollama"
-      ]
+      "id": "resolve",
+      "kind": "check",
+      "title": "Resolve pinned model files",
+      "content": "model file digests are unresolved"
     },
     {
-      "id": "configure-modelfile",
-      "kind": "configure",
-      "title": "Create qwen3.6:35b-a3b-trialm with a 65536-token context",
-      "why": "Ollama's default context depends on GPU memory (often 4096 tokens) and the OpenAI/Anthropic-compatible APIs cannot change it per request; a Modelfile with num_ctx fixes it for this model only. The new model shares the downloaded weights (no extra disk). Use qwen3.6:35b-a3b-trialm as the model name in your harness.",
-      "commands": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "ollama create qwen3.6:35b-a3b-trialm -f \"$HOME/.trialm/ollama/qwen3.6-35b-a3b-trialm.Modelfile\""
-        }
-      ],
-      "files": [
-        {
-          "path": "~/.trialm/ollama/qwen3.6-35b-a3b-trialm.Modelfile",
-          "format": "modelfile",
-          "content": "# Generated by trialm plan: Qwen3.6 35B-A3B Q4_K_M on Ollama.\nFROM hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M\nPARAMETER num_ctx 65536\n",
-          "merge": "create"
-        }
-      ],
-      "undo": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "ollama rm qwen3.6:35b-a3b-trialm"
-        }
-      ],
-      "confidence": "high",
-      "docs": [
-        "https://docs.ollama.com/modelfile",
-        "https://docs.ollama.com/api/openai-compatibility#setting-the-local-context-size",
-        "https://docs.ollama.com/context-length"
-      ]
+      "id": "modelfile",
+      "kind": "write",
+      "title": "Write Ollama Modelfile",
+      "path": "~/.trialm/ollama/qwen3.6:35b-a3b-trialm.Modelfile",
+      "content": "FROM ~/.trialm/models/qwen3-6-35b-a3b-q4-k-m-ollama/UD-Q4_K_M.gguf\nPARAMETER num_ctx 65536\n"
     },
     {
-      "id": "service-ollama-env",
-      "kind": "service",
-      "title": "Set Ollama server settings: OLLAMA_KEEP_ALIVE=-1",
-      "why": "Server-wide settings for never unload the model when idle (default: 5 minutes, after which the next request reloads it and re-processes the whole prompt). Ollama reads them only from the server's environment at start-up, so they are set persistently and the server is restarted. Running models are unloaded by the restart. This writes a systemd drop-in (same effect as `sudo systemctl edit ollama`) for the service the install script created. If you run `ollama serve` yourself, export the variables in that shell instead.",
-      "commands": [
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "sudo mkdir -p /etc/systemd/system/ollama.service.d"
-        },
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "printf '%s\\n' '[Service]' 'Environment=\"OLLAMA_KEEP_ALIVE=-1\"' | sudo tee /etc/systemd/system/ollama.service.d/trialm.conf \u003e/dev/null"
-        },
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "sudo systemctl daemon-reload"
-        },
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "sudo systemctl restart ollama"
-        }
-      ],
-      "needs_admin": true,
-      "restart": "Ollama server (this step restarts it)",
-      "undo": [
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "sudo rm -f /etc/systemd/system/ollama.service.d/trialm.conf"
-        },
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "sudo systemctl daemon-reload"
-        },
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "sudo systemctl restart ollama"
-        }
-      ],
-      "confidence": "high",
-      "docs": [
-        "https://docs.ollama.com/faq#how-do-i-configure-ollama-server",
-        "https://docs.ollama.com/faq#how-can-i-set-the-quantization-type-for-the-k%2Fv-cache"
-      ]
-    },
-    {
-      "id": "start-model",
+      "id": "server",
       "kind": "start",
-      "title": "Load qwen3.6:35b-a3b-trialm and check GPU placement",
-      "why": "Preloads the model so the first harness request does not pay the load time. In `ollama ps`, CONTEXT should read 65536 and PROCESSOR should read 100% GPU (anything else means part of the model runs on the CPU and will be much slower than predicted).",
-      "commands": [
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "curl -s http://127.0.0.1:11434/api/generate -d '{\"model\": \"qwen3.6:35b-a3b-trialm\"}' \u003e/dev/null"
-        },
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "ollama ps"
-        }
+      "title": "Start Ollama",
+      "argv": [
+        "~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama/bin/ollama",
+        "serve"
       ],
-      "undo": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "ollama stop qwen3.6:35b-a3b-trialm"
-        }
+      "env": [
+        "OLLAMA_HOST=http://127.0.0.1:11434",
+        "OLLAMA_MODELS=~/.trialm/models/ollama",
+        "OLLAMA_FLASH_ATTENTION=true",
+        "OLLAMA_KV_CACHE_TYPE=f16",
+        "OLLAMA_KEEP_ALIVE=-1",
+        "OLLAMA_NUM_PARALLEL=1"
       ],
-      "confidence": "high",
-      "docs": [
-        "https://docs.ollama.com/context-length"
+      "health": "http://127.0.0.1:11434/api/tags"
+    },
+    {
+      "id": "register",
+      "kind": "install",
+      "title": "Register Ollama model",
+      "argv": [
+        "~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama/bin/ollama",
+        "create",
+        "qwen3.6:35b-a3b-trialm",
+        "-f",
+        "~/.trialm/ollama/qwen3.6:35b-a3b-trialm.Modelfile"
+      ],
+      "env": [
+        "OLLAMA_HOST=http://127.0.0.1:11434",
+        "OLLAMA_MODELS=~/.trialm/models/ollama"
+      ],
+      "package": "ollama-model",
+      "inverse": [
+        "~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama/bin/ollama",
+        "rm",
+        "qwen3.6:35b-a3b-trialm"
       ]
     },
     {
-      "id": "start-bridge",
+      "id": "bridge",
       "kind": "start",
-      "title": "Start the Codex CLI bridge",
-      "why": "Codex sends requests that local runtimes' own Responses endpoints do not fully handle (namespaced tools, several developer messages, hosted web search; llama.cpp skips namespace tools and strict chat templates reject a second system message). `trialm bridge` accepts Codex CLI's requests on port 11535 (or the next free port) and passes them to http://127.0.0.1:11434/v1/chat/completions, the runtime's most mature API, with system messages merged for the model's chat template and tool calls mapped back; runtime errors are shown in Codex CLI instead of being retried. It returns once it answers and prints the exact Codex CLI command.",
-      "commands": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "trialm bridge --endpoint http://127.0.0.1:11434 --model qwen3.6:35b-a3b-trialm --harness codex --ctx 65536 --background"
-        }
+      "title": "Start harness bridge",
+      "argv": [
+        "trialm",
+        "bridge",
+        "--endpoint",
+        "http://127.0.0.1:11434",
+        "--model",
+        "qwen3.6:35b-a3b-trialm",
+        "--harness",
+        "codex",
+        "--ctx",
+        "65536",
+        "--port",
+        "11535"
       ],
-      "undo": [
-        {
-          "os": "linux",
-          "shell": "sh",
-          "run": "pkill -f 'trialm bridge'"
-        }
-      ],
-      "confidence": "high"
+      "health": "http://127.0.0.1:11535/health"
     },
     {
-      "id": "harness-codex",
-      "kind": "harness",
-      "title": "Start Codex CLI with qwen3.6:35b-a3b-trialm",
-      "why": "Everything is passed with -c overrides, so no Codex config file is edited, plain `codex` keeps working as before, and nothing depends on Codex's config layout (profiles moved to separate files in 0.134). Use the command the bridge printed: it has the real port and, when codex is not on your terminal's PATH, its full path. Web search is off because a local model cannot run OpenAI's hosted search.",
-      "commands": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "codex -c model_providers.trialm.name=trialm -c model_providers.trialm.base_url=http://127.0.0.1:11535/v1 -c model_providers.trialm.wire_api=responses -c model_providers.trialm.stream_idle_timeout_ms=600000 -c model_provider=trialm -c web_search=disabled -c model_context_window=65536 -c model_auto_compact_token_limit=52428 -m qwen3.6:35b-a3b-trialm"
-        }
-      ],
-      "restart": "Codex CLI: start a new session in your own terminal",
-      "confidence": "high",
-      "docs": [
-        "https://github.com/openai/codex/blob/main/docs/config.md"
-      ]
+      "id": "recipe",
+      "kind": "write",
+      "title": "Save setup recipe",
+      "path": "~/.trialm/setups/qwen3-6-35b-a3b-q4-k-m-ollama/recipe.json",
+      "content": "{\"Steps\":[{\"id\":\"decompressor\",\"kind\":\"check\",\"title\":\"Check zstd is installed for the Ollama archive\",\"argv\":[\"zstd\",\"--version\"]},{\"id\":\"engine\",\"kind\":\"install\",\"title\":\"Install pinned user-space Ollama v0.40.15\",\"request\":{\"URL\":\"https://github.com/ollama/ollama/releases/download/v0.40.15/ollama-linux-amd64.tar.zst\",\"SHA256\":\"628c018404a4206493efd38e46251c154ede5141b8b8dc85c659b3b027c47379\",\"Size\":1543547172,\"Dest\":\"~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama.archive\",\"Reuse\":null,\"Token\":\"\"},\"path\":\"~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama\"},{\"download_bytes\":22134528992,\"id\":\"resolve\",\"kind\":\"check\",\"title\":\"Resolve pinned model files\",\"content\":\"model file digests are unresolved\"},{\"id\":\"modelfile\",\"kind\":\"write\",\"title\":\"Write Ollama Modelfile\",\"path\":\"~/.trialm/ollama/qwen3.6:35b-a3b-trialm.Modelfile\",\"content\":\"FROM ~/.trialm/models/qwen3-6-35b-a3b-q4-k-m-ollama/UD-Q4_K_M.gguf\\nPARAMETER num_ctx 65536\\n\"},{\"id\":\"server\",\"kind\":\"start\",\"title\":\"Start Ollama\",\"argv\":[\"~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama/bin/ollama\",\"serve\"],\"env\":[\"OLLAMA_HOST=http://127.0.0.1:11434\",\"OLLAMA_MODELS=~/.trialm/models/ollama\",\"OLLAMA_FLASH_ATTENTION=true\",\"OLLAMA_KV_CACHE_TYPE=f16\",\"OLLAMA_KEEP_ALIVE=-1\",\"OLLAMA_NUM_PARALLEL=1\"],\"health\":\"http://127.0.0.1:11434/api/tags\"},{\"id\":\"register\",\"kind\":\"install\",\"title\":\"Register Ollama model\",\"argv\":[\"~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama/bin/ollama\",\"create\",\"qwen3.6:35b-a3b-trialm\",\"-f\",\"~/.trialm/ollama/qwen3.6:35b-a3b-trialm.Modelfile\"],\"env\":[\"OLLAMA_HOST=http://127.0.0.1:11434\",\"OLLAMA_MODELS=~/.trialm/models/ollama\"],\"package\":\"ollama-model\",\"inverse\":[\"~/.trialm/engines/qwen3-6-35b-a3b-q4-k-m-ollama/bin/ollama\",\"rm\",\"qwen3.6:35b-a3b-trialm\"]},{\"id\":\"bridge\",\"kind\":\"start\",\"title\":\"Start harness bridge\",\"argv\":[\"trialm\",\"bridge\",\"--endpoint\",\"http://127.0.0.1:11434\",\"--model\",\"qwen3.6:35b-a3b-trialm\",\"--harness\",\"codex\",\"--ctx\",\"65536\",\"--port\",\"11535\"],\"health\":\"http://127.0.0.1:11535/health\"}],\"Endpoint\":\"http://127.0.0.1:11434\",\"Model\":\"qwen3.6:35b-a3b-trialm\",\"Context\":65536}"
     },
     {
-      "id": "verify",
-      "kind": "verify",
-      "title": "Verify the setup",
-      "why": "Checks that Ollama answers at http://127.0.0.1:11434 with qwen3.6:35b-a3b-trialm, that the context window is 65536 tokens and compares real speed with triaLM's prediction. It then sends requests in codex's own format (a greeting, a tool call and the tool result) and reports \"Ready\" only if all three work: a fast runtime can still reject a coding tool's requests. The setup is not done until this says Ready.",
-      "commands": [
-        {
-          "os": "any",
-          "shell": "sh",
-          "run": "trialm verify --runtime ollama --endpoint http://127.0.0.1:11434 --model qwen3.6:35b-a3b-trialm --catalog-model qwen3.6-35b-a3b --quant Q4_K_M --ctx 65536 --harness codex"
-        }
-      ],
-      "confidence": "high"
+      "id": "ready",
+      "kind": "check",
+      "title": "Verify Ready"
     }
   ],
+  "untouched": [
+    "drivers and OS startup services",
+    "existing model caches",
+    "harness defaults"
+  ],
   "warnings": [
-    "Restarting the Ollama service unloads any running models.",
-    "These steps need administrator rights (sudo): Install Ollama; Set Ollama server settings: OLLAMA_KEEP_ALIVE=-1.",
-    "The model download is 22.1 GB; keep at least 26.3 GB of disk space free."
-  ]
+    "Resolve Hugging Face file digests on this machine before applying this what-if plan."
+  ],
+  "predicted": {
+    "DecodeTPS0": 96.7448279,
+    "DecodeTPSTarget": 65.2545775,
+    "PrefillTPS": 1976.40772
+  },
+  "check_endpoint": "http://127.0.0.1:11535",
+  "apis": [
+    "openai-chat",
+    "anthropic",
+    "responses"
+  ],
+  "bits_per_weight": 5.1088607
 }

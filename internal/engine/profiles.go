@@ -1,9 +1,9 @@
-// Package runtime models local LLM runtimes (Ollama, llama.cpp, LM Studio,
+// Package engine models local LLM runtimes (Ollama, llama.cpp, LM Studio,
 // MLX) as versioned data: which platforms and backends they support, their
 // default settings, their prompt-cache behaviour and the APIs they expose.
-// Profiles live in profiles.json so they can be updated without code
+// Profiles live in engines.json so they can be updated without code
 // changes; every setting carries a confidence level shown to the user.
-package runtime
+package engine
 
 import (
 	_ "embed"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-//go:embed profiles.json
+//go:embed engines.json
 var profilesJSON []byte
 
 // Overflow policies when a prompt exceeds the context window.
@@ -119,7 +119,7 @@ var (
 func init() {
 	var f file
 	if err := json.Unmarshal(profilesJSON, &f); err != nil {
-		panic("runtime: invalid embedded profiles.json: " + err.Error())
+		panic("engine: invalid embedded engines.json: " + err.Error())
 	}
 	profiles = f.Profiles
 	updated = f.Updated

@@ -1,72 +1,58 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
-	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/setup"
+	"github.com/aeroknight786/trialm/internal/terminal"
 )
 
-func PrintPlan(output io.Writer, p setup.Plan, why string, res predict.Result) {
-	mode := "default settings"
-	if p.Tuned {
-		mode = "tuned settings"
+func PrintPlan(output io.Writer, p setup.Plan) {
+	fmt.Fprintf(output, "\nSetup plan %s · %s · %s\n", p.ModelName, p.Quant, p.RuntimeName)
+	download := gb(float64(p.DownloadBytes))
+	if p.DownloadUnknown {
+		download += " plus installer downloads of unknown size"
 	}
-	fmt.Fprintf(output, "\nSetup plan: %s (%s, %s) with %s, %s\n", p.ModelName, p.Quant, gb(float64(p.DownloadBytes)), p.RuntimeName, mode)
-	fmt.Fprintf(output, "  runtime chosen: %s\n", why)
-	fmt.Fprintf(output, "  context %d tokens · %s · serves at %s as %q\n", p.ContextTokens, cacheLabel(p.KVCacheType), p.Endpoint, p.LocalModelName)
-	fmt.Fprintf(output, "  expected: first reply %s, then ~%s per turn, writing at %s tok/s\n",
-		dur(res.Scenario.ColdFirstReply), dur(res.Scenario.FollowUpTurn), bandNumber(res.DecodeTPSDeep, res.Accuracy.DecodePct))
-	if p.Harness != "" {
-		mark := "✓"
-		if !p.HarnessCompatible {
-			mark = "✗"
-		}
-		fmt.Fprintf(output, "  %s %s\n", mark, p.HarnessNote)
+	fmt.Fprintf(output, "%d approval · %d OS password prompts · %s download\n", p.Prompts.Approvals, p.Prompts.Passwords, download)
+	if p.Prompts.AfterRestart != "" {
+		fmt.Fprintln(output, p.Prompts.AfterRestart)
 	}
-	fmt.Fprintln(output, "\nNothing has been run. Run each step yourself (or let your coding agent run them, with your approval):")
+	fmt.Fprintf(output, "%d tokens · %s · %s\n", p.ContextTokens, p.KVCacheType, p.Endpoint)
 	for i, s := range p.Steps {
-		flags := []string{}
-		if s.Optional {
-			flags = append(flags, "optional")
+		fmt.Fprintf(output, "%d/%d %s · %s\n", i+1, len(p.Steps), s.Kind, s.Title)
+		if len(s.Argv) > 0 {
+			fmt.Fprintf(output, "  argv %q\n", s.Argv)
 		}
-		if s.NeedsAdmin {
-			flags = append(flags, "needs admin")
+		if s.Request != nil {
+			fmt.Fprintf(output, "  %s\n  sha256 %s\n", s.Request.URL, s.Request.SHA256)
 		}
-		if s.DownloadBytes > 0 {
-			flags = append(flags, "downloads "+gb(float64(s.DownloadBytes)))
+		if s.Path != "" {
+			fmt.Fprintln(output, "  "+s.Path)
 		}
-		if s.Confidence == "low" {
-			flags = append(flags, "check the docs link: command not verified for every version")
-		}
-		extra := ""
-		if len(flags) > 0 {
-			extra = "  [" + strings.Join(flags, ", ") + "]"
-		}
-		fmt.Fprintf(output, "\n%d. %s%s\n", i+1, s.Title, extra)
-		if s.Why != "" {
-			fmt.Fprintf(output, "   %s\n", s.Why)
-		}
-		for _, cmd := range s.Commands {
-			for _, line := range strings.Split(strings.TrimRight(cmd.Run, "\n"), "\n") {
-				fmt.Fprintf(output, "     %s\n", line)
-			}
-		}
-		for _, f := range s.Files {
-			fmt.Fprintf(output, "   %s %s:\n", map[string]string{"create": "Create", "merge": "Merge into", "append": "Append to"}[f.Merge], f.Path)
-			for _, line := range strings.Split(strings.TrimRight(f.Content, "\n"), "\n") {
-				fmt.Fprintf(output, "     %s\n", line)
-			}
-		}
-		if s.Restart != "" {
-			fmt.Fprintf(output, "   then restart: %s\n", s.Restart)
+		if s.Kind == setup.RunInstaller {
+			fmt.Fprintln(output, s.Content)
 		}
 	}
-	for _, w := range p.Warnings {
-		fmt.Fprintf(output, "\n⚠ %s", w)
+	fmt.Fprintln(output, "Kept as they are · "+strings.Join(p.Untouched, ", "))
+	for _, warning := range p.Warnings {
+		fmt.Fprintln(output, warning)
 	}
+	fmt.Fprintln(output, "plan_id", p.ID)
+}
+
+func ConfirmSetup(output io.Writer, input *os.File) (bool, error) {
+	fmt.Fprint(output, "Apply this plan? Y/n ")
+	key, err := terminal.Key(input)
 	fmt.Fprintln(output)
-	fmt.Fprintln(output)
+	if err != nil {
+		return false, err
+	}
+	if key == 3 {
+		return false, context.Canceled
+	}
+	return key == 13 || key == 10 || key == 'y' || key == 'Y', nil
 }

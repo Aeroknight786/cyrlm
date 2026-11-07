@@ -21,12 +21,12 @@ import (
 	"github.com/aeroknight786/trialm/internal/api"
 	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/core"
+	runtime "github.com/aeroknight786/trialm/internal/engine"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/hw"
 	"github.com/aeroknight786/trialm/internal/openrouter"
 	"github.com/aeroknight786/trialm/internal/paths"
 	"github.com/aeroknight786/trialm/internal/predict"
-	"github.com/aeroknight786/trialm/internal/runtime"
 	"github.com/aeroknight786/trialm/internal/server"
 	"github.com/aeroknight786/trialm/internal/sim"
 	"github.com/aeroknight786/trialm/internal/store"
@@ -44,7 +44,7 @@ const usage = `triaLM — try a local coding model before you download it
 
   trialm find [model]        ranked models for this machine
   trialm try [model]         a private, paced cloud trial
-  trialm setup <model>       review a local setup plan (execution in v0.5)
+  trialm setup <model>       approve, install and verify a local setup
   trialm launch [tool]       daily launch (arrives in v0.5)
   trialm key                 OpenRouter sign-in
 

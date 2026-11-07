@@ -13,6 +13,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/calibrationcli"
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/paths"
+	"github.com/aeroknight786/trialm/internal/setup/proc"
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/terminal"
 	"github.com/aeroknight786/trialm/internal/ui"
@@ -102,7 +103,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 	if selectedMode == Interactive && (currentVerb == "home" || currentVerb == "find") {
 		return finish(runTUI(ctx, currentVerb, args))
 	}
-	if selectedMode == Interactive && currentVerb != "try" && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
+	if selectedMode == Interactive && currentVerb != "try" && currentVerb != "setup" && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
 		if err := calibrationcli.MaybeOffer(argv[1:]); err != nil {
 			return finish(err)
 		}
@@ -165,7 +166,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 	case "bridge":
 		err = cmdBridge(args)
 	case "bg":
-		err = cmdBg(args)
+		err = proc.Background(ctx, args, out())
 	case "inspect":
 		err = cmdInspect(args)
 	case "recommend":

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
@@ -23,6 +21,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/paths"
 	"github.com/aeroknight786/trialm/internal/server"
+	"github.com/aeroknight786/trialm/internal/setup/proc"
 	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
@@ -284,8 +283,6 @@ func takeFlag(args []string, name string, hasValue bool) ([]string, string, bool
 	return out, val, found
 }
 
-var endpointLine = regexp.MustCompile(`Endpoints on (http://127\.0\.0\.1:\d+)`)
-
 // startBackground runs `trialm <cmd> <args>` detached and waits until it
 // serves, then prints its output so far.
 func startBackground(cmd string, args []string, logPath string) error {
@@ -296,133 +293,7 @@ func startBackground(cmd string, args []string, logPath string) error {
 		}
 		logPath = filepath.Join(dir, cmd+".log")
 	}
-	return detach(append([]string{cmd}, args...), logPath, "", 90*time.Second, true)
+	return proc.Detach(commandContext, out(), append([]string{cmd}, args...), logPath, "", 90*time.Second, true)
 }
 
-// detach starts argv (argv[0] = a trialm subcommand when self, else a
-// program) with output to logPath, then waits for readiness: readyURL
-// answering 2xx, or (self) the server's own "Endpoints on" line plus its
-// /health. It returns an error, with the log tail, when the process exits
-// or is not ready in time.
-func detach(argv []string, logPath, readyURL string, timeout time.Duration, self bool) error {
-	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	defer logf.Close()
-	var c *exec.Cmd
-	if self {
-		exe, err := os.Executable()
-		if err != nil {
-			return err
-		}
-		c = exec.Command(exe, argv...)
-		c.Env = append(os.Environ(), "TRIALM_DETACHED=1", "CYRLM_DETACHED=1")
-	} else {
-		path, err := exec.LookPath(argv[0])
-		if err != nil {
-			return fmt.Errorf("%s: not found", argv[0])
-		}
-		c = exec.Command(path, argv[1:]...)
-	}
-	c.Stdin, c.Stdout, c.Stderr = nil, logf, logf
-	detachAttrs(c)
-	if err := c.Start(); err != nil {
-		return err
-	}
-	exited := make(chan error, 1)
-	go func() { exited <- c.Wait() }()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		select {
-		case err := <-exited:
-			return fmt.Errorf("it stopped right away (%v). Log %s:\n%s", err, logPath, tail(logPath, 30))
-		case <-time.After(300 * time.Millisecond):
-		}
-		url := readyURL
-		if self {
-			m := endpointLine.FindStringSubmatch(readFile(logPath))
-			if m == nil {
-				continue
-			}
-			url = m[1] + "/health"
-		}
-		if ok(url) {
-			if self {
-				fmt.Fprint(out(), readFile(logPath))
-			}
-			stop := fmt.Sprintf("kill %d", c.Process.Pid)
-			if goruntime.GOOS == "windows" {
-				stop = fmt.Sprintf("Stop-Process -Id %d", c.Process.Pid)
-			}
-			fmt.Fprintf(out(), "✓ Started in the background and answering at %s (pid %d). Log: %s. Stop: %s\n", strings.TrimSuffix(url, "/health"), c.Process.Pid, logPath, stop)
-			return nil
-		}
-	}
-	return fmt.Errorf("not ready after %s (pid %d still running). Log %s:\n%s", timeout, c.Process.Pid, logPath, tail(logPath, 30))
-}
-
-func ok(url string) bool {
-	if url == "" {
-		return false
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return false
-	}
-	resp.Body.Close()
-	return resp.StatusCode >= 200 && resp.StatusCode < 300
-}
-
-func readFile(p string) string {
-	b, _ := os.ReadFile(p)
-	return string(b)
-}
-
-func tail(p string, n int) string {
-	var lines []string
-	f, err := os.Open(p)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
-	for sc.Scan() {
-		lines = append(lines, sc.Text())
-		if len(lines) > n {
-			lines = lines[1:]
-		}
-	}
-	return strings.Join(lines, "\n")
-}
-
-// cmdBg runs any long-lived program (e.g. llama-server) the same way:
-// detached, logged, and confirmed ready by a URL before returning.
-//
-//	trialm bg --log ~/.trialm/logs/llama.log --ready http://127.0.0.1:8080/health -- llama-server …
-func cmdBg(args []string) error {
-	fs := flag.NewFlagSet("bg", flag.ContinueOnError)
-	logPath := fs.String("log", "", "log file (required)")
-	ready := fs.String("ready", "", "URL that answers 2xx once the program is ready (required)")
-	timeout := fs.Duration("timeout", 10*time.Minute, "how long to wait for --ready (model loads can be slow)")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	argv := fs.Args()
-	if *logPath == "" || *ready == "" || len(argv) == 0 {
-		return errors.New("usage: trialm bg --log FILE --ready URL [--timeout 10m] -- program args…")
-	}
-	if strings.HasPrefix(*logPath, "~/") {
-		home, _ := os.UserHomeDir()
-		*logPath = filepath.Join(home, (*logPath)[2:])
-	}
-	_ = os.MkdirAll(filepath.Dir(*logPath), 0o755)
-	if ok(*ready) {
-		return fmt.Errorf("something already answers at %s: stop it first or use another port", *ready)
-	}
-	return detach(argv, *logPath, *ready, *timeout, false)
-}
+var endpointLine = regexp.MustCompile(`Endpoints on (http://127\.0\.0\.1:\d+)`)

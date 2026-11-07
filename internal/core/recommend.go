@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/aeroknight786/trialm/internal/catalog"
+	runtime "github.com/aeroknight786/trialm/internal/engine"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/hw"
 	"github.com/aeroknight786/trialm/internal/predict"
-	"github.com/aeroknight786/trialm/internal/runtime"
 )
 
 // ProfileIDsFor maps an installed runtime to the simulation profiles that
