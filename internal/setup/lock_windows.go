@@ -9,16 +9,21 @@ import (
 	"syscall"
 )
 
+// lock holds <setups>/<slug>.lock open with share mode 0: a second open fails
+// until this process closes it or exits, and delete-on-close removes the file
+// then. Locking the setup directory itself (as on Unix) would block the
+// journal's atomic rename inside it on Windows.
 func lock(path string) (func(), error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	// Windows share mode zero provides a kernel-owned lock released on exit.
-	name, err := syscall.UTF16PtrFromString(filepath.Dir(path))
+	name, err := syscall.UTF16PtrFromString(dir + ".lock")
 	if err != nil {
 		return nil, err
 	}
-	handle, err := syscall.CreateFile(name, syscall.GENERIC_READ, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	const deleteAccess, deleteOnClose = 0x00010000, 0x04000000
+	handle, err := syscall.CreateFile(name, syscall.GENERIC_READ|syscall.GENERIC_WRITE|deleteAccess, 0, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL|deleteOnClose, 0)
 	if err != nil {
 		return nil, fmt.Errorf("setup journal is locked: %w", err)
 	}
