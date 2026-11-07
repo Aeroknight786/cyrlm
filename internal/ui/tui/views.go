@@ -8,6 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/aeroknight786/trialm/internal/figure"
+	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -97,7 +98,7 @@ func (m *Root) body() string {
 			b += "● " + j.Plan.ModelName + " · " + j.Plan.RuntimeName + " · ready (" + state + ")\n"
 		}
 		if len(m.ready) > 0 {
-			b += "❯ Launch " + m.cfg.Preferences.Tool + " with it  enter\n"
+			b += "❯ Launch " + harness.DisplayName(m.cfg.Preferences.Tool) + " with it  enter\n"
 		}
 		b += "Find or try another  f\n\nTrials history\n"
 		for i := len(m.history) - 1; i >= max(0, len(m.history)-5); i-- {

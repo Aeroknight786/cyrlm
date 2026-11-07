@@ -461,3 +461,11 @@ func quoteAll(a []string) []string {
 	}
 	return out
 }
+
+// DisplayName is a tool's name for people ("Codex CLI", not "codex").
+func DisplayName(id string) string {
+	if h, err := Get(id); err == nil && h.Name != "" {
+		return h.Name
+	}
+	return id
+}

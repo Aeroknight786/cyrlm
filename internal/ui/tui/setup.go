@@ -13,6 +13,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/engine"
 	"github.com/aeroknight786/trialm/internal/figure"
+	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/verify"
@@ -174,7 +175,7 @@ func (m *Root) setupBody() string {
 			bytes += s.Request.Size
 		}
 		if bytes > 0 {
-			b += " · " + figure.Exact(float64(bytes)/1e6, "MB", figure.Measured, "setup:resolved-files").String() + " · sha256 pinned"
+			b += " · " + figure.Bytes(bytes, "setup:resolved-files").String() + " · sha256 pinned"
 		}
 		b += "\n"
 	}
@@ -188,7 +189,7 @@ func (m *Root) setupBody() string {
 	if u := m.setup.update; u.Progress != nil && u.Progress.Total > 0 {
 		progress := u.Progress
 		b += "Downloading " + m.progressBar(float64(progress.Done)/float64(progress.Total)) + "\n"
-		b += fmt.Sprintf("%d%% · %s / %s · %s · ETA %s\n", progress.Done*100/progress.Total, figure.Exact(float64(progress.Done)/1e6, "MB", figure.Measured, "download").String(), figure.Exact(float64(progress.Total)/1e6, "MB", figure.Measured, "download").String(), figure.Exact(progress.BytesPerSec/1e6, "MB/s", figure.Measured, "download").String(), figure.Exact(progress.ETA.Seconds(), "s", figure.Measured, "download").String())
+		b += fmt.Sprintf("%d%% · %s / %s · %s · ETA %s\n", progress.Done*100/progress.Total, figure.Bytes(progress.Done, "download").String(), figure.Bytes(progress.Total, "download").String(), figure.Exact(progress.BytesPerSec/1e6, "MB/s", figure.Measured, "download").String(), figure.Exact(progress.ETA.Seconds(), "s", figure.Measured, "download").String())
 	}
 	if len(m.setup.logs) > 0 {
 		log := viewport.New(viewport.WithWidth(max(20, m.width-2)), viewport.WithHeight(len(m.setup.logs)))
@@ -196,7 +197,7 @@ func (m *Root) setupBody() string {
 		b += log.View() + "\n"
 	}
 	if m.busy {
-		return b + "ctrl-c pauses"
+		return strings.TrimSuffix(b, "\n") // the footer says ctrl-c pauses
 	}
 	return b + "Go? [Y/n]"
 }
@@ -211,22 +212,19 @@ func (m *Root) readyBody() string {
 		measured := figure.Band(actual, 20, "t/s", figure.Measured, "verify:ready").String()
 		miss := "—"
 		if predicted > 0 {
-			miss = figure.Band(math.Round(100*(actual/predicted-1)), 20, "%", figure.Measured, "verify:miss").String()
-			if actual >= predicted {
-				miss = "+" + miss
-			}
+			miss = fmt.Sprintf("%+d%%", int(math.Round(100*(actual/predicted-1))))
 		}
 		b += fmt.Sprintf("%-24s %12s %12s %9s\n", label, prediction, measured, miss)
 	}
-	row("writing @ 0", p.Predicted.DecodeTPS0, r.DecodeTPS[0], p.DecodeErrorPct)
-	row(fmt.Sprintf("writing @ %d", p.ContextTokens), p.Predicted.DecodeTPSTarget, r.DecodeTPS[p.ContextTokens], p.DecodeErrorPct)
+	row("writing @ start", p.Predicted.DecodeTPS0, r.DecodeTPS[0], p.DecodeErrorPct)
+	row(fmt.Sprintf("writing @ %dK", p.ContextTokens/1024), p.Predicted.DecodeTPSTarget, r.DecodeTPS[p.ContextTokens], p.DecodeErrorPct)
 	row("reading", p.Predicted.PrefillTPS, r.PrefillTPS, p.PrefillErrorPct)
 	for _, c := range r.Checks {
 		mark := "✗"
 		if c.OK {
 			mark = "✓"
 		}
-		b += mark + " " + c.Name + " · " + c.Detail + "\n"
+		b += strings.TrimSuffix(mark+" "+c.Name+" · "+c.Detail, " · ") + "\n"
 	}
 	if m.setup.calibrated {
 		machine := "this machine"
@@ -235,7 +233,7 @@ func (m *Root) readyBody() string {
 		}
 		b += "calibrated " + machine + " · re-ranked\n"
 	}
-	return b + "enter open " + m.cfg.Preferences.Tool + " now  later: trialm launch"
+	return b + "enter open " + harness.DisplayName(m.cfg.Preferences.Tool) + " now  later: trialm launch"
 }
 
 func RunSetup(ctx context.Context, p setup.Plan) error {

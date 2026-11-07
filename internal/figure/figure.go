@@ -75,3 +75,11 @@ func BandNumber(v float64, pct int) string {
 	}
 	return prefix + strconv.FormatFloat(rounded, 'f', decimals, 64)
 }
+
+// Bytes is a measured byte count in GB from 1 GB up, else in MB.
+func Bytes(n int64, src string) Figure {
+	if n >= 1e9 {
+		return Exact(float64(n)/1e9, "GB", Measured, src)
+	}
+	return Exact(float64(n)/1e6, "MB", Measured, src)
+}
