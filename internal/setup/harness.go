@@ -3,7 +3,7 @@ package setup
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"path"
 	"sort"
 	"strings"
 
@@ -254,13 +254,13 @@ func (b *builder) manualHarnessStep(h harness.Harness, s harness.Setup) {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
-	for _, path := range paths {
-		format := strings.TrimPrefix(filepath.Ext(path), ".")
+	for _, filePath := range paths {
+		format := strings.TrimPrefix(path.Ext(filePath), ".")
 		if format == "yml" {
 			format = "yaml"
 		}
-		st.Files = append(st.Files, FileEdit{Path: filepath.ToSlash(path), Format: format, Content: s.Files[path], Merge: "create", Note: "triaLM-owned config; create with mode 0600. Leaves the harness's default settings untouched."})
-		st.Undo = append(st.Undo, b.os(b.rm(strings.TrimPrefix(filepath.ToSlash(path), "~/"))))
+		st.Files = append(st.Files, FileEdit{Path: filePath, Format: format, Content: s.Files[filePath], Merge: "create", Note: "triaLM-owned config; create with mode 0600. Leaves the harness's default settings untouched."})
+		st.Undo = append(st.Undo, b.os(b.rm(strings.TrimPrefix(filePath, "~/"))))
 	}
 	parts = append(parts, s.Notes...)
 	st.Why = strings.Join(parts, " ")
@@ -277,8 +277,8 @@ func (b *builder) manualHarnessStep(h harness.Harness, s harness.Setup) {
 // harnessArg expands owned plan paths in the target shell. Env vars cannot
 // contain a literal tilde: the shell must turn HOME into an absolute path.
 func (b *builder) harnessArg(arg string) string {
-	if strings.HasPrefix(filepath.ToSlash(arg), "~/") {
-		return b.home(strings.TrimPrefix(filepath.ToSlash(arg), "~/"))
+	if strings.HasPrefix(arg, "~/") {
+		return b.home(strings.TrimPrefix(arg, "~/"))
 	}
 	return b.q(arg)
 }

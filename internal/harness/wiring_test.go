@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -282,7 +283,7 @@ func TestLaunchWritesFilesAndScrubsParent(t *testing.T) {
 		t.Fatalf("config not written: %s %v", data, err)
 	}
 	fi, _ := os.Stat(owned)
-	if fi.Mode().Perm() != 0600 {
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0600 {
 		t.Errorf("mode %o", fi.Mode().Perm())
 	}
 }
@@ -313,7 +314,7 @@ func TestWriteFilesAndLaunchErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	fi, _ := os.Stat(p)
-	if fi.Mode().Perm() != 0600 {
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0600 {
 		t.Errorf("existing mode %o", fi.Mode().Perm())
 	}
 	if err := (Setup{Files: map[string]string{"relative": "x"}}).WriteFiles(); err == nil {
@@ -328,6 +329,9 @@ func TestWriteFilesAndLaunchErrors(t *testing.T) {
 }
 
 func TestOpenCodePrintedShellJSON(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell environment is not reliable on Windows")
+	}
 	if _, err := exec.LookPath("sh"); err != nil {
 		t.Skip("POSIX shell unavailable")
 	}

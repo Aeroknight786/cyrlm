@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -55,6 +56,10 @@ func (o Options) ownedPath(rel string) string {
 		// paths.Home can contain a relative TRIALM_HOME override. Env values
 		// must work when pasted into a terminal in a different directory.
 		home, _ = filepath.Abs(home)
+	}
+	// Symbolic home paths are plan paths, not paths on the current host.
+	if strings.HasPrefix(home, "~/") {
+		return path.Join(home, "harness", rel)
 	}
 	return filepath.Join(home, "harness", filepath.FromSlash(rel))
 }
