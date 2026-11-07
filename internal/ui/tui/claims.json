@@ -1,0 +1,92 @@
+[
+  {
+    "id": "strata/5070/q2_0/4k",
+    "source_name": "Strata docs/DETAILS.md, cited in REFACTOR_RESEARCH.md",
+    "source_url": "https://github.com/Niko1221/Strata/blob/main/docs/DETAILS.md",
+    "hardware": "RTX 5070 12 GB \u00b7 Ryzen 5 7600 \u00b7 64 GB DDR5-5200",
+    "recipe": "Qwen3.8-Flash-Next Q2_0 \u00b7 engine 0.1.26 \u00b7 MTP on \u00b7 code prompt \u00b7 4K depth \u00b7 256 output tokens",
+    "date": "2026-11-06",
+    "date_basis": "research capture; publication date unspecified",
+    "grade": "V",
+    "figures": [
+      {
+        "v": 93.0,
+        "lo": 93.0,
+        "hi": 93.0,
+        "unit": "tok/s writing at 4K",
+        "kind": "claimed",
+        "src": "Strata docs/DETAILS.md"
+      },
+      {
+        "v": 1299,
+        "lo": 1299,
+        "hi": 1299,
+        "unit": "tok/s reading at 4K",
+        "kind": "claimed",
+        "src": "Strata docs/DETAILS.md"
+      }
+    ],
+    "gpu": "RTX 5070",
+    "os": "linux"
+  },
+  {
+    "id": "avalon/7900xt/short",
+    "source_name": "Avalon README, Nov 1, cited in PLAN.md and REFACTOR_RESEARCH.md",
+    "source_url": "https://github.com/freriadoc/Avalon#readme",
+    "hardware": "RX 7900 XT 20 GB \u00b7 Ryzen 7 3800XT \u00b7 DDR4-3200 \u00b7 PCIe 3.0 \u00b7 RAM amount not stated for this row",
+    "recipe": "Qwen3.8-Flash-Next IQ3_KS + MTP \u00b7 greedy \u00b7 512 output tokens \u00b7 short prompt \u00b7 32K context",
+    "date": "2026-11-01",
+    "date_basis": "README table date",
+    "grade": "S",
+    "figures": [
+      {
+        "v": 98.4,
+        "lo": 98.4,
+        "hi": 98.4,
+        "unit": "tok/s writing with MTP",
+        "kind": "claimed",
+        "src": "Avalon README 2026-11-01"
+      },
+      {
+        "v": 66.1,
+        "lo": 66.1,
+        "hi": 66.1,
+        "unit": "tok/s writing without MTP",
+        "kind": "claimed",
+        "src": "Avalon README 2026-11-01"
+      }
+    ],
+    "gpu": "RX 7900 XT",
+    "os": "linux"
+  },
+  {
+    "id": "splash/m5pro/qwen35b",
+    "source_name": "Splash 1.0 README, cited in PLAN.md and REFACTOR_RESEARCH.md",
+    "source_url": "https://github.com/incoai/splash#readme",
+    "hardware": "M5 Pro \u00b7 core count and RAM differ between cited tables; comparison conditions incomplete",
+    "recipe": "Qwen3.6-35B-A3B UD-Q4_K_M \u00b7 Splash 1.0 \u00b7 DFlash2 \u00b7 matched-file llama.cpp comparison",
+    "date": "2026-11-06",
+    "date_basis": "research capture; publication date unspecified",
+    "grade": "S",
+    "figures": [
+      {
+        "v": 175,
+        "lo": 175,
+        "hi": 175,
+        "unit": "tok/s writing",
+        "kind": "claimed",
+        "src": "Splash 1.0 README matched-file comparison"
+      },
+      {
+        "v": 69,
+        "lo": 69,
+        "hi": 69,
+        "unit": "tok/s llama.cpp baseline",
+        "kind": "claimed",
+        "src": "Splash 1.0 README matched-file comparison"
+      }
+    ],
+    "gpu": "Apple",
+    "os": "darwin"
+  }
+]

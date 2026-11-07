@@ -92,3 +92,22 @@ func TestTryFitAndQueryAliases(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEightBitRequirement(t *testing.T) {
+	s := Session{}
+	o := Options{Device: "RTX 4090", RAM: 64, Runtime: "all", Tuned: true, QualityFloor: "8bit"}
+	d, e := s.Detect(context.Background(), o)
+	if e != nil {
+		t.Fatal(e)
+	}
+	h, _ := harness.Get("codex")
+	l, e := s.Find(context.Background(), o, d.Target, h.Scenario, h, "", 5)
+	if e != nil || len(l.Rows) == 0 {
+		t.Fatal(l, e)
+	}
+	for _, r := range l.Rows {
+		if quantBits(r.Result.Quant.Name) < 8 {
+			t.Fatal(r.Result.Quant)
+		}
+	}
+}

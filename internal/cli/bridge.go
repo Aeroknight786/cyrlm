@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -221,8 +222,13 @@ func serveUntilSignal(srv *server.Server) error {
 	defer signal.Stop(sigs)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve() }()
+	parentDone := make(chan struct{})
+	if os.Getenv("TRIALM_PARENT_PIPE") == "1" {
+		go func() { _, _ = io.Copy(io.Discard, os.Stdin); close(parentDone) }()
+	}
 	interrupted := false
 	select {
+	case <-parentDone:
 	case sig := <-sigs:
 		interrupted = sig == os.Interrupt
 	case <-commandContext.Done():

@@ -1,0 +1,14 @@
+Trial over · qwen3.6:35b-a3b · IQ3_XXS · llamacpp
+Trial summary · fp8 (declared), no-logging; upper bound on quality
+  38 requests · local ~840 s · cloud 190 s · 0 cloud-bound moments
+  time split: reading ~370 s · writing ~290 s · load 0 s · between turns
+(tools/user) 176 s
+  first turn ~10 s · typical follow-up ~9.8 s · slowest ~41 s (reading)
+  cache reuse 0% · loads 0 · context peak 0 tokens · overflows 0
+  spend 0.210 USD
+[38;2;40;150;170m━[m[38;2;44;148;171m━[m[38;2;48;146;172m━[m[38;2;52;144;174m━[m[38;2;56;142;175m━[m[38;2;60;140;177m━[m[38;2;64;138;178m━[m[38;2;68;136;180m━[m[38;2;72;134;181m━[m[38;2;76;132;182m━[m[38;2;80;130;184m━[m[38;2;84;128;185m━[m[38;2;88;126;187m━[m[38;2;92;124;188m━[m[38;2;96;122;190m━[m[38;2;100;120;191m╷[m[38;2;104;118;192m━[m[38;2;108;116;194m━[m[38;2;112;114;195m━[m[38;2;116;112;197m━[m[38;2;120;110;198m━[m[38;2;124;108;200m━[m[38;2;128;106;201m━[m[38;2;132;104;202m━[m[38;2;136;102;204m━[m[38;2;140;100;205m━[m[38;2;144;98;207m━[m[38;2;148;96;208m╷[m[38;2;152;94;210m━[m[38;2;156;92;211m━[m[38;2;160;90;212m━[m[38;2;164;88;214m━[m[38;2;168;86;215m━[m[38;2;172;84;217m━[m[38;2;176;82;218m━[m[38;2;180;80;220m━[m
+reading 44% · writing 35% · fixed/tools 21%
+
+How did it feel?
+
+[36m1[m [90mtoo slow[m[90m  [m[36m2[m [90mfine[m[90m  [m[36m3[m [90mgreat[m[90m  [m[36ms[m [90mset up[m[90m  [m[36mt[m [90manother[m[90m  [m[36mq[m [90mquit[m

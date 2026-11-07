@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 	"github.com/aeroknight786/trialm/internal/terminal"
 	"github.com/aeroknight786/trialm/internal/tok"
 	"github.com/aeroknight786/trialm/internal/trial"
+	"github.com/aeroknight786/trialm/internal/ui/tui"
+	windowui "github.com/aeroknight786/trialm/internal/ui/window"
 	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
@@ -403,12 +406,12 @@ func cmdServe(args []string, try bool) error {
 	logFile := fs.String("log", "", "write request logs to this file (also works in the foreground)")
 	allowOrigin := fs.String("allow-origin", "", "extra allowed browser origins (comma-separated)")
 	force := fs.Bool("force", false, "serve even if the model does not fit")
-	zdr := fs.Bool("zdr", false, "require zero data retention")
+	zdr := fs.Bool("zdr", c.prefs.ZDR, "require zero data retention")
 	budget := fs.Float64("budget", c.prefs.BudgetUSD, "per-trial USD cap")
 	pace := fs.String("pace", "p50", "p50 | p90 local pacing")
 	serve := fs.Bool("serve", false, "serve in the foreground without launching a tool")
 	here := fs.Bool("here", false, "launch in this terminal")
-	window := fs.Bool("window", false, "open a trial window (arrives in v0.4)")
+	window := fs.Bool("window", false, "open a trial in another terminal")
 	playground := fs.Bool("playground", false, "use a scratch working directory")
 	pos, err := parseInterspersed(fs, args)
 	if err != nil {
@@ -421,19 +424,22 @@ func cmdServe(args []string, try bool) error {
 	if *budget <= 0 || math.IsNaN(*budget) || math.IsInf(*budget, 0) {
 		return &exitError{2, "--budget must be a finite positive USD amount"}
 	}
-	if *window {
-		return needs("--here or --serve", "trial windows arrive in v0.4")
+
+	explicitWindow := *window
+	if try && !*here && !*serve && !*launch && paths.Getenv("DETACHED") == "" && autoWindow() {
+		*window = true
 	}
 	if *here {
 		*launch = true
 	}
-	if c.prefs.Use == "chat" && !*serve {
-		return needs("--serve", "built-in chat arrives in v0.4")
+	chat := try && c.prefs.Use == "chat" && !*serve
+	if chat && !terminal.IsTTY(os.Stdin) && (!*window || !explicitWindow && jsonMode) {
+		return needs("--serve or --window", "chat needs a terminal")
 	}
 	if *serve && *launch {
 		return &exitError{2, "choose --serve or --launch"}
 	}
-	if try && !*serve && !*launch && selectedMode == Interactive && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) {
+	if try && !*window && !*serve && !*launch && selectedMode == Interactive && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) {
 		*launch = true
 	}
 	portSet := false
@@ -493,6 +499,17 @@ func cmdServe(args []string, try bool) error {
 		return err
 	}
 	res, why := prepared.Result, prepared.Why
+	explicitLaunch := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "launch" {
+			explicitLaunch = true
+		}
+	})
+	if try && selectedMode == Interactive && !explicitLaunch && !*here && !*serve && paths.Getenv("DETACHED") == "" {
+		c.prefs.BudgetUSD = *budget
+		c.prefs.ZDR = *zdr
+		return runTrialTUI(commandContext, c, res, args, *window)
+	}
 	prof := res.Runtime
 	// Upstream first, so a missing key is the first thing a user sees.
 	if c.prefs.Privacy == "predict-only" {
@@ -546,7 +563,13 @@ func cmdServe(args []string, try bool) error {
 		res.PrefillTPSP0 = res.Timing.PrefillTPS(0, sc.BasePromptTokens)
 		fmt.Fprintln(out(), "Pacing: p90 · pessimistic band edge.")
 	}
-	if try && currentVerb == "try" && !*launch && !*serve && paths.Getenv("DETACHED") == "" {
+	if try && currentVerb == "try" && paths.Getenv("DETACHED") == "" && !*here && !*serve && !*launch && (*window || autoWindow()) {
+		return runWindow(commandContext, windowArgs(args), out())
+	}
+	if *window && !*here && !*serve {
+		return runWindow(commandContext, windowArgs(args), out())
+	}
+	if try && currentVerb == "try" && !*launch && !*serve && !chat && paths.Getenv("DETACHED") == "" {
 		return needs("--serve or --here", "a trial needs a terminal or foreground server mode")
 	}
 	if *playground || c.prefs.Privacy == "playground" {
@@ -589,6 +612,11 @@ func cmdServe(args []string, try bool) error {
 		defer f.Close()
 		logW = f
 	}
+	trialID := os.Getenv("TRIALM_RUN_ID")
+	if trialID == "" {
+		trialID = strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	trialAt := time.Now()
 	srv := server.New(server.Config{
 		TrialSummary: func(records []sim.Record) string {
 			spend := -1.0
@@ -599,6 +627,7 @@ func cmdServe(args []string, try bool) error {
 				spend = spending.Spent()
 			}
 			report := trial.Summarize(records, spend, fidelity)
+			_ = store.Default().SaveTrial(store.TrialEntry{ID: trialID, At: trialAt, Model: m.OllamaTag, Quant: res.Quant.Name, Runtime: prof.ID, Band: max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct), Report: report})
 			if jsonMode {
 				_ = emit("result", report.EventData(max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct)), core.Next{Cmd: "trialm setup " + m.OllamaTag + " --dry-run --json", Why: "review local setup"})
 			}
@@ -611,6 +640,15 @@ func cmdServe(args []string, try bool) error {
 			ModifiedAt: time.Now(),
 		},
 	})
+	meterCtx, meterCancel := context.WithCancel(commandContext)
+	defer meterCancel()
+	windowui.Track(meterCtx, store.Default(), os.Getenv("TRIALM_RUN_ID"), max(res.Accuracy.DecodePct, res.Accuracy.PrefillPct), store.TrialEntry{At: trialAt, Model: m.OllamaTag, Quant: res.Quant.Name, Runtime: prof.ID}, func() trial.Report {
+		spend := -1.0
+		if spending != nil {
+			spend = spending.Spent()
+		}
+		return trial.Summarize(dev.Stats().Snapshot(), spend, fidelity)
+	})
 	bound, err := srv.Listen(*host, *port, !portSet)
 	if err != nil {
 		return fmt.Errorf("cannot listen on %s:%d: %w", *host, *port, err)
@@ -620,6 +658,13 @@ func cmdServe(args []string, try bool) error {
 		if err = emit("progress", map[string]any{"ready": true, "endpoint": fmt.Sprintf("http://127.0.0.1:%d", bound), "fidelity": fidelity}); err != nil {
 			return err
 		}
+	}
+	if chat {
+		go func() { _ = srv.Serve() }()
+		err = tui.RunChat(commandContext, &upstream.OpenAICompat{BaseURL: fmt.Sprintf("http://127.0.0.1:%d/v1", bound), Model: m.OllamaTag + "-trialm"})
+		_ = srv.Shutdown(context.Background())
+		fmt.Fprintln(out(), srv.Summary())
+		return err
 	}
 	if c.harness != "" {
 		setup := hh.SetupFor(harness.Options{Port: bound, Model: m.OllamaTag + "-trialm", Tuned: c.tuned, ContextTokens: res.Settings.ContextTokens, Protocol: hh.ProtocolFor(prof.APIs)})

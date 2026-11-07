@@ -209,6 +209,8 @@ func BestFileFor(c Options, m catalog.Model, t predict.Target, sc predict.Scenar
 			floor = 3
 		case "4bit+":
 			floor = 4
+		case "8bit":
+			floor = 8
 		}
 		if floor > 0 && quantBits(qn) < floor {
 			continue

@@ -83,7 +83,12 @@ func TestSourceBudgets(t *testing.T) {
 	if commandPhysical > 30 {
 		t.Errorf("cmd/trialm %d physical lines > 30", commandPhysical)
 	}
-	cliUI := packages["internal/cli"] + packages["internal/ui"]
+	cliUI := packages["internal/cli"]
+	for pkg, n := range packages {
+		if pkg == "internal/ui" || strings.HasPrefix(pkg, "internal/ui/") {
+			cliUI += n
+		}
+	}
 	if cliUI > 5500 {
 		t.Errorf("cli+ui %d > 5500", cliUI)
 	}

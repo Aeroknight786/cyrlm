@@ -20,6 +20,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/aeroknight786/trialm/internal/runtime"
 	"github.com/aeroknight786/trialm/internal/sim"
+	"github.com/aeroknight786/trialm/internal/ui"
 	"github.com/aeroknight786/trialm/internal/verify"
 )
 
@@ -34,19 +35,7 @@ func cmdPrompt(args []string) error {
 	if _, err := parseInterspersed(fs, args); err != nil {
 		return err
 	}
-	p := agentPrompt
-	if *h != "" {
-		hh, err := harness.Get(*h)
-		if err != nil {
-			return err
-		}
-		p = strings.ReplaceAll(p, "<HARNESS>", hh.ID)
-	} else {
-		p = strings.ReplaceAll(p, "You are running in <HARNESS> — use that as `--harness`", "Work out which coding tool you are running in and use it wherever <your-tool> appears as `--harness`")
-		p = strings.ReplaceAll(p, "<HARNESS>", "<your-tool>")
-	}
-	fmt.Fprint(out(), p)
-	return nil
+	return ui.PrintPrompt(out(), agentPrompt, *h)
 }
 
 // ---------------------------------------------------------------- recommend
@@ -56,11 +45,19 @@ func cmdRecommend(args []string) error {
 	var c common
 	c.register(fs, "all")
 	top := fs.Int("top", 5, "how many options to show")
+	claims := fs.Bool("claims", false, "published claims gallery")
 	pos, err := parseInterspersed(fs, args)
 	if err != nil {
 		return err
 	}
 	c.finish(fs)
+	if *claims {
+		return printClaims(c.jsonOut)
+	}
+	if len(pos) > 0 && (strings.Contains(strings.Join(pos, " "), " -") || strings.Contains(strings.Join(pos, " "), "https://")) {
+		fmt.Fprintln(out(), "claim parsing arrives in v0.6")
+		return emit("result", map[string]any{"message": "claim parsing arrives in v0.6"}, core.Next{Cmd: "trialm find --claims", Why: "browse sourced claims"})
+	}
 	if err := c.validateRequirements(); err != nil {
 		return err
 	}

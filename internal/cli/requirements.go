@@ -9,17 +9,12 @@ import (
 	"github.com/aeroknight786/trialm/internal/store"
 )
 
-type savedRecipe struct {
-	Model   string `json:"model"`
-	Quant   string `json:"quant"`
-	Runtime string `json:"runtime"`
-	Harness string `json:"harness"`
-}
+type savedRecipe = store.Recipe
 
 func saveListing(rows []core.Row, h string) error {
 	list := []savedRecipe{}
 	for _, r := range rows {
-		list = append(list, savedRecipe{r.Result.Model.OllamaTag, r.Result.Quant.Name, r.Result.Runtime.ID, h})
+		list = append(list, savedRecipe{Model: r.Result.Model.OllamaTag, Quant: r.Result.Quant.Name, Runtime: r.Result.Runtime.ID, Harness: h})
 	}
 	return store.Default().Write("last.json", list)
 }
@@ -88,8 +83,8 @@ func (c *common) validateRequirements() error {
 	if c.prefs.ContextVia != "native" {
 		return &exitError{4, "opt-in YaRN arrives in v0.6; use --context-via native"}
 	}
-	if c.prefs.QualityFloor != "" && c.prefs.QualityFloor != "3bit-ok" && c.prefs.QualityFloor != "4bit+" {
-		return &exitError{2, "--quality-floor must be 3bit-ok|4bit+"}
+	if c.prefs.QualityFloor != "" && c.prefs.QualityFloor != "3bit-ok" && c.prefs.QualityFloor != "4bit+" && c.prefs.QualityFloor != "8bit" {
+		return &exitError{2, "--quality-floor must be 3bit-ok|4bit+|8bit"}
 	}
 	return nil
 }

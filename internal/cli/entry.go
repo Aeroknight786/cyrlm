@@ -99,7 +99,10 @@ func Main(ctx context.Context, argv []string, v string) int {
 		events = &ui.Renderer{Out: os.Stdout, Human: os.Stderr, JSON: jsonMode}
 	}
 	migrateHome()
-	if selectedMode == Interactive && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
+	if selectedMode == Interactive && (currentVerb == "home" || currentVerb == "find") {
+		return finish(runTUI(ctx, currentVerb, args))
+	}
+	if selectedMode == Interactive && currentVerb != "try" && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
 		if err := calibrationcli.MaybeOffer(argv[1:]); err != nil {
 			return finish(err)
 		}
@@ -120,8 +123,9 @@ func Main(ctx context.Context, argv []string, v string) int {
 				err = e
 				break
 			}
+			history, _ := store.Default().History()
 			if err = emit("detect", d); err == nil {
-				err = emit("result", map[string]any{"version": v, "key_configured": store.Default().Key() != ""}, homeNext()...)
+				err = emit("result", map[string]any{"version": v, "key_configured": store.Default().Key() != "", "trials": ui.TrialCards(history)}, homeNext()...)
 			}
 		} else {
 			fmt.Fprint(out(), usage)
@@ -222,6 +226,10 @@ func finish(err error) int {
 	}
 	if strings.HasPrefix(err.Error(), "usage:") {
 		code = 2
+	}
+	if code == 130 && !jsonMode {
+		fmt.Fprintln(os.Stderr, "Stopped.")
+		return code
 	}
 	fmt.Fprintln(os.Stderr, "error:", err)
 	if jsonMode {
