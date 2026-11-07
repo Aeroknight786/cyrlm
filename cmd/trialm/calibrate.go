@@ -303,7 +303,7 @@ func maybeOfferCalibration(args []string) error {
 		return nil
 	}
 	fmt.Fprintln(os.Stderr, "Recommended: calibrate this machine once for tighter speed estimates (5–7 min).")
-	fmt.Fprintln(os.Stderr, "triaLM generates synthetic weights and runs llama-bench. No model downloads. It writes cache/calib/, calib.json and prefs.json under", home+".")
+	fmt.Fprintln(os.Stderr, "triaLM writes synthetic models (random weights, real shapes) and runs llama-bench on them. No model downloads. It needs about 6 GB of free disk for temporary files, deleted as it goes, and keeps only calib.json and prefs.json under", home+".")
 	fmt.Fprint(os.Stderr, "Enter calibrates (recommended) · s or any other key skips: ")
 	key, e := calibrationKey(os.Stdin)
 	fmt.Fprintln(os.Stderr)

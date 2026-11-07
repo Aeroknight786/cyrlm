@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +53,10 @@ type RunOptions struct {
 
 // Run saves every finished row and resumes completed groups. The plan is a
 // runtime estimate; cancellation belongs to the caller, with no hard deadline.
+// MinFreeBytes is the free disk a run needs: its largest temporary probe
+// file (about 4.5 GB) plus margin.
+const MinFreeBytes = 6 << 30
+
 func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 	started := time.Now()
 	c := &Calibration{Backend: o.Backend, Version: GeneratorVersion, Fingerprint: o.Fingerprint, Started: started, Quick: o.Quick, Notes: []string{
@@ -98,6 +104,14 @@ func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 	}
 	save := func() error { c.FitRows(); c.WallSeconds = time.Since(started).Seconds(); return c.Save(o.Home) }
 	emit("start", 0, Probe{}, fmt.Sprintf("Optional machine calibration; estimated %.0f seconds on the M5 (use --plan for details). Finished rows resume after interruption.", remaining(0)))
+	// Each synthetic file is used by consecutive steps only; delete it after
+	// its last one, so the run needs one probe's worth of disk at a time
+	// (at most about 5 GB) instead of every probe at once (about 70 GB).
+	lastUse := map[string]int{}
+	for i, s := range steps {
+		lastUse[s.Probe.ID()] = i
+	}
+	cacheDir := filepath.Join(o.Home, "cache", "calib")
 	for i, s := range steps {
 		p := s.Probe
 		if e := ctx.Err(); e != nil {
@@ -110,6 +124,10 @@ func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 			continue
 		}
 		emit("step", i+1, p, "Generating or loading synthetic GGUF")
+		if free := freeBytes(o.Home); free >= 0 && free < MinFreeBytes {
+			_ = save()
+			return c, fmt.Errorf("calibration needs about %d GB of free disk for its temporary files; %.1f GB is free", MinFreeBytes>>30, float64(free)/(1<<30))
+		}
 		path, e := Generate(ctx, o.Home, p)
 		if e != nil {
 			_ = save()
@@ -185,7 +203,11 @@ func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 			_ = save()
 			return c, errors.New("llama-bench returned an incomplete measurement group; finished rows kept")
 		}
+		if lastUse[p.ID()] == i {
+			_ = os.Remove(path)
+		}
 	}
+	_ = os.Remove(cacheDir) // only succeeds when empty
 	c.FitRows()
 	c.Complete = true
 	if e := save(); e != nil {

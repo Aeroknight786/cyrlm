@@ -29,7 +29,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/upstream"
 )
 
-var version = "0.2.0-dev"
+var version = "0.2.1-dev"
 
 const usage = `trialm — try a local coding model before you download it
 

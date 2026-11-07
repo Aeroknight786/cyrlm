@@ -154,6 +154,9 @@ func TestRunMedianFallbackAndResume(t *testing.T) {
 			if e = c.Save(home); e != nil {
 				t.Fatal(e)
 			}
+			if left, _ := filepath.Glob(filepath.Join(options.Home, "cache", "calib", "*.gguf")); len(left) != 0 {
+				t.Fatalf("synthetic files left on disk after a full run: %v", left)
+			}
 			before, _ := os.ReadFile(calls)
 			// Resume must skip all groups, including those completed with mmap.
 			var events []Event
