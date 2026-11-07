@@ -99,7 +99,10 @@ func Main(ctx context.Context, argv []string, v string) int {
 		events = &ui.Renderer{Out: os.Stdout, Human: os.Stderr, JSON: jsonMode}
 	}
 	migrateHome()
-	if selectedMode == Interactive && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
+	if selectedMode == Interactive && (currentVerb == "home" || currentVerb == "find") {
+		return finish(runTUI(ctx, currentVerb, args))
+	}
+	if selectedMode == Interactive && currentVerb != "try" && !jsonMode && terminal.IsTTY(os.Stdin) && terminal.IsTTY(os.Stdout) && os.Getenv("CI") == "" && os.Getenv("TRIALM_NO_INPUT") == "" {
 		if err := calibrationcli.MaybeOffer(argv[1:]); err != nil {
 			return finish(err)
 		}

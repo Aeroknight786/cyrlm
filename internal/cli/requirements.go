@@ -9,12 +9,7 @@ import (
 	"github.com/aeroknight786/trialm/internal/store"
 )
 
-type savedRecipe struct {
-	Model   string `json:"model"`
-	Quant   string `json:"quant"`
-	Runtime string `json:"runtime"`
-	Harness string `json:"harness"`
-}
+type savedRecipe = store.Recipe
 
 func saveListing(rows []core.Row, h string) error {
 	list := []savedRecipe{}

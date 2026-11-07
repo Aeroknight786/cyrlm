@@ -56,11 +56,19 @@ func cmdRecommend(args []string) error {
 	var c common
 	c.register(fs, "all")
 	top := fs.Int("top", 5, "how many options to show")
+	claims := fs.Bool("claims", false, "published claims gallery")
 	pos, err := parseInterspersed(fs, args)
 	if err != nil {
 		return err
 	}
 	c.finish(fs)
+	if *claims {
+		return printClaims(c.jsonOut)
+	}
+	if len(pos) > 0 && (strings.Contains(strings.Join(pos, " "), " --") || strings.Contains(strings.Join(pos, " "), "https://")) {
+		fmt.Fprintln(out(), "claim parsing arrives in v0.6")
+		return emit("result", map[string]any{"message": "claim parsing arrives in v0.6"}, core.Next{Cmd: "trialm find --claims", Why: "browse sourced claims"})
+	}
 	if err := c.validateRequirements(); err != nil {
 		return err
 	}
