@@ -26,6 +26,16 @@ type source struct {
 	notes                           []string
 }
 
+// trialStandIns describe sources whose OpenRouter id is a stand-in (no
+// provider hosts the exact model); checked against /api/v1/models on
+// 2026-11-07.
+var trialStandIns = map[string]string{
+	"qwen3.5-4b":           "Qwen3.5 9B (same family, larger): no provider hosts the 4B, so trial answers are a little better than the local model",
+	"gemma4-12b":           "Gemma 4 26B-A4B (same family, larger): no provider hosts the 12B, so trial answers are a little better than the local model",
+	"devstral-small-2-24b": "Devstral 2 (same family, larger): no provider hosts Devstral Small 2, so trial answers are better than the local model",
+	"granite-4.2-30b":      "Granite 4.2 8B (same family, smaller): no provider hosts the 30B, so trial answers are weaker than the local model",
+}
+
 // Sources: popular local-size models from major labs (Hugging Face
 // download rankings, November 2026). OpenRouter ids are best guesses.
 var sources = []source{
@@ -36,22 +46,22 @@ var sources = []source{
 			{"IQ4_XS", "Qwen3.6-35B-A3B-UD-IQ4_XS.gguf"}, {"Q3_K_XL", "Qwen3.6-35B-A3B-UD-Q3_K_XL.gguf"}, {"IQ3_XXS", "Qwen3.6-35B-A3B-UD-IQ3_XXS.gguf"}}, nil},
 	{"qwen3.5-9b", "Qwen3.5 9B", "qwen3.5:9b", "qwen/qwen3.5-9b", "unsloth/Qwen3.5-9B-GGUF",
 		[]file{{"Q4_K_M", "Qwen3.5-9B-Q4_K_M.gguf"}, {"Q8_0", "Qwen3.5-9B-Q8_0.gguf"}}, nil},
-	{"qwen3.5-4b", "Qwen3.5 4B", "qwen3.5:4b", "qwen/qwen3.5-4b", "unsloth/Qwen3.5-4B-GGUF",
+	{"qwen3.5-4b", "Qwen3.5 4B", "qwen3.5:4b", "qwen/qwen3.5-9b", "unsloth/Qwen3.5-4B-GGUF",
 		[]file{{"Q4_K_M", "Qwen3.5-4B-Q4_K_M.gguf"}, {"Q8_0", "Qwen3.5-4B-Q8_0.gguf"}}, nil},
-	{"gemma4-12b", "Gemma 4 12B", "gemma4:12b", "google/gemma-4-12b-it", "unsloth/gemma-4-12b-it-GGUF",
+	{"gemma4-12b", "Gemma 4 12B", "gemma4:12b", "google/gemma-4-26b-a4b-it", "unsloth/gemma-4-12b-it-GGUF",
 		[]file{{"Q4_K_M", "gemma-4-12b-it-Q4_K_M.gguf"}, {"Q8_0", "gemma-4-12b-it-Q8_0.gguf"}}, nil},
 	{"gemma4-26b-a4b", "Gemma 4 26B-A4B", "gemma4:26b-a4b", "google/gemma-4-26b-a4b-it", "unsloth/gemma-4-26B-A4B-it-GGUF",
 		[]file{{"Q4_K_M", "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"}, {"MXFP4", "gemma-4-26B-A4B-it-MXFP4_MOE.gguf"}, {"Q8_0", "gemma-4-26B-A4B-it-Q8_0.gguf"},
 			{"IQ4_XS", "gemma-4-26B-A4B-it-UD-IQ4_XS.gguf"}, {"Q3_K_XL", "gemma-4-26B-A4B-it-UD-Q3_K_XL.gguf"}, {"IQ3_XXS", "gemma-4-26B-A4B-it-UD-IQ3_XXS.gguf"}}, nil},
-	{"devstral-small-2-24b", "Devstral Small 2 24B", "devstral-small-2:24b", "mistralai/devstral-small-2512", "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
+	{"devstral-small-2-24b", "Devstral Small 2 24B", "devstral-small-2:24b", "mistralai/devstral-2512", "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
 		[]file{{"Q4_K_M", "Devstral-Small-2-24B-Instruct-2512-Q4_K_M.gguf"}, {"Q8_0", "Devstral-Small-2-24B-Instruct-2512-Q8_0.gguf"},
 			{"IQ4_XS", "Devstral-Small-2-24B-Instruct-2512-IQ4_XS.gguf"}, {"Q3_K_XL", "Devstral-Small-2-24B-Instruct-2512-UD-Q3_K_XL.gguf"}}, nil},
 	{"glm-4.7-flash", "GLM-4.7-Flash", "glm-4.7-flash", "z-ai/glm-4.7-flash", "unsloth/GLM-4.7-Flash-GGUF",
 		[]file{{"Q4_K_M", "GLM-4.7-Flash-Q4_K_M.gguf"}, {"MXFP4", "GLM-4.7-Flash-MXFP4_MOE.gguf"}, {"Q8_0", "GLM-4.7-Flash-Q8_0.gguf"},
 			{"IQ4_XS", "GLM-4.7-Flash-IQ4_XS.gguf"}, {"Q3_K_XL", "GLM-4.7-Flash-UD-Q3_K_XL.gguf"}, {"IQ3_XXS", "GLM-4.7-Flash-UD-IQ3_XXS.gguf"}}, nil},
-	{"nemotron-3.5-lightning-30b-a3b", "Nemotron 3.5 Lightning 30B-A3B", "nemotron-3.5-lightning:30b", "nvidia/nemotron-3.5-lightning-30b-a3b", "ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
+	{"nemotron-3.5-lightning-30b-a3b", "Nemotron 3.5 Lightning 30B-A3B", "nemotron-3.5-lightning:30b", "nvidia/nemotron-3.5-lightning", "ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
 		[]file{{"Q8_0", "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-Q8_0.gguf"}}, nil},
-	{"granite-4.2-30b", "Granite 4.2 30B", "granite4.2:30b", "ibm-granite/granite-4.2-30b", "ibm-granite/granite-4.2-30b-GGUF",
+	{"granite-4.2-30b", "Granite 4.2 30B", "granite4.2:30b", "ibm-granite/granite-4.2-8b", "ibm-granite/granite-4.2-30b-GGUF",
 		[]file{{"Q4_K_M", "granite-4.2-30b-Q4_K_M.gguf"}, {"Q8_0", "granite-4.2-30b-Q8_0.gguf"}}, nil},
 	{"granite-4.2-8b", "Granite 4.2 8B", "granite4.2:8b", "ibm-granite/granite-4.2-8b", "ibm-granite/granite-4.2-8b-GGUF",
 		[]file{{"Q4_K_M", "granite-4.2-8b-Q4_K_M.gguf"}, {"Q8_0", "granite-4.2-8b-Q8_0.gguf"}}, nil},
@@ -85,7 +95,7 @@ func open(repo, name string) (*gguf.File, error) {
 
 func build(src source) (catalog.Model, error) {
 	m := catalog.Model{
-		ID: src.id, Name: src.name, OllamaTag: src.tag, OpenRouterID: src.openrouter, HFGGUFRepo: src.repo,
+		ID: src.id, Name: src.name, OllamaTag: src.tag, OpenRouterID: src.openrouter, TrialStandIn: trialStandIns[src.id], HFGGUFRepo: src.repo,
 		CloudPrecision: "provider-dependent", Generated: true, UpstreamUnverified: true,
 		Notes: append([]string{"geometry and file sizes read from the GGUF headers in " + src.repo}, src.notes...),
 	}

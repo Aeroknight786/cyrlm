@@ -225,7 +225,7 @@
     "RecurrentStateBytes": 52690944,
     "Generated": true,
     "UpstreamUnverified": true,
-    "TrialStandIn": "",
+    "TrialStandIn": "Qwen3.5 9B (same family, larger): no provider hosts the 4B, so trial answers are a little better than the local model",
     "DecodeEff": 0,
     "NativeCtx": 262144,
     "Tools": true,
@@ -246,7 +246,7 @@
         "Estimated": false
       }
     ],
-    "OpenRouterID": "qwen/qwen3.5-4b",
+    "OpenRouterID": "qwen/qwen3.5-9b",
     "CloudPrecision": "provider-dependent",
     "QuantMatchesCloud": false,
     "HFGGUFRepo": "unsloth/Qwen3.5-4B-GGUF",
@@ -281,7 +281,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
-    "TrialStandIn": "",
+    "TrialStandIn": "Gemma 4 26B-A4B (same family, larger): no provider hosts the 12B, so trial answers are a little better than the local model",
     "DecodeEff": 0,
     "NativeCtx": 262144,
     "Tools": true,
@@ -302,7 +302,7 @@
         "Estimated": false
       }
     ],
-    "OpenRouterID": "google/gemma-4-12b-it",
+    "OpenRouterID": "google/gemma-4-26b-a4b-it",
     "CloudPrecision": "provider-dependent",
     "QuantMatchesCloud": false,
     "HFGGUFRepo": "unsloth/gemma-4-12b-it-GGUF",
@@ -424,7 +424,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
-    "TrialStandIn": "",
+    "TrialStandIn": "Devstral 2 (same family, larger): no provider hosts Devstral Small 2, so trial answers are better than the local model",
     "DecodeEff": 0,
     "NativeCtx": 393216,
     "Tools": true,
@@ -460,7 +460,7 @@
         "FileTag": "UD-Q3_K_XL"
       }
     ],
-    "OpenRouterID": "mistralai/devstral-small-2512",
+    "OpenRouterID": "mistralai/devstral-2512",
     "CloudPrecision": "provider-dependent",
     "QuantMatchesCloud": false,
     "HFGGUFRepo": "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
@@ -594,7 +594,7 @@
         "Estimated": false
       }
     ],
-    "OpenRouterID": "nvidia/nemotron-3.5-lightning-30b-a3b",
+    "OpenRouterID": "nvidia/nemotron-3.5-lightning",
     "CloudPrecision": "provider-dependent",
     "QuantMatchesCloud": false,
     "HFGGUFRepo": "ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
@@ -629,7 +629,7 @@
     "RecurrentStateBytes": 0,
     "Generated": true,
     "UpstreamUnverified": true,
-    "TrialStandIn": "",
+    "TrialStandIn": "Granite 4.2 8B (same family, smaller): no provider hosts the 30B, so trial answers are weaker than the local model",
     "DecodeEff": 0,
     "NativeCtx": 131072,
     "Tools": true,
@@ -650,7 +650,7 @@
         "Estimated": false
       }
     ],
-    "OpenRouterID": "ibm-granite/granite-4.2-30b",
+    "OpenRouterID": "ibm-granite/granite-4.2-8b",
     "CloudPrecision": "provider-dependent",
     "QuantMatchesCloud": false,
     "HFGGUFRepo": "ibm-granite/granite-4.2-30b-GGUF",

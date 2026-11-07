@@ -54,7 +54,9 @@ func (q Quant) HFTag() string {
 	return q.Name
 }
 
-var fileTagRe = regexp.MustCompile(`(?i)((?:UD-)?(?:I?Q\d[_A-Z0-9]*|MXFP4(?:_MOE)?|BF16|F16|F32))$`)
+var fileTagRe = regexp.MustCompile(`(?i)((?:UD-)?(?:TQ\d_\d|I?Q\d[_A-Z0-9]*|MXFP4(?:_MOE)?|BF16|F16|F32))$`)
+
+var shardSuffixRe = regexp.MustCompile(`-\d{5}-OF-\d{5}$`)
 
 // FileTag derives the quant tag from a GGUF file name such as
 // "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf" → "UD-Q4_K_M" ("" if none).
@@ -63,7 +65,13 @@ func FileTag(filename string) string {
 	if i := strings.LastIndex(base, "/"); i >= 0 {
 		base = base[i+1:]
 	}
-	base = strings.TrimSuffix(base, ".gguf")
+	base = strings.TrimSuffix(strings.ToUpper(base), ".GGUF")
+	for _, prefix := range []string{"MMPROJ-", "MTP-", "DFLASH-", "EAGLE", "IMATRIX"} {
+		if strings.HasPrefix(base, prefix) {
+			return ""
+		}
+	}
+	base = shardSuffixRe.ReplaceAllString(base, "")
 	if m := fileTagRe.FindStringSubmatch(base); m != nil {
 		return m[1]
 	}
@@ -235,7 +243,7 @@ var models = []Model{
 		Layers: 36, FullAttnLayers: 36, KVHeads: 8, HeadDim: 128, QHeads: 32,
 		NativeCtx: 40960, Tools: true, Thinking: true,
 		Quants:       []Quant{gq("Q4_K_M", 5.03), gq("Q8_0", 8.71), est("MLX-4bit", 8.19)},
-		OpenRouterID: "qwen/qwen3-8b", CloudPrecision: "BF16/FP8 (provider-dependent)", HFGGUFRepo: "Qwen/Qwen3-8B-GGUF",
+		OpenRouterID: "qwen/qwen3-14b", TrialStandIn: "Qwen3 14B (same family, larger): no provider hosts the 8B, so trial answers are a little better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)", HFGGUFRepo: "Qwen/Qwen3-8B-GGUF",
 	},
 	{
 		ID: "llama3.1-8b", Name: "Llama 3.1 8B Instruct", OllamaTag: "llama3.1:8b", Aliases: []string{"meta-llama/llama-3.1-8b-instruct", "llama3.1"},
@@ -279,7 +287,7 @@ var models = []Model{
 		Layers: 40, FullAttnLayers: 40, KVHeads: 8, HeadDim: 128, QHeads: 32,
 		NativeCtx: 131072, Tools: true,
 		Quants:       []Quant{gq("Q4_K_M", 14.3), gq("Q8_0", 25.1), est("MLX-4bit", 23.57)},
-		OpenRouterID: "mistralai/devstral-small", CloudPrecision: "BF16/FP8 (provider-dependent)",
+		OpenRouterID: "mistralai/devstral-2512", TrialStandIn: "Devstral 2 (same family, larger): no provider hosts Devstral Small, so trial answers are better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)",
 		HFGGUFRepo: "unsloth/Devstral-Small-2507-GGUF",
 	},
 	{
@@ -297,7 +305,7 @@ var models = []Model{
 		Layers: 28, FullAttnLayers: 28, KVHeads: 4, HeadDim: 128, QHeads: 28,
 		NativeCtx: 32768, Tools: true,
 		Quants:       []Quant{gq("Q4_K_M", 4.68), gq("Q8_0", 8.1), est("MLX-4bit", 7.62)},
-		OpenRouterID: "qwen/qwen2.5-coder-7b-instruct", CloudPrecision: "BF16/FP8 (provider-dependent)",
+		OpenRouterID: "qwen/qwen3-coder-30b-a3b-instruct", TrialStandIn: "Qwen3 Coder 30B-A3B (a newer coding model): no provider hosts Qwen2.5-Coder 7B, so trial answers are better than the local model", CloudPrecision: "BF16/FP8 (provider-dependent)",
 		HFGGUFRepo: "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
 	},
 }
@@ -348,7 +356,7 @@ func Lookup(name string) (Model, bool) {
 }
 
 func matches(m Model, n string) bool {
-	if n == strings.ToLower(m.ID) || n == strings.ToLower(m.OllamaTag) || n == strings.ToLower(m.OpenRouterID) {
+	if n == strings.ToLower(m.ID) || n == strings.ToLower(m.OllamaTag) || (m.OpenRouterID != "" && n == strings.ToLower(m.OpenRouterID)) {
 		return true
 	}
 	for _, a := range m.Aliases {

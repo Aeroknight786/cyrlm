@@ -59,6 +59,7 @@ type Config struct {
 	RuntimeID   string
 	Settings    runtime.Settings
 	Timing      *predict.Timing
+	Memory      predict.Memory // predicted memory at Settings.ContextTokens
 	Model       catalog.Model
 	Render      tok.RenderOptions
 	Clock       Clock
@@ -264,6 +265,20 @@ func truncate(req *llm.Request, opt tok.RenderOptions, limit int, middle bool) (
 		}
 	}
 	note := fmt.Sprintf("dropped %d earlier messages", dropped)
+	if !fits() && len(r.Tools) > 0 {
+		r.Tools = append([]llm.Tool(nil), r.Tools...)
+		// Descriptions can be shortened while preserving valid tool schemas.
+		for i := len(r.Tools) - 1; i >= 0 && !fits(); i-- {
+			pieces := tok.Pieces(r.Tools[i].Description)
+			over := tok.Render(&r, opt).Len() - limit
+			cut := min(over, len(pieces))
+			r.Tools[i].Description = strings.Join(pieces[:len(pieces)-cut], "")
+		}
+		for !fits() && len(r.Tools) > 0 {
+			r.Tools = r.Tools[:len(r.Tools)-1]
+		}
+		note += " and trimmed tool definitions"
+	}
 	if !fits() && nsys > 0 {
 		over := tok.Render(&r, opt).Len() - limit
 		sys := append([]llm.Message(nil), msgs[:nsys]...)
@@ -336,7 +351,7 @@ type Plan struct {
 }
 
 func (d *Device) hasRollbackLimits() bool {
-	return d.cfg.Model.SWALayers > 0
+	return d.cfg.Model.SWALayers > 0 || d.cfg.Model.RecurrentLayers > 0
 }
 
 // Plan computes load and prefill for a prepared request. Call after Acquire.
@@ -347,6 +362,16 @@ func (d *Device) Plan(p *Prepared) *Plan {
 	pl := &Plan{Start: now, seq: p.Seq, DepthPieces: p.Seq.Len()}
 	s := d.cfg.Settings
 	t := d.cfg.Timing
+	if s.HonorsRequestNumCtx && p.Ctx != s.ContextTokens {
+		pl.Notes = append(pl.Notes, fmt.Sprintf("context %d set by the client (options.num_ctx) instead of the tuned %d", p.Ctx, s.ContextTokens))
+		mem := d.cfg.Memory
+		if mem.BudgetBytes > 0 {
+			total := mem.TotalBytes - d.cfg.Model.KVCacheBytes(s.ContextTokens, t.KVElem) + d.cfg.Model.KVCacheBytes(p.Ctx, t.KVElem)
+			if total > mem.BudgetBytes {
+				pl.Notes = append(pl.Notes, fmt.Sprintf("⚠ num_ctx %d needs %.1f GB; %s may offload layers to CPU", p.Ctx, total/(1<<30), d.cfg.RuntimeName))
+			}
+		}
+	}
 
 	// Residency.
 	if d.loaded && s.KeepAlive >= 0 && now.Sub(d.lastActive) > s.KeepAlive {
@@ -417,10 +442,14 @@ func (d *Device) Plan(p *Prepared) *Plan {
 
 	// Explain misses that throw away a large cached prefix.
 	if best.seq != nil && best.promptN > 512 && reuse < best.promptN && float64(reuse) < 0.9*float64(min(best.promptN, p.Seq.Len())) {
-		pl.Miss = d.explain(best, p.Seq, bestLCP, reuse)
+		if firstUserDivergence(p.Seq, bestLCP) && reuse == bestLCP {
+			pl.Notes = append(pl.Notes, "new conversation; the shared system prompt and tools were reused")
+		} else {
+			pl.Miss = d.explain(best, p.Seq, bestLCP, reuse)
+		}
 	}
 	// A conversation evicted by another one (background task, subagent).
-	if pl.Miss == nil && p.Seq.Len() > 512 && float64(reuse) < 0.5*float64(p.Seq.Len()) {
+	if pl.Miss == nil && !firstUserDivergence(p.Seq, bestLCP) && p.Seq.Len() > 512 && float64(reuse) < 0.5*float64(p.Seq.Len()) {
 		for _, ev := range d.evicted {
 			if l := tok.LCP(ev, p.Seq); float64(l) > 0.5*float64(p.Seq.Len()) {
 				reason := "a different request (background task or subagent) took the only cache slot and evicted this conversation"
@@ -476,16 +505,33 @@ func (d *Device) explain(sl *slot, seq *tok.Seq, lcp, reuse int) *CacheMiss {
 			break
 		}
 	}
+	toolsStart := -1
+	marker := tok.Pieces("# Tools\n")
+	for i := 0; i+len(marker) <= sysEnd; i++ {
+		match := true
+		for j := range marker {
+			if seq.Pieces[i+j] != marker[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			toolsStart = i
+			break
+		}
+	}
 	sameDoc := resync(sl.seq, seq, lcp) || float64(lcp) >= 0.9*float64(min(sl.seq.Len(), seq.Len()))
 	switch {
 	case reuse < lcp:
 		m.Reason = fmt.Sprintf("the first %d tokens matched, but this model's sliding-window layers can only roll back to a saved checkpoint, and none is at or before the divergence (%s keeps %d per slot) — the whole prompt is re-processed", lcp, d.cfg.RuntimeName, d.cfg.Settings.Checkpoints)
+	case toolsStart >= 0 && lcp >= toolsStart && lcp <= sysEnd:
+		m.Reason = "tool definitions changed (e.g. a deferred tool loaded via ToolSearch)"
+	case lcp <= sysEnd:
+		m.Reason = "the system prompt changed (e.g. a timestamp or attribution header)"
 	case !sameDoc && len(d.slots) == 1:
 		m.Reason = "a different conversation used the only cache slot (e.g. a background or subagent request) and evicted this one"
 	case !sameDoc:
 		m.Reason = "a different conversation replaced this one in the cache"
-	case lcp <= sysEnd:
-		m.Reason = "the system prompt or tool definitions changed (a per-request value such as a timestamp or attribution header breaks the cache)"
 	default:
 		m.Reason = "earlier conversation history was rewritten (e.g. compaction or edited messages)"
 	}
@@ -495,7 +541,7 @@ func (d *Device) explain(sl *slot, seq *tok.Seq, lcp, reuse int) *CacheMiss {
 // resync reports whether a and b continue to match shortly after diverging
 // at i (same prompt with a local change) rather than being different texts.
 func resync(a, b *tok.Seq, i int) bool {
-	const probe, window = 64, 48
+	const probe, window = 64, 2048
 	start := i + 8
 	if start+probe > a.Len() || start+probe > b.Len() {
 		return false
@@ -619,3 +665,19 @@ func (d *Device) Loaded() (loaded bool, expires time.Time) {
 }
 
 func secs(s float64) time.Duration { return time.Duration(s * float64(time.Second)) }
+
+// firstUserDivergence identifies a new conversation reusing the system block.
+func firstUserDivergence(seq *tok.Seq, at int) bool {
+	start, end := -1, -1
+	for i, piece := range seq.Pieces {
+		if start < 0 && piece == "<|user|>" {
+			start = i
+			continue
+		}
+		if start >= 0 && piece == "<|end|>" {
+			end = i
+			break
+		}
+	}
+	return start >= 0 && end >= 0 && at > start && at <= end
+}

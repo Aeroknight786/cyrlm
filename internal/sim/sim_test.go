@@ -427,3 +427,59 @@ func TestTruncationKeepsConversationValid(t *testing.T) {
 		t.Fatalf("max_tokens should be clamped to the remaining context, got %d", p.Req.MaxTokens)
 	}
 }
+
+func TestTruncateToolsBeforeSystem(t *testing.T) {
+	req := &llm.Request{Messages: []llm.Message{{Role: llm.RoleSystem, Content: strings.Repeat("system ", 500)}, {Role: llm.RoleUser, Content: "hello"}}, Tools: []llm.Tool{{Name: "large", Description: strings.Repeat("tool ", 5000)}}}
+	out, _ := truncate(req, tok.RenderOptions{}, 1200, false)
+	if out.Messages[0].Content != req.Messages[0].Content {
+		t.Fatal("system was cut although removing tools is enough")
+	}
+	if n := tok.Render(out, tok.RenderOptions{}).Len(); n < 1150 {
+		t.Fatalf("underfilled context: %d", n)
+	}
+	if tok.Render(out, tok.RenderOptions{}).Len() > 1200 {
+		t.Fatal("still exceeds limit")
+	}
+}
+
+func TestRecurrentRollbackAndClientContext(t *testing.T) {
+	d, _ := testDevice(t, "ollama", false, nil)
+	d.cfg.Model.RecurrentLayers = 1
+	if !d.hasRollbackLimits() {
+		t.Fatal("recurrent model must have rollback limits")
+	}
+	d.cfg.Settings.HonorsRequestNumCtx = true
+	d.cfg.Settings.ContextTokens = 4096
+	d.cfg.Memory = predict.Memory{TotalBytes: 2 << 30, BudgetBytes: 2 << 30}
+	req := &llm.Request{NumCtx: 32768, Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}}}
+	p, err := d.Prepare(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pl := d.Plan(p)
+	joined := strings.Join(pl.Notes, " ")
+	if !strings.Contains(joined, "context 32768 set by the client") || !strings.Contains(joined, "offload") {
+		t.Fatalf("notes: %v", pl.Notes)
+	}
+}
+
+func TestCacheExplanations(t *testing.T) {
+	d, _ := testDevice(t, "llamacpp", false, nil)
+	old := &llm.Request{Messages: []llm.Message{{Role: llm.RoleSystem, Content: strings.Repeat("stable ", 600)}, {Role: llm.RoleUser, Content: "old task"}}, Tools: []llm.Tool{{Name: "first", Description: strings.Repeat("tool ", 50)}, {Name: "second", Description: strings.Repeat("definition ", 100)}}}
+	newer := *old
+	newer.Tools = append([]llm.Tool(nil), old.Tools...)
+	newer.Tools[1].Description = "changed " + newer.Tools[1].Description
+	a, b := tok.Render(old, tok.RenderOptions{}), tok.Render(&newer, tok.RenderOptions{})
+	lcp := tok.LCP(a, b)
+	miss := d.explain(&slot{seq: a, promptN: a.Len()}, b, lcp, lcp)
+	if !strings.Contains(miss.Reason, "tool definitions changed") {
+		t.Fatalf("reason: %s", miss.Reason)
+	}
+	newer = *old
+	newer.Messages = append([]llm.Message(nil), old.Messages...)
+	newer.Messages[1].Content = "different task"
+	b = tok.Render(&newer, tok.RenderOptions{})
+	if !firstUserDivergence(b, tok.LCP(a, b)) {
+		t.Fatal("new first user turn not recognized")
+	}
+}

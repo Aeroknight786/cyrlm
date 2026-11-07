@@ -284,6 +284,12 @@ func (p Profile) Resolve(in ResolveInput) Settings {
 		s.ContextNote = p.Name + " default load setting"
 	case c.FitToMemory:
 		s.ContextTokens = in.NativeCtx
+		if in.MaxFitCtx <= 0 {
+			s.ContextTokens = 4096
+			if in.NativeCtx > 0 {
+				s.ContextTokens = min(4096, in.NativeCtx)
+			}
+		}
 		if in.MaxFitCtx > 0 && in.MaxFitCtx < s.ContextTokens {
 			s.ContextTokens = in.MaxFitCtx
 		}

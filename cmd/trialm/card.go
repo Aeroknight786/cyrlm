@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -168,7 +170,7 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 		}
 		first := dur(r.Scenario.ColdFirstReply)
 		follow := dur(r.Scenario.FollowUpTurn)
-		writes := fmt.Sprintf("%.0f tok/s", r.DecodeTPSDeep)
+		writes := writingSpeed(r)
 		task := dur(r.Scenario.Session)
 		if !r.Scenario.FitsInContext {
 			task = "✗ breaks"
@@ -218,13 +220,16 @@ func printPrediction(m catalog.Model, t predict.Target, sc predict.Scenario, rs 
 			}
 			fmt.Printf("Typical error (about 3 in 4 predictions): generation ±%d%%, prompt processing %s. %s.\n", acc.DecodePct, pre, acc.Basis)
 		}
-		if acc.CalibrateAdvice != "" {
+		if acc.CalibrateAdvice != "" && !strings.Contains(acc.CalibrateAdvice, "trialm detect --probe") {
 			fmt.Printf("Tip: %s.\n", acc.CalibrateAdvice)
 		}
 	}
 	if len(t.Notes) > 0 {
 		fmt.Println()
 		for _, n := range t.Notes {
+			if strings.Contains(n, "run with --probe") {
+				continue
+			}
 			fmt.Printf("  · %s\n", n)
 		}
 	}
@@ -266,7 +271,7 @@ func printServeBanner(m catalog.Model, t predict.Target, p runtime.Profile, why 
 		fmt.Printf(" · unloads after %s idle", s.KeepAlive)
 	}
 	fmt.Println()
-	fmt.Printf("  speed        writes %.0f tokens/s, reads prompts at %.0f tokens/s (%s)\n", r.DecodeTPS0, r.PrefillTPS2k, readingRatio(r.DecodeTPS0))
+	fmt.Printf("  speed        writes %s, reads prompts at %s tokens/s (%s)\n", writingSpeed(r), bandNumber(r.PrefillTPS2k, r.Accuracy.PrefillPct), readingRatio(r.DecodeTPSDeep))
 	fmt.Printf("  model output %s\n", upDesc)
 	if port != requested {
 		fmt.Printf("  note         port %d was busy (is Ollama running?), using %d\n", requested, port)
@@ -288,4 +293,29 @@ func printServeBanner(m catalog.Model, t predict.Target, p runtime.Profile, why 
 		}
 	}
 	fmt.Println()
+}
+
+// bandNumber limits precision to the expected error in the estimate.
+func bandNumber(v float64, pct int) string {
+	digits := 2
+	prefix := ""
+	if pct <= 10 {
+		digits = 3
+	} else if pct > 25 {
+		prefix = "~"
+	}
+	decimals := 0
+	if v != 0 {
+		decimals = max(0, digits-1-int(math.Floor(math.Log10(math.Abs(v)))))
+	}
+	rounded := v
+	if v != 0 {
+		scale := math.Pow(10, float64(digits-1-int(math.Floor(math.Log10(math.Abs(v))))))
+		rounded = math.Round(v*scale) / scale
+	}
+	return prefix + strconv.FormatFloat(rounded, 'f', decimals, 64)
+}
+
+func writingSpeed(r predict.Result) string {
+	return fmt.Sprintf("%s tok/s at %s", bandNumber(r.DecodeTPSDeep, r.Accuracy.DecodePct), sim.Kilo(r.Scenario.DecodeDepth))
 }

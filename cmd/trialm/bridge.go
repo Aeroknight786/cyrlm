@@ -188,6 +188,9 @@ func llamaCppContext(base string) int {
 }
 
 func printRunning(extra string) {
+	if os.Getenv("TRIALM_DETACHED") == "1" || os.Getenv("CYRLM_DETACHED") == "1" {
+		return
+	}
 	stop := fmt.Sprintf("kill %d", os.Getpid())
 	if goruntime.GOOS == "windows" {
 		stop = fmt.Sprintf("Stop-Process -Id %d", os.Getpid())
