@@ -37,7 +37,7 @@ func TestCachedModelSources(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			home, root := t.TempDir(), t.TempDir()
 			t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
+			t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 			t.Setenv("HF_HUB_CACHE", filepath.Join(home, "hf"))
 			t.Setenv("HF_HOME", "")
 			t.Setenv("OLLAMA_MODELS", filepath.Join(home, "ollama"))

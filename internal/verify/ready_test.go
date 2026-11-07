@@ -36,6 +36,7 @@ func TestReadyFake(t *testing.T) {
 				}
 				if b["stream"] == true {
 					w.Header().Set("Content-Type", "text/event-stream")
+					time.Sleep(3 * time.Millisecond) // a nonzero first-token time on Windows' coarse clock
 					fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\n")
 					if f, ok := w.(http.Flusher); ok {
 						f.Flush()
@@ -167,6 +168,7 @@ func TestSweepCountsAndCache(t *testing.T) {
 				_ = json.NewDecoder(r.Body).Decode(&b)
 				if b["stream"] == true {
 					w.Header().Set("Content-Type", "text/event-stream")
+					time.Sleep(3 * time.Millisecond) // a nonzero first-token time on Windows' coarse clock
 					fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\n")
 					w.(http.Flusher).Flush()
 					time.Sleep(time.Millisecond)
