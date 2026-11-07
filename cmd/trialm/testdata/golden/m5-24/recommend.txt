@@ -2,11 +2,11 @@
 Best local models for Claude Code on what-if: Apple M5 (10-core GPU), 24 GB unified memory
 
 #  MODEL            RUNTIME                   FILE               FIRST REPLY  FOLLOW-UP  TASK*        FEEL
-1  qwen3.6:35b-a3b  llama.cpp (llama-server)  IQ3_XXS 13.2 GB    13 s         13 s       7 min 49 s   comfortable
-2  gemma4:26b-a4b   llama.cpp (llama-server)  IQ4_XS 13.6 GB     17 s         18 s       11 min 00 s  comfortable
-3  gpt-oss:20b      LM Studio (MLX engine)    MLX-MXFP4 12.1 GB  15 s         15 s       8 min 58 s   comfortable
-4  qwen3.5:4b       llama.cpp (llama-server)  Q4_K_M 2.7 GB      13 s         16 s       9 min 31 s   comfortable
-5  qwen3-coder:30b  llama.cpp (llama-server)  IQ3_XXS 12.8 GB    23 s         31 s       16 min 24 s  usable
+1  qwen3.6:35b-a3b  llama.cpp (llama-server)  IQ3_XXS 13.2 GB    13 s         21 s       11 min 18 s  usable
+2  qwen3-coder:30b  llama.cpp (llama-server)  IQ3_XXS 12.8 GB    23 s         54 s       27 min 46 s  usable
+3  gemma4:26b-a4b   llama.cpp (llama-server)  IQ4_XS 13.6 GB     17 s         29 s       16 min 44 s  usable
+4  gpt-oss:20b      LM Studio (MLX engine)    MLX-MXFP4 12.1 GB  15 s         24 s       13 min 02 s  usable
+5  gemma4:12b       llama.cpp (llama-server)  Q4_K_M 7.1 GB      36 s         45 s       27 min 24 s  usable
 
 * TASK = a 40-call agent task (cloud: ~2 min 00 s). Tuned settings. ● = runtime installed. More options: --top 20
 Ranked by speed tier, then model size (a rough capability proxy — triaLM does not score coding quality; try the top picks).

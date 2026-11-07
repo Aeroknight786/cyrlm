@@ -298,7 +298,7 @@ func TestNonnegativeInterceptAndMissingSpread(t *testing.T) {
 
 func TestLoadingOldFitsRebuildsFromRaw(t *testing.T) {
 	home := t.TempDir()
-	c := Calibration{Version: GeneratorVersion, Rows: cleanRows("dense", "Q4_K_M"), Notes: []string{"old 75% interval"}, Fits: []Fit{{Class: "dense", Quant: "Q4_K_M", Mode: "decode", Fixed: 1, PerLayer: 1, BaseFixed: 100, BaseLayer: 100, BandPct: 1}}}
+	c := Calibration{Version: GeneratorVersion, BaselineVer: BaselineVersion, Rows: cleanRows("dense", "Q4_K_M"), Notes: []string{"old 75% interval"}, Fits: []Fit{{Class: "dense", Quant: "Q4_K_M", Mode: "decode", Fixed: 1, PerLayer: 1, BaseFixed: 100, BaseLayer: 100, BandPct: 1}}}
 	if e := c.Save(home); e != nil {
 		t.Fatal(e)
 	}
@@ -312,5 +312,27 @@ func TestLoadingOldFitsRebuildsFromRaw(t *testing.T) {
 	}
 	if loaded.Usable() {
 		t.Fatal("depth-zero fit claimed full timing coverage")
+	}
+}
+
+func TestOlderPredictorRebaselinesWithoutLosingRows(t *testing.T) {
+	home := t.TempDir()
+	rows := append(cleanRows("dense", "Q4_K_M"), Row{Probe: "real", Class: "real", Seconds: 0.05})
+	c := Calibration{Version: GeneratorVersion, FittingVersion: FittingVersion, Complete: true, Rows: rows, Fits: []Fit{{Class: "dense", Quant: "Q4_K_M", Mode: "decode", Fixed: 1, PerLayer: 1, BaseFixed: 1, BaseLayer: 1, BandPct: 5}}}
+	if e := c.Save(home); e != nil { // no baseline_version: written by the older predictor
+		t.Fatal(e)
+	}
+	loaded, e := Load(home)
+	if e != nil || !loaded.NeedsRebaseline || len(loaded.Fits) != 0 || len(loaded.Rows) != len(rows) {
+		t.Fatal("old-baseline fits were used, or measurements were lost", loaded, e)
+	}
+	loaded.Rebaseline(func(Probe, BenchRow) float64 { return 0.01 })
+	if loaded.NeedsRebaseline || loaded.BaselineVer != BaselineVersion {
+		t.Fatal("rebaseline did not take", loaded)
+	}
+	for _, r := range loaded.Rows {
+		if r.Probe != "real" && r.Baseline != 0.01 {
+			t.Fatal("row kept its old baseline", r)
+		}
 	}
 }

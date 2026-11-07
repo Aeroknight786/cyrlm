@@ -103,7 +103,7 @@ func TestCheckRealFileWithFakeEngine(t *testing.T) {
 				t.Setenv("TRIALM_TEST_MLOCK_WARNING", "1")
 			}
 			home := t.TempDir()
-			c := Calibration{Version: GeneratorVersion, FittingVersion: FittingVersion, Fingerprint: Fingerprint{Hash: "fake"}, Fits: []Fit{{Class: "test", Quant: "untouched", Fixed: 1}}}
+			c := Calibration{Version: GeneratorVersion, FittingVersion: FittingVersion, BaselineVer: BaselineVersion, Fingerprint: Fingerprint{Hash: "fake"}, Fits: []Fit{{Class: "test", Quant: "untouched", Fixed: 1}}}
 			if e := c.Save(home); e != nil {
 				t.Fatal(e)
 			}

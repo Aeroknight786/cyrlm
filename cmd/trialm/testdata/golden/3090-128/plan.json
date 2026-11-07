@@ -1,7 +1,7 @@
 {
   "decode_error_range_pct": 45,
   "prefill_error_range_pct": 65,
-  "plan_id": "9d3e2d27fe814bb29417ed89eb4e993df3d3570a414a518a3788c01ae8c6e8d4",
+  "plan_id": "93ef42a59772216e4f9229d3756ec028be268d130ee942d4a19b3ab0079078cd",
   "slug": "qwen3-6-35b-a3b-q4-k-m-llamacpp",
   "model": "qwen3.6-35b-a3b",
   "model_name": "Qwen3.6 35B-A3B",

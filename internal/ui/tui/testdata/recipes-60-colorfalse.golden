@@ -1,9 +1,9 @@
 Recipes for codex · balanced · 64k native
 Simulated or calibrated · uncertainty shown on ?
 MODEL                   FILE · ENGINE                 TURN
-❯ 1 Qwen3.6 35B-A3B     IQ3_XXS 13.2 GB · llama…     ~11 s  
-  2 Gemma 4 26B-A4B     IQ4_XS 13.6 GB · llamac…     ~15 s  
-  3 gpt-oss 20B         MLX-MXFP4 12.1 GB · lms…     ~13 s  
+❯ 1 Qwen3.6 35B-A3B     IQ3_XXS 13.2 GB · llama…     ~16 s  
+  2 Gemma 4 26B-A4B     IQ4_XS 13.6 GB · llamac…     ~19 s  
+  3 gpt-oss 20B         MLX-MXFP4 12.1 GB · lms…     ~18 s  
 3-bit files: quality caveat
 
 Claims we can't simulate yet
