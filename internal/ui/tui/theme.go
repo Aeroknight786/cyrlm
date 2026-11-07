@@ -25,19 +25,24 @@ func newPalette(noColor, ascii bool) palette {
 		}
 		return s
 	}
-	return palette{style("6"), style("2"), style("3"), style("1"), style("5"), style("8"), noColor, ascii}
+	return palette{style("6"), style("2"), style("3"), style("1"), style("5"), style("8"), noColor, ascii || noColor}
 }
 func (p palette) wordmark() string {
-	if p.plain {
-		return "triaLM"
+	if p.plain || p.ascii {
+		return "^ triaLM"
 	}
-	return p.selected.Render("tria") + lipgloss.NewStyle().Bold(true).Render("LM")
+	colors := lipgloss.Blend1D(6, lipgloss.Color("#34d9ce"), lipgloss.Color("#d881ff"))
+	word := "▲ "
+	for i, r := range "triaLM" {
+		word += lipgloss.NewStyle().Bold(true).Foreground(colors[i]).Render(string(r))
+	}
+	return word
 }
 func (p palette) glyph(s string) string {
 	if !p.ascii {
 		return s
 	}
-	return strings.NewReplacer("≥", ">=", "≤", "<=", "±", "+/-", "…", "...", "–", "-", "✓", "v", "✗", "x", "●", "*", "·", "-", "❯", ">", "‹", "<", "›", ">", "━", "=", "╷", "|", "█", "=", "░", "-", "≈", "~", "×", "x", "→", "->", "↑", "^", "↓", "v", "←", "<", "→", ">").Replace(s)
+	return strings.NewReplacer("✦", "*", "✧", "*", "◐", "+", "○", "o", "▲", "^", "⏎", "enter", "—", "-", "╭", "+", "╮", "+", "╰", "+", "╯", "+", "─", "-", "│", "|", "≥", ">=", "≤", "<=", "±", "+/-", "…", "...", "–", "-", "✓", "v", "✗", "x", "●", "*", "·", "-", "❯", ">", "‹", "<", "›", ">", "━", "=", "╷", "|", "█", "=", "░", "-", "≈", "~", "×", "x", "→", "->", "↑", "^", "↓", "v", "←", "<", "→", ">").Replace(s)
 }
 func programOptions() []tea.ProgramOption {
 	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {

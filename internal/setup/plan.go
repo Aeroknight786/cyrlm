@@ -211,7 +211,9 @@ func Build(in Input) (Plan, error) {
 		p.Steps = append(p.Steps, Step{ID: "resolve", Kind: Check, Title: "Resolve pinned model files", Content: "model file digests are unresolved", DownloadBytes: in.Quant.FileBytes})
 	}
 	if in.Quant.Format == "mlx" {
-		model = "~/.trialm/models/" + p.Slug
+		if in.LocalModel == "" {
+			model = "~/.trialm/models/" + p.Slug
+		}
 		p.LocalModelName = model
 		values["name"] = model
 	}

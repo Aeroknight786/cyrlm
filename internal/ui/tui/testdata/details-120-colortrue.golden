@@ -13,4 +13,4 @@ reading 33% · writing 67% · fixed/tools 0%
 llama-server -m <model.gguf> -c 65536 -fa on --jinja
 Optional: --slot-save-path to persist the harness prompt cache across restarts
 
-[36menter[m [90mtry[m[90m  [m[36mspace[m [90mboosts[m[90m  [m[36ms[m [90mset up[m[90m  [m[36m?[m [90mwhy[m[90m  [m[36mesc[m [90mback[m[90m  [m[36mq[m [90mquit[m
+[90menter try  space boosts  s set up  ? why  esc back  q quit[m

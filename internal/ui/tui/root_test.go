@@ -8,12 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -43,7 +41,6 @@ func fixture(t testing.TB) *Root {
 	opts := core.Options{Device: "Apple M5", RAM: 24, Runtime: "all", Tuned: true, Context: p.Context, Use: "agent", QualityFloor: p.QualityFloor}
 	cfg := SessionConfig(context.Background(), s, p, opts, 3, "test")
 	cfg.UpdateNotice = nil
-	cfg.Balance = nil
 	cfg.Tools = []string{"Codex", "Claude Code"}
 	m := New(cfg)
 	d, e := cfg.Detect(context.Background())
@@ -66,7 +63,7 @@ func TestViewGoldens(t *testing.T) {
 	old := lipgloss.Writer.Profile
 	lipgloss.Writer.Profile = colorprofile.TrueColor
 	defer func() { lipgloss.Writer.Profile = old }()
-	screens := []Screen{First, Paste, Calibration, Calibrating, Needs, Recipes, Details, Trial, Summary, Home, Gallery, ClaimCard, Search, Why, Setup, Chat, Ready, Launching, "setup-progress", "setup-paused", "home-running"}
+	screens := []Screen{First, Paste, "launcher-calibrating", "launcher-offer", "detecting", Help, Needs, Recipes, Details, Trial, Summary, Home, Gallery, ClaimCard, Search, Why, Setup, Chat, Ready, Launching, "setup-progress", "setup-paused", "launcher-details"}
 	for _, screen := range screens {
 		for _, w := range []int{60, 80, 120} {
 			for _, plain := range []bool{false, true} {
@@ -75,8 +72,26 @@ func TestViewGoldens(t *testing.T) {
 					m := fixture(t)
 					m.Update(tea.WindowSizeMsg{Width: w, Height: 24})
 					m.stack = []Screen{screen}
+					m.detecting = false
+					m.offer = false
+					m.modelIndex = 0
+					if screen == "launcher-offer" {
+						m.stack = []Screen{Home}
+						m.offer = true
+						m.modelIndex = -1
+					}
+					if screen == "detecting" {
+						m.stack = []Screen{Home}
+						m.detecting = true
+						m.detected = false
+					}
+					if screen == "launcher-calibrating" {
+						m.stack = []Screen{Home}
+						m.calibration = &calibrationJob{fraction: .25, eta: "~45 s"}
+						m.busy = true
+					}
 					switch screen {
-					case Setup, Ready, Launching, "setup-progress", "setup-paused", "home-running":
+					case Setup, Ready, Launching, "setup-progress", "setup-paused", "launcher-details":
 						setupFrame(m)
 					}
 					if screen == Setup {
@@ -94,9 +109,9 @@ func TestViewGoldens(t *testing.T) {
 						m.setup.journal.State = "paused"
 						m.message = "Setup paused. Enter resumes."
 					}
-					if screen == "home-running" {
+					if screen == "launcher-details" {
 						m.stack = []Screen{Home}
-						m.ready[0].Running = map[string]bool{"server": true}
+						m.expanded = true
 					}
 					m.theme = newPalette(plain, false)
 					m.started = time.Now().Add(-30 * time.Second)
@@ -245,142 +260,90 @@ func waitScreen(t *testing.T, p *tea.Program, want Screen) {
 	}
 	t.Fatalf("never reached %s", want)
 }
-func TestJourneyAKeyCount(t *testing.T) {
-	t.Setenv("OPENROUTER_API_KEY", "")
-	t.Setenv("TRIALM_OFFLINE", "1")
-	s := store.Store{Dir: t.TempDir()}
-	p, _ := s.Preferences()
-	p.Tool = "codex"
-	p.Context = 65536
-	p.QualityFloor = "3bit-ok"
-	clicks := atomic.Int32{}
-	requests := atomic.Int32{}
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/auth/keys":
-			fmt.Fprint(w, `{"key":"fake-secret"}`)
-		case "/credits":
-			fmt.Fprint(w, `{"data":{"total_credits":10,"total_usage":0}}`)
-		default:
-			t.Errorf("unexpected %s", r.URL.Path)
-			w.WriteHeader(404)
-		}
-	}))
-	defer api.Close()
-	trialServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests.Add(1)
-		fmt.Fprint(w, `{"choices":[{"message":{"content":"hello"}}]}`)
-	}))
-	defer trialServer.Close()
-	cfg := SessionConfig(context.Background(), s, p, core.Options{Device: "Apple M5", RAM: 24, Runtime: "all", Tuned: true, Use: "agent", Context: 65536}, 3, "test")
-	cfg.UpdateNotice = nil
-	cfg.Balance = nil
-	cfg.Tools = []string{"Codex", "Claude Code"}
-	cfg.Headless = false
-	cfg.Authorize = func(ctx context.Context, pasted string) error {
-		return Authorize(ctx, s, openrouter.Client{BaseURL: api.URL}, api.URL+"/auth", func(raw string) error {
-			clicks.Add(1)
-			u, _ := url.Parse(raw)
-			cb, _ := url.Parse(u.Query().Get("callback_url"))
-			q := cb.Query()
-			q.Set("code", "browser-code")
-			cb.RawQuery = q.Encode()
-			go func() {
-				r, e := http.Get(cb.String())
-				if e == nil {
-					r.Body.Close()
+func TestLauncherKeyCount(t *testing.T) {
+	for _, state := range []string{"disk-first", "disk", "ready"} {
+		t.Run(state, func(t *testing.T) {
+			t.Setenv("OPENROUTER_API_KEY", "")
+			m := fixture(t)
+			m.stack = []Screen{Home}
+			m.detecting = false
+			m.offer = state == "disk-first"
+			m.modelIndex = 0
+			if m.offer {
+				m.modelIndex = -1
+			}
+			m.models = m.models[:1]
+			if state != "ready" {
+				m.models[0].Journal = nil
+				m.models[0].Row.LocalPath = "/fixture/model.gguf"
+			}
+			m.cfg.Detect = nil
+			m.cfg.Models = nil
+			approvals, launches := 0, 0
+			m.cfg.Plan = func(context.Context, core.Row, store.Preferences) (setup.Plan, error) {
+				return setup.Plan{ID: "approved", Slug: "local", Harness: "codex"}, nil
+			}
+			m.cfg.Apply = func(ctx context.Context, p setup.Plan, sink core.Sink) (setup.Journal, error) {
+				approvals++
+				return setup.Journal{Plan: p, State: "ready", Report: &verify.Report{Ready: true}}, nil
+			}
+			m.cfg.Process = func(ctx context.Context, exe string, args []string) *exec.Cmd {
+				if args[0] != "launch" || args[1] != "codex" {
+					t.Errorf("unexpected handoff %v", args)
 				}
-			}()
-			return nil
-		}, pasted)
+				launches++
+				cmd := exec.CommandContext(ctx, exe, "-test.run=TestTrialHelper")
+				cmd.Env = append(os.Environ(), "TRIALM_TUI_HELPER=1", "TRIALM_TUI_LAUNCH=1")
+				return cmd
+			}
+			program := tea.NewProgram(&driver{m}, tea.WithInput(nil), tea.WithOutput(io.Discard), tea.WithoutRenderer(), tea.WithColorProfile(colorprofile.Ascii))
+			done := make(chan error, 1)
+			go func() { _, e := program.Run(); done <- e }()
+			defer program.Kill()
+			keys := 0
+			waitScreen(t, program, Home)
+			if state == "disk-first" {
+				program.Send(key("s"))
+				keys++
+			}
+			program.Send(key("enter"))
+			keys++
+			if state != "ready" {
+				waitScreen(t, program, Setup)
+				deadline := time.Now().Add(5 * time.Second)
+				for {
+					ch := make(chan bool, 1)
+					program.Send(probePlan{ch})
+					if <-ch {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatal("plan did not arrive")
+					}
+					time.Sleep(time.Millisecond)
+				}
+				program.Send(key("enter"))
+				keys++
+			}
+			// A return to the launcher proves the tool subprocess completed.
+			waitScreen(t, program, Home)
+			program.Send(key("q"))
+			if e := <-done; e != nil {
+				t.Fatal(e)
+			}
+			want := 2
+			if state == "disk-first" {
+				want = 3
+			}
+			if state == "ready" {
+				want = 1
+			}
+			if keys != want || launches != 1 || (state != "ready" && approvals != 1) {
+				t.Fatalf("keys=%d approvals=%d launches=%d", keys, approvals, launches)
+			}
+			t.Logf("%s reached Codex in %d keys", state, keys)
+		})
 	}
-	cfg.Process = func(ctx context.Context, exe string, args []string) *exec.Cmd {
-		cmd := exec.CommandContext(ctx, exe, "-test.run=TestTrialHelper")
-		cmd.Env = append(os.Environ(), "TRIALM_TUI_HELPER=1", "TRIALM_TUI_ENDPOINT="+trialServer.URL, "TRIALM_HOME="+s.Dir)
-		return cmd
-	}
-	approvals := atomic.Int32{}
-	launches := atomic.Int32{}
-	cfg.Plan = func(ctx context.Context, row core.Row, p store.Preferences) (setup.Plan, error) {
-		return setup.Plan{ID: "approved-plan", Slug: "local", Harness: "codex"}, nil
-	}
-	cfg.Apply = func(ctx context.Context, p setup.Plan, sink core.Sink) (setup.Journal, error) {
-		if p.ID != "approved-plan" {
-			return setup.Journal{}, errors.New("wrong approval")
-		}
-		approvals.Add(1)
-		report := &verify.Report{Ready: true}
-		sink(core.Event{Type: "setup_ready", Data: report})
-		return setup.Journal{Plan: p, State: "ready", Report: report}, nil
-	}
-	trialProcess := cfg.Process
-	cfg.Process = func(ctx context.Context, exe string, args []string) *exec.Cmd {
-		cmd := trialProcess(ctx, exe, args)
-		if args[0] == "launch" {
-			launches.Add(1)
-			cmd.Env = append(cmd.Env, "TRIALM_TUI_LAUNCH=1")
-		}
-		return cmd
-	}
-	m := New(cfg)
-	program := tea.NewProgram(&driver{m}, tea.WithInput(nil), tea.WithOutput(io.Discard), tea.WithoutRenderer(), tea.WithColorProfile(colorprofile.Ascii))
-	done := make(chan error, 1)
-	go func() { _, e := program.Run(); done <- e }()
-	defer program.Kill()
-	keys := 0
-	waitScreen(t, program, First)
-	program.Send(key("enter"))
-	keys++
-	waitScreen(t, program, Calibration)
-	program.Send(key("s"))
-	keys++
-	waitScreen(t, program, Recipes)
-	// Ranking completes asynchronously. Query the loop until the first row exists.
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		ready := make(chan bool, 1)
-		program.Send(probeRows{ready})
-		if <-ready {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("no recipes")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	program.Send(key("enter"))
-	keys++
-	waitScreen(t, program, Summary)
-	program.Send(key("s"))
-	keys++
-	waitScreen(t, program, Setup)
-	// The plan callback completes in the model loop before approval.
-	deadline = time.Now().Add(5 * time.Second)
-	for {
-		ready := make(chan bool, 1)
-		program.Send(probePlan{ready})
-		if <-ready {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("plan not shown")
-		}
-		time.Sleep(time.Millisecond)
-	}
-	program.Send(key("enter"))
-	keys++
-	waitScreen(t, program, Ready)
-	program.Send(key("enter"))
-	keys++
-	waitScreen(t, program, Home)
-	program.Send(key("q"))
-	if e := <-done; e != nil {
-		t.Fatal(e)
-	}
-	if keys+1 > 7 || approvals.Load() != 1 || launches.Load() != 1 || clicks.Load() != 1 || requests.Load() != 1 {
-		t.Fatalf("keys=%d browser clicks=%d requests=%d", keys, clicks.Load(), requests.Load())
-	}
-	t.Logf("%d keys including install paste, 1 approval, 1 browser click, 0 copy-paste. Fresh state, displayed defaults and calibration skipped.", keys+1)
 }
 
 type probePlan struct{ ready chan bool }
@@ -416,26 +379,34 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 	m := fixture(t)
 	t.Setenv("TRIALM_HOME", m.cfg.Store.Dir)
 	t.Setenv("TRIALM_CALIBRATION_HELPER", "1")
-	m.stack = []Screen{Calibration}
+	m.stack = []Screen{Home}
+	m.offer = true
+	m.modelIndex = -1
+	m.detecting = false
 	_, cmd := m.Update(key("s"))
 	if cmd != nil {
 		m.Update(cmd())
 	}
-	if m.screen() != Recipes {
+	if m.screen() != Home {
 		t.Fatal(m.screen())
 	}
 	var prefs map[string]any
 	if e := m.cfg.Store.Read("prefs.json", &prefs); e != nil || prefs["calibration_offer"] != "skipped" {
 		t.Fatal(prefs, e)
 	}
-	m.stack = []Screen{First}
-	m.afterKey()
-	if m.screen() != Needs {
+	m = New(m.cfg)
+	if m.offer {
 		t.Fatal("offer repeated")
 	}
-	m.stack = []Screen{Calibration}
+	if m.screen() != Home {
+		t.Fatal("offer repeated")
+	}
+	m.stack = []Screen{Home}
+	m.offer = true
+	m.modelIndex = -1
+	m.detecting = false
 	m.Update(key("enter"))
-	if m.screen() != Calibrating {
+	if m.calibration == nil || m.screen() != Home {
 		t.Fatal(m.screen())
 	}
 	job := m.calibration
@@ -452,7 +423,7 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 			t.Fatal(job, m.View().Content)
 		}
 	}
-	if m.screen() != Needs {
+	if m.screen() != Home {
 		t.Fatal(m.screen())
 	}
 	_ = m.cfg.Store.Read("prefs.json", &prefs)
@@ -471,7 +442,7 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 }
 func TestFooterBindings(t *testing.T) {
 	m := fixture(t)
-	allowed := map[Screen][]string{First: {"enter browser", "p paste", "s skip", "q quit"}, Calibration: {"enter calibrate", "s defaults", "q quit"}, Recipes: {"enter try", "s set up", "d details", "w window", "r needs", "/ search"}, Details: {"enter try", "space boosts", "s set up", "? why", "esc back", "q quit"}, Summary: {"1 too slow", "2 fine", "3 great", "s set up", "t another", "q quit"}}
+	allowed := map[Screen][]string{First: {"enter browser", "p paste", "esc back"}, Recipes: {"enter try", "s set up", "d details", "w window", "n needs", "/ search"}, Details: {"enter try", "space boosts", "s set up", "? why", "esc back", "q quit"}, Summary: {"1 too slow", "2 fine", "3 great", "s set up", "t another", "q quit"}}
 	for screen, want := range allowed {
 		m.stack = []Screen{screen}
 		if got := strings.Split(m.footer(), "  "); len(got) > 6 || strings.Join(got, "|") != strings.Join(want, "|") {

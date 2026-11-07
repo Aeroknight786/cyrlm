@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/aeroknight786/trialm/internal/figure"
-	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/predict"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -25,41 +23,14 @@ func metric(r predict.Result, v float64, unit string, reading bool) figure.Figur
 }
 func (m *Root) body() string {
 	title := m.theme.wordmark()
-	credit := ""
-	if m.balance.Kind == figure.Measured {
-		credit = " · OpenRouter " + m.balance.String() + " credit (cached)"
-	}
-	tools := strings.Join(m.cfg.Tools, " · ")
-	if tools == "" {
-		tools = m.cfg.Preferences.Tool
-	}
 	switch m.screen() {
 	case First:
-		machine := "Detecting this machine…"
-		if m.detection.Target.Name != "" {
-			machine = m.detection.Target.Name + " · " + figure.Exact(m.detection.Target.GPUMemBytes/(1<<30), "GB for models", figure.Measured, "hardware:budget").String()
-		}
-		engine := "none yet (setup installs one)"
-		if len(m.detection.Runtimes) > 0 {
-			engine = fmt.Sprintf("%d installed", len(m.detection.Runtimes))
-		}
-		return title + "  feel a local model before you download it\n✓ " + machine + "\n✓ Coding tools  " + tools + "\n· Engines       " + engine + "\n\nConnect OpenRouter: real cloud answers, paced to this machine.\nTrials use providers that do not store your repo. Cap " + figure.Exact(m.cfg.Preferences.BudgetUSD, "USD", figure.Measured, "prefs:budget").String() + "."
+		return title + "\n\nTry it in the cloud first\nConnect OpenRouter to start a private trial.\nTrial cap " + figure.Exact(m.cfg.Preferences.BudgetUSD, "USD", figure.Measured, "prefs:budget").String() + "."
 	case Paste:
 		if m.password == nil {
 			return "OpenRouter key"
 		}
 		return title + "\n" + m.authURL + "\n" + m.password.View()
-	case Calibration:
-		return title + credit + "\n\nCalibrate this machine · recommended\n≈3–7 min · no model downloads\nSynthetic files need about 6 GB of temporary disk.\nUses an installed llama-bench.\ns skips calibration and accepts these defaults." + fmt.Sprintf("\nDefaults · %s · %s · %dk native", m.cfg.Preferences.Tool, m.cfg.Preferences.Priority, m.cfg.Preferences.Context/1024)
-	case Calibrating:
-		elapsed := time.Since(m.started).Seconds()
-		fraction := 0.0
-		eta := "estimating"
-		if m.calibration != nil {
-			fraction = m.calibration.fraction
-			eta = m.calibration.eta
-		}
-		return "Calibrating this machine\n" + m.progressBar(fraction) + "\nElapsed " + figure.Exact(math.Round(elapsed), "s", figure.Measured, "clock").String() + " · ETA " + eta + "\nFinished measurements are kept if stopped."
 	case Needs:
 		lines := []string{"What do you need? · Enter accepts every default"}
 		for i, f := range m.fields {
@@ -87,29 +58,9 @@ func (m *Root) body() string {
 		split := m.split(r.ReadingSeconds, r.WritingSeconds, r.LoadSeconds+r.BetweenTurnsSeconds)
 		return partial + "Trial over · " + m.last.Model + " · " + m.last.Quant + " · " + m.last.Runtime + "\n" + r.Plain(m.last.Band) + split + "\nHow did it feel?"
 	case Home:
-		b := title + "  " + m.detection.Target.Name + credit + "\n"
-		for _, j := range m.ready {
-			state := "stopped"
-			for id, running := range j.Running {
-				if id != "bridge" && running {
-					state = "running"
-				}
-			}
-			b += "● " + j.Plan.ModelName + " · " + j.Plan.RuntimeName + " · ready (" + state + ")\n"
-		}
-		if len(m.ready) > 0 {
-			b += "❯ Launch " + harness.DisplayName(m.cfg.Preferences.Tool) + " with it  enter\n"
-		}
-		b += "Find or try another  f\n\nTrials history\n"
-		for i := len(m.history) - 1; i >= max(0, len(m.history)-5); i-- {
-			r := m.history[i]
-			b += fmt.Sprintf("  %s · %s · %s\n", r.At.Format("Jan 2"), r.Model, ratingWord(r.Rating))
-		}
-		b += "Popular configs: c claims gallery\n"
-		if m.notice != "" {
-			b += m.theme.dim.Render(m.notice)
-		}
-		return b
+		return m.launcher()
+	case Help:
+		return "Every key, one place\n\nLauncher\n  ↑↓ / j k select · enter run · tab cycle installed tools\n  t cloud trial · f find faster or smarter · / search\n  enter calibrate once · s skip forever\n\nRecipes\n  ↑↓ / j k select · enter trial · w trial in a window\n  s set up · n needs · d details · / search · c claims\n  ? figures and sources · space toggle boosts in details\n\nSetup and Ready\n  enter approve / open tool · d steps and logs · ctrl-c pause\n  u undo from Ready · q later\n\nCloud sign-in\n  enter browser / connect · p paste · esc back\n\nTrial summary\n  1 too slow · 2 fine · 3 great · s set up · t another\n\nChat · enter send · esc finish\nEverywhere · esc back · q quit · ctrl-c stop"
 	case Gallery:
 		b := "Published claims · unverified by triaLM · never ranked\n"
 		for i, c := range Claims() {
@@ -164,7 +115,7 @@ func (m *Root) recipes() string {
 		if m.busy {
 			return b // the spinner line says it is still ranking
 		}
-		return b + "No working recipe for these needs. Press r to change them."
+		return b + "No working recipe for these needs. Press n to change them."
 	}
 	if m.width >= 60 {
 		b += m.tableView() + "\n"
@@ -229,6 +180,9 @@ func (m *Root) progressBar(v float64) string {
 		n := int(float64(w) * v)
 		return "[" + strings.Repeat("=", n) + strings.Repeat("-", w-n) + "]"
 	}
+	if m.busy {
+		return m.bar.View()
+	}
 	return m.bar.ViewAs(v)
 }
 func (m *Root) split(read, write, fixed float64) string {
@@ -259,14 +213,3 @@ func (m *Root) split(read, write, fixed float64) string {
 }
 
 // ratingWord names the after-trial answer instead of showing a score.
-func ratingWord(r int) string {
-	switch r {
-	case 1:
-		return "too slow"
-	case 2:
-		return "fine"
-	case 3:
-		return "great"
-	}
-	return "not rated"
-}

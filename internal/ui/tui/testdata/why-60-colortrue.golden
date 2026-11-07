@@ -12,4 +12,4 @@ errors). A 4-bit file of the same model, or a smaller model
 at 4-bit, is the safer choice when quality matters more than
 speed
 
-[36mesc[m [90mback[m[90m  [m[36mq[m [90mquit[m
+[90mesc back  q quit[m

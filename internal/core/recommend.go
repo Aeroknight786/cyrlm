@@ -170,9 +170,10 @@ func ChooseRuntime(c Options, t predict.Target, m catalog.Model, sc predict.Scen
 }
 
 type Row struct {
-	Result  predict.Result
-	Verdict string
-	Rank    int
+	LocalPath string `json:"-"`
+	Result    predict.Result
+	Verdict   string
+	Rank      int
 }
 
 // VerdictFor classifies how a setup feels in an agent session.

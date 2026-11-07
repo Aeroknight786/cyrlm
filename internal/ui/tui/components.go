@@ -2,29 +2,13 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 
-	"charm.land/bubbles/v2/help"
-	keybind "charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
 	"github.com/aeroknight786/trialm/internal/figure"
 )
 
-func (m *Root) helpView() string {
-	bindings := []keybind.Binding{}
-	for _, part := range strings.Split(m.footer(), "  ") {
-		name, desc, _ := strings.Cut(part, " ")
-		bindings = append(bindings, keybind.NewBinding(keybind.WithKeys(name), keybind.WithHelp(name, desc)))
-	}
-	h := help.New()
-	h.SetWidth(m.width)
-	h.ShortSeparator = "  "
-	h.Styles.ShortKey = m.theme.selected
-	h.Styles.ShortDesc = m.theme.dim
-	h.Styles.ShortSeparator = m.theme.dim
-	return h.ShortHelpView(bindings)
-}
+func (m *Root) helpView() string { return m.theme.dim.Render(m.footer()) }
 func (m *Root) tableView() string {
 	mw, fw := m.width*2/5, m.width-m.width*2/5-12
 	cols := []table.Column{{Title: "MODEL", Width: mw}, {Title: "FILE · ENGINE", Width: fw}, {Title: fmt.Sprintf("%10s", "TURN"), Width: 10}}

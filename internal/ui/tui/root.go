@@ -27,24 +27,23 @@ import (
 type Screen string
 
 const (
-	First       Screen = "first"
-	Paste       Screen = "paste"
-	Calibration Screen = "calibration"
-	Calibrating Screen = "calibrating"
-	Needs       Screen = "needs"
-	Recipes     Screen = "recipes"
-	Details     Screen = "details"
-	Trial       Screen = "trial"
-	Summary     Screen = "summary"
-	Home        Screen = "home"
-	Gallery     Screen = "gallery"
-	ClaimCard   Screen = "claim"
-	Search      Screen = "search"
-	Why         Screen = "why"
-	Setup       Screen = "setup"
-	Chat        Screen = "chat"
-	Ready       Screen = "ready"
-	Launching   Screen = "launch"
+	First     Screen = "key"
+	Paste     Screen = "paste"
+	Needs     Screen = "needs"
+	Recipes   Screen = "recipes"
+	Details   Screen = "details"
+	Trial     Screen = "trial"
+	Summary   Screen = "summary"
+	Home      Screen = "launcher"
+	Help      Screen = "help"
+	Gallery   Screen = "gallery"
+	ClaimCard Screen = "claim"
+	Search    Screen = "search"
+	Why       Screen = "why"
+	Setup     Screen = "setup"
+	Chat      Screen = "chat"
+	Ready     Screen = "ready"
+	Launching Screen = "launch"
 )
 
 // Config uses application callbacks so no Charm types escape into the CLI/core.
@@ -52,7 +51,7 @@ type Config struct {
 	LocalPlan       *setup.Plan
 	Plan            func(context.Context, core.Row, store.Preferences) (setup.Plan, error)
 	Apply           func(context.Context, setup.Plan, core.Sink) (setup.Journal, error)
-	ReadySetups     func(context.Context) ([]setup.Journal, error)
+	Models          func(context.Context, core.Detection, store.Preferences) ([]core.ModelChoice, error)
 	Context         context.Context
 	Store           store.Store
 	Preferences     store.Preferences
@@ -70,10 +69,13 @@ type Config struct {
 	Process         func(context.Context, string, []string) *exec.Cmd
 	WindowArgs      []string
 	Headless        bool
-	Balance         func(context.Context) (figure.Figure, error)
 	Tools           []string
 }
-type readyMsg struct{ rows []setup.Journal }
+type modelsMsg struct {
+	rows []core.ModelChoice
+	err  error
+}
+type sparkleMsg int
 type detectedMsg struct {
 	detection core.Detection
 	err       error
@@ -88,10 +90,6 @@ type headlessReadyMsg struct {
 	err   error
 }
 type noticeMsg string
-type balanceMsg struct {
-	figure figure.Figure
-	err    error
-}
 type childMsg struct {
 	kind Screen
 	err  error
@@ -101,37 +99,41 @@ type windowDoneMsg struct{ err error }
 
 // Root owns every screen and sub-model for the entire interactive session.
 type Root struct {
-	cfg             Config
-	setup           setupView
-	ready           []setup.Journal
-	stack           []Screen
-	width, height   int
-	theme           palette
-	detection       core.Detection
-	listing         core.Listing
-	selected, field int
-	fields          []huh.Field
-	labels          []string
-	secret          string
-	password        *huh.Input
-	search          textinput.Model
-	spin            spinner.Model
-	bar             progress.Model
-	busy            bool
-	message, notice string
-	history         []store.TrialEntry
-	last            store.TrialEntry
-	started         time.Time
-	calibration     *calibrationJob
-	chat            chatModel
-	chatStop        func() error
-	Error           error
-	meter           window.Meter
-	headless        *headlessLogin
-	authURL         string
-	balance         figure.Figure
-	autoQuality     bool
-	pendingClaim    bool
+	cfg                                              Config
+	setup                                            setupView
+	models                                           []core.ModelChoice
+	modelIndex                                       int
+	detecting, detected, offer, expanded, autoLaunch bool
+	sparkle                                          int
+	rawError                                         string
+	pendingTrial                                     bool
+	stack                                            []Screen
+	width, height                                    int
+	theme                                            palette
+	detection                                        core.Detection
+	listing                                          core.Listing
+	selected, field                                  int
+	fields                                           []huh.Field
+	labels                                           []string
+	secret                                           string
+	password                                         *huh.Input
+	search                                           textinput.Model
+	spin                                             spinner.Model
+	bar                                              progress.Model
+	busy                                             bool
+	message, notice                                  string
+	history                                          []store.TrialEntry
+	last                                             store.TrialEntry
+	started                                          time.Time
+	calibration                                      *calibrationJob
+	chat                                             chatModel
+	chatStop                                         func() error
+	Error                                            error
+	meter                                            window.Meter
+	headless                                         *headlessLogin
+	authURL                                          string
+	autoQuality                                      bool
+	pendingClaim                                     bool
 }
 
 func New(cfg Config) *Root {
@@ -143,9 +145,17 @@ func New(cfg Config) *Root {
 	}
 	start := cfg.Start
 	if start == "" {
-		start = First
+		start = Home
 	}
 	m := &Root{autoQuality: cfg.Preferences.QualityFloor == "", cfg: cfg, stack: []Screen{start}, width: 80, height: 24, theme: newPalette(cfg.NoColor, cfg.ASCII), spin: spinner.New(spinner.WithSpinner(spinner.Dot)), bar: progress.New(progress.WithWidth(36), progress.WithDefaultBlend(), progress.WithoutPercentage())}
+	var saved map[string]json.RawMessage
+	_ = cfg.Store.Read("prefs.json", &saved)
+	_, offered := saved["calibration_offer"]
+	m.offer = !offered
+	if m.offer {
+		m.modelIndex = -1
+	}
+	m.detecting = start == Home
 	if cfg.ASCII {
 		m.spin = spinner.New(spinner.WithSpinner(spinner.Line))
 	}
@@ -153,7 +163,6 @@ func New(cfg Config) *Root {
 	m.search.Prompt = "Search models: "
 	m.search.CharLimit = 500
 	m.history, _ = cfg.Store.History()
-	_ = cfg.Store.Read("credits.json", &m.balance)
 	m.makeFields()
 	if cfg.LocalPlan != nil {
 		m.setup = setupView{plan: *cfg.LocalPlan, states: map[int]string{}}
@@ -165,7 +174,7 @@ func New(cfg Config) *Root {
 	return m
 }
 func Run(cfg Config) error {
-	cfg.NoColor = cfg.NoColor || os.Getenv("NO_COLOR") != ""
+	cfg.NoColor = cfg.NoColor || os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb"
 	cfg.ASCII = cfg.ASCII || asciiTerminal(nativeOS, os.Getenv)
 	m := New(cfg)
 	opts := append(programOptions(), tea.WithContext(m.cfg.Context))
@@ -182,27 +191,21 @@ func (m *Root) back() {
 	m.message = ""
 }
 func (m *Root) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.spin.Tick}
+	cmds := []tea.Cmd{m.tick()}
 	if m.cfg.WindowArgs != nil {
-		return tea.Batch(m.spin.Tick, m.beginWindow(m.cfg.WindowArgs))
+		return tea.Batch(m.tick(), m.beginWindow(m.cfg.WindowArgs))
 	}
 	if m.cfg.DirectArgs != nil {
-		if m.cfg.Store.Key() != "" || !needsCloudKey(m.cfg.DirectArgs) {
-			return tea.Batch(m.spin.Tick, m.execute(m.cfg.DirectArgs))
+		if m.cfg.Store.Key() != "" || !core.NeedsCloudKey(m.cfg.DirectArgs) {
+			return tea.Batch(m.tick(), m.execute(m.cfg.DirectArgs))
 		}
 		m.replace(First)
-	}
-	if m.cfg.ReadySetups != nil {
-		cmds = append(cmds, func() tea.Msg { rows, _ := m.cfg.ReadySetups(m.cfg.Context); return readyMsg{rows} })
 	}
 	if m.cfg.Detect != nil {
 		cmds = append(cmds, func() tea.Msg { d, e := m.cfg.Detect(m.cfg.Context); return detectedMsg{d, e} })
 	}
 	if m.cfg.UpdateNotice != nil {
 		cmds = append(cmds, func() tea.Msg { return noticeMsg(m.cfg.UpdateNotice(m.cfg.Context)) })
-	}
-	if m.cfg.Balance != nil && m.cfg.Store.Key() != "" {
-		cmds = append(cmds, func() tea.Msg { v, e := m.cfg.Balance(m.cfg.Context); return balanceMsg{v, e} })
 	}
 	return tea.Batch(cmds...)
 }
@@ -215,14 +218,36 @@ func (m *Root) find() tea.Cmd {
 	return func() tea.Msg { l, e := m.cfg.Find(m.cfg.Context, p); return recipesMsg{l, e} }
 }
 func (m *Root) afterKey() tea.Cmd {
-	var p map[string]json.RawMessage
-	_ = m.cfg.Store.Read("prefs.json", &p)
-	if _, ok := p["calibration_offer"]; !ok {
-		m.replace(Calibration)
-	} else {
-		m.replace(Needs)
+	if m.screen() == Paste {
+		m.back()
+	}
+	m.back()
+	if m.pendingTrial {
+		m.pendingTrial = false
+		return m.try(false)
 	}
 	return nil
+}
+func (m *Root) loadModels() tea.Cmd {
+	if m.cfg.Models == nil {
+		m.detecting = false
+		return nil
+	}
+	m.detecting = true
+	d, p := m.detection, m.cfg.Preferences
+	return func() tea.Msg { rows, e := m.cfg.Models(m.cfg.Context, d, p); return modelsMsg{rows, e} }
+}
+func (m *Root) tick() tea.Cmd {
+	if m.theme.plain || m.theme.ascii {
+		return nil
+	}
+	return m.spin.Tick
+}
+func (m *Root) fail(sentence string, err error) {
+	m.message = sentence
+	if err != nil {
+		m.rawError = err.Error()
+	}
 }
 func (m *Root) choice(choice string) error {
 	p := map[string]json.RawMessage{}
@@ -233,6 +258,12 @@ func (m *Root) choice(choice string) error {
 	return m.cfg.Store.Write("prefs.json", p)
 }
 func (m *Root) row() (core.Row, bool) {
+	if m.screen() == Home {
+		if m.modelIndex < 0 || m.modelIndex >= len(m.models) {
+			return core.Row{}, false
+		}
+		return m.models[m.modelIndex].Row, true
+	}
 	if len(m.listing.Rows) == 0 {
 		return core.Row{}, false
 	}
@@ -246,6 +277,7 @@ func (m *Root) try(window bool) tea.Cmd {
 		return nil
 	}
 	if m.cfg.Store.Key() == "" {
+		m.pendingTrial = true
 		m.push(First)
 		m.message = "Connect OpenRouter to start a trial."
 		return nil
@@ -279,22 +311,13 @@ func (m *Root) child(argv []string) *exec.Cmd {
 		cmd = m.cfg.Process(m.cfg.Context, m.cfg.Executable, argv)
 	}
 	if cmd.Env == nil {
-		cmd.Env = childEnv(os.Environ())
+		cmd.Env = core.ChildEnv(os.Environ())
 	} else {
-		cmd.Env = childEnv(cmd.Env)
+		cmd.Env = core.ChildEnv(cmd.Env)
 	}
 	return cmd
 }
 
-func childEnv(env []string) []string {
-	out := make([]string, 0, len(env))
-	for _, e := range env {
-		if !strings.HasPrefix(e, "CLAUDECODE=") && !strings.HasPrefix(e, "CLAUDE_CODE_ENTRYPOINT=") {
-			out = append(out, e)
-		}
-	}
-	return out
-}
 func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.ColorProfileMsg:
@@ -309,19 +332,42 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for _, f := range m.fields {
 			f.WithWidth(max(12, m.width-24))
 		}
+	case progress.FrameMsg:
+		var cmd tea.Cmd
+		bar, cmd := m.bar.Update(v)
+		m.bar = bar
+		return m, cmd
+	case sparkleMsg:
+		m.sparkle = int(v)
+		if m.theme.plain || m.theme.ascii {
+			m.sparkle = 3
+		}
+		if m.sparkle < 3 {
+			return m, tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg { return sparkleMsg(int(v) + 1) })
+		}
+		if m.autoLaunch && m.screen() == Ready {
+			return m, m.launchSetup(m.setup.journal)
+		}
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(v)
 		return m, cmd
 	case setupEvent:
 		return m, m.setupEvent(v)
-	case readyMsg:
-		m.ready = v.rows
-		if len(m.ready) > 0 && m.screen() == First {
-			m.replace(Home)
+	case modelsMsg:
+		m.detecting = false
+		if v.err != nil {
+			m.fail("Could not load your models. Press f to find a recipe or d for details.", v.err)
+		} else {
+			m.models = v.rows
+			m.modelIndex = min(m.modelIndex, len(m.models))
+			if !m.offer {
+				m.modelIndex = max(0, m.modelIndex)
+			}
 		}
 	case detectedMsg:
 		m.detection = v.detection
+		m.detected = true
 		if m.autoQuality {
 			m.cfg.Preferences.QualityFloor = "3bit-ok"
 			if v.detection.Target.GPUMemBytes > 24*(1<<30) {
@@ -330,25 +376,20 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.makeFields()
 		}
 		if v.err != nil {
-			m.message = v.err.Error()
+			m.detecting = false
+			m.fail("Could not read this machine. Press f to find a recipe or d for details.", v.err)
 			return m, nil
 		}
-		if m.screen() == First && m.cfg.Store.Key() != "" {
-			var prefs map[string]json.RawMessage
-			_ = m.cfg.Store.Read("prefs.json", &prefs)
-			if _, ok := prefs["tool"]; ok {
-				m.replace(Home)
-				return m, m.find()
-			}
-			return m, m.afterKey()
+		if m.screen() == Home {
+			return m, m.loadModels()
 		}
-		if m.screen() == Recipes || m.screen() == Home {
+		if m.screen() == Recipes {
 			return m, m.find()
 		}
 	case recipesMsg:
 		m.busy = false
 		if v.err != nil {
-			m.message = v.err.Error()
+			m.fail("That did not finish. Press esc to go back or d for details.", v.err)
 			return m, nil
 		}
 		m.listing = v.listing
@@ -372,7 +413,6 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.secret = ""
 		m.headless = nil
 		m.authURL = ""
-		_ = m.cfg.Store.Read("credits.json", &m.balance)
 		if v.err != nil {
 			if m.screen() == Paste {
 				m.back()
@@ -386,11 +426,6 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.execute(m.cfg.DirectArgs)
 		}
 		return m, m.afterKey()
-	case balanceMsg:
-		if v.err == nil {
-			m.balance = v.figure
-			_ = m.cfg.Store.Write("credits.json", m.balance)
-		}
 	case noticeMsg:
 		m.notice = string(v)
 	case windowDoneMsg:
@@ -402,16 +437,13 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case childMsg:
 		m.busy = false
 		if (v.kind == Launching || v.kind == Setup) && v.err == nil {
-			m.replace(Home)
-			if m.cfg.ReadySetups != nil {
-				return m, func() tea.Msg { rows, _ := m.cfg.ReadySetups(m.cfg.Context); return readyMsg{rows} }
-			}
-			return m, nil
+			m.stack = []Screen{Home}
+			m.autoLaunch = false
+			return m, m.loadModels()
 		}
 		if v.err != nil {
-			m.message = v.err.Error()
 			m.back()
-			m.message = v.err.Error()
+			m.fail("That did not finish. Press esc to go back or d for details.", v.err)
 			return m, nil
 		}
 		if v.kind == Trial {
@@ -431,20 +463,19 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.done {
 			m.busy = false
 			m.calibration = nil
-			m.replace(Needs)
 			if v.err != nil {
-				m.message = "Calibration did not finish: " + v.err.Error()
+				m.fail("Calibration stopped. Your models are ready to choose. Press d for details.", v.err)
 			}
-			return m, nil
+			return m, m.loadModels()
 		}
-		m.message = calibrationStatus(v.event.Probe, v.message)
+		m.message = core.CalibrationStatus(v.event.Probe, v.message)
 		m.calibration.record(v.event)
-		return m, m.calibration.next()
+		return m, tea.Batch(m.calibration.next(), m.bar.SetPercent(m.calibration.fraction))
 	case pulseMsg:
 		if m.screen() == Trial {
 			m.meter = window.ReadMeter(m.cfg.Store)
 		}
-		if m.screen() == Calibrating || m.screen() == Trial {
+		if m.calibration != nil || m.screen() == Trial {
 			return m, tea.Tick(time.Second, func(t time.Time) tea.Msg { return pulseMsg(t) })
 		}
 	case tea.PasteMsg:
@@ -474,7 +505,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.busy = false
 		if v.err != nil {
 			m.back()
-			m.message = v.err.Error()
+			m.fail("That did not finish. Press esc to go back or d for details.", v.err)
 			return m, nil
 		}
 		m.chat = newChat(m.cfg.Context, v.client)
@@ -562,6 +593,14 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.search, c = m.search.Update(msg)
 			return m, c
 		}
+		if key == "d" && (m.screen() == Home || m.screen() == Setup || m.screen() == Ready || m.rawError != "") {
+			m.expanded = !m.expanded
+			return m, nil
+		}
+		if key == "?" && m.screen() == Home {
+			m.push(Help)
+			return m, nil
+		}
 		if key == "q" {
 			return m, tea.Quit
 		}
@@ -586,29 +625,6 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.password.WithWidth(max(24, m.width-4))
 				m.password.WithKeyMap(huh.NewDefaultKeyMap())
 				return m, m.password.Focus()
-			case "s":
-				m.cfg.DirectArgs = nil
-				return m, m.afterKey()
-			}
-		case Calibration:
-			if key == "s" {
-				if e := m.choice("skipped"); e != nil {
-					m.message = e.Error()
-					return m, nil
-				}
-				m.replace(Needs)
-				return m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-			}
-			if key == "enter" {
-				if e := m.choice("accepted"); e != nil {
-					m.message = e.Error()
-					return m, nil
-				}
-				m.replace(Calibrating)
-				m.busy = true
-				m.started = time.Now()
-				m.calibration = newCalibration(m.cfg.Context, m.cfg.Executable)
-				return m, tea.Batch(m.calibration.next(), tea.Tick(time.Second, func(t time.Time) tea.Msg { return pulseMsg(t) }))
 			}
 		case Needs:
 			switch key {
@@ -630,21 +646,67 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 		case Home:
-			if key == "enter" && len(m.ready) > 0 {
-				return m, m.launchSetup(m.ready[0])
-			}
 			switch key {
-			case "f", "enter":
-				m.push(Needs)
-			case "c":
-				m.push(Gallery)
-			case "t":
-				if len(m.history) > 0 {
-					m.last = m.history[len(m.history)-1]
-					m.push(Summary)
+			case "s", "enter":
+				if m.offer {
+					choice := "skipped"
+					if key == "enter" {
+						choice = "accepted"
+					}
+					if e := m.choice(choice); e != nil {
+						m.fail("Could not save that choice. Press s or enter to retry.", e)
+						return m, nil
+					}
+					m.offer = false
+					m.modelIndex = max(0, m.modelIndex)
+					if key == "enter" {
+						m.busy = true
+						m.started = time.Now()
+						m.calibration = newCalibration(m.cfg.Context, m.cfg.Executable)
+						return m, tea.Batch(m.calibration.next(), tea.Tick(time.Second, func(t time.Time) tea.Msg { return pulseMsg(t) }))
+					}
+					return m, nil
 				}
+				if key == "s" || m.detecting {
+					return m, nil
+				}
+				if m.modelIndex >= len(m.models) {
+					m.push(Recipes)
+					return m, m.find()
+				}
+				choice := m.models[m.modelIndex]
+				if choice.Journal != nil {
+					return m, m.launchSetup(*choice.Journal)
+				}
+				m.autoLaunch = true
+				return m, m.planSetup()
+			case "up", "k":
+				low := 0
+				if m.offer {
+					low = -1
+				}
+				m.modelIndex = max(low, m.modelIndex-1)
+			case "down", "j":
+				m.modelIndex = min(len(m.models), m.modelIndex+1)
+			case "tab":
+				for i, tool := range m.cfg.Tools {
+					if tool == m.cfg.Preferences.Tool {
+						m.cfg.Preferences.Tool = m.cfg.Tools[(i+1)%len(m.cfg.Tools)]
+						return m, nil
+					}
+				}
+				if len(m.cfg.Tools) > 0 {
+					m.cfg.Preferences.Tool = m.cfg.Tools[0]
+				}
+			case "t":
+				return m, m.try(false)
+			case "f":
+				m.push(Recipes)
+				return m, m.find()
 			case "/":
 				return m, m.openSearch()
+			case "c":
+				m.push(Gallery)
 			}
 		case Recipes, Details:
 			switch key {
@@ -662,7 +724,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "s":
 				return m, m.planSetup()
-			case "r":
+			case "n", "r":
 				m.push(Needs)
 			case "/":
 				return m, m.openSearch()
@@ -764,10 +826,8 @@ func (m *Root) makeFields() {
 		}
 		f := huh.NewSelect[string]().Options(opts...).Value(value).Inline(true)
 		f.WithKeyMap(huh.NewDefaultKeyMap())
-		f.WithWidth(32)
 		m.labels = append(m.labels, title)
 		f.WithTheme(m.formTheme())
-		f.Focus()
 		m.fields = append(m.fields, f)
 	}
 	add("Tool", &p.Tool, "codex", "claude-code", "opencode", "aider", "qwen-code", "cline", "continue", "zed", "generic")
@@ -784,10 +844,8 @@ func (m *Root) makeFields() {
 	}
 	ctx := huh.NewSelect[int]().Options(ctxOptions...).Value(&p.Context).Inline(true)
 	ctx.WithKeyMap(huh.NewDefaultKeyMap())
-	ctx.WithWidth(32)
 	m.labels = append(m.labels, "Context (native)")
 	ctx.WithTheme(m.formTheme())
-	ctx.Focus()
 	m.fields = append(m.fields, ctx)
 	add("Quality", &p.QualityFloor, "3bit-ok", "4bit+", "8bit")
 	add("Engines", &p.Engines, "stable+new", "stable", "installed")
@@ -799,16 +857,12 @@ func (m *Root) makeFields() {
 	}
 	budget := huh.NewSelect[float64]().Options(budgetOptions...).Value(&p.BudgetUSD).Inline(true)
 	budget.WithKeyMap(huh.NewDefaultKeyMap())
-	budget.WithWidth(32)
 	budget.WithTheme(m.formTheme())
-	budget.Focus()
 	m.fields = append(m.fields, budget)
 	m.labels = append(m.labels, "Trial cap")
 	retention := huh.NewSelect[bool]().Options(huh.NewOption("no-logging", false), huh.NewOption("ZDR only", true)).Value(&p.ZDR).Inline(true)
 	retention.WithKeyMap(huh.NewDefaultKeyMap())
-	retention.WithWidth(32)
 	retention.WithTheme(m.formTheme())
-	retention.Focus()
 	m.fields = append(m.fields, retention)
 	m.labels = append(m.labels, "Retention")
 
@@ -816,39 +870,35 @@ func (m *Root) makeFields() {
 func (m *Root) footer() string {
 	if m.screen() == Setup {
 		if m.busy {
-			return "ctrl-c pauses"
+			return "ctrl-c pauses  d details"
 		}
-		return "enter approve  n back  esc back"
+		return "enter go  esc back  d details"
 	}
 	if m.screen() == Ready {
-		return "enter launch  u undo  q later"
+		return "enter open " + toolName(m.cfg.Preferences.Tool) + " now  d details  q later"
 	}
 	if m.busy || (m.screen() == Chat && m.chat.busy) {
 		return "ctrl-c stop"
 	}
 	if m.screen() == Recipes && len(m.listing.Rows) == 0 {
-		return "r needs  / search  q quit"
+		return "n needs  / search  esc back  q quit"
 	}
 	switch m.screen() {
 	case First:
-		return "enter browser  p paste  s skip  q quit"
+		return "enter browser  p paste  esc back"
 	case Paste:
 		return "enter connect  esc back"
-	case Calibration:
-		return "enter calibrate  s defaults  q quit"
-	case Calibrating:
-		return "ctrl-c stop"
 	case Needs:
 		return "↑↓ row  ←→ change  enter go  esc back  q quit"
 	case Recipes:
-		return "enter try  s set up  d details  w window  r needs  / search"
+		return "enter try  s set up  d details  w window  n needs  / search"
 	case Details:
 		return "enter try  space boosts  s set up  ? why  esc back  q quit"
 	case Home:
-		if len(m.ready) > 0 {
-			return "enter launch  f needs  t history  q quit"
+		if m.offer && m.modelIndex < 0 {
+			return "enter start  s skip  ? help"
 		}
-		return "enter find  f needs  t history  c claims  / search  q quit"
+		return "enter run in " + toolName(m.cfg.Preferences.Tool) + "  t cloud trial  / search  ? help"
 	case Summary:
 		return "1 too slow  2 fine  3 great  s set up  t another  q quit"
 	case Gallery:
@@ -870,11 +920,14 @@ func (m *Root) footer() string {
 }
 func (m *Root) View() tea.View {
 	body := m.body()
-	if m.busy && m.screen() != Calibrating && m.screen() != Trial && m.screen() != Setup {
-		body += "\n" + m.spin.View() + " Working…"
+	if m.busy && m.calibration == nil && m.screen() != Home && m.screen() != Trial && m.screen() != Setup {
+		body += "\n" + m.waiting() + " Working…"
 	}
 	if m.message != "" {
 		body += "\n" + m.theme.caveat.Render(m.message)
+	}
+	if m.expanded && m.rawError != "" {
+		body += "\n" + wrap(m.rawError, m.width-4)
 	}
 	body += "\n\n" + m.helpView()
 	if m.theme.plain {
@@ -912,18 +965,6 @@ func changeKey(v tea.KeyPressMsg) tea.KeyPressMsg {
 func (m *Root) beginWindow(args []string) tea.Cmd {
 	m.busy = true
 	return tea.Batch(func() tea.Msg { return windowDoneMsg{m.cfg.Window(m.cfg.Context, args)} }, tea.Tick(time.Second, func(t time.Time) tea.Msg { return pulseMsg(t) }))
-}
-
-func needsCloudKey(args []string) bool {
-	for i, a := range args {
-		if a == "--upstream" && i+1 < len(args) {
-			return args[i+1] == "auto" || args[i+1] == "openrouter"
-		}
-		if strings.HasPrefix(a, "--upstream=") {
-			return a == "--upstream=auto" || a == "--upstream=openrouter"
-		}
-	}
-	return true
 }
 
 func terminalResult(err, modelError error) error {
