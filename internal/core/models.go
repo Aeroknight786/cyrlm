@@ -56,11 +56,12 @@ func (s Session) Models(ctx context.Context, o Options, t predict.Target, h harn
 		// Trials of a saved setup retain its actual quant and engine.
 		row.Result.Quant, _ = model.Quant(j.Plan.Quant)
 		row.Result.Runtime, _ = engine.Get(j.Plan.Runtime)
-		speed := j.Report.DecodeTPS[0] // journals written before actual-depth samples
+		// Short-context writing, the basis of the predictions shown beside it
+		// (journals written before actual-depth samples keep DecodeTPS[0]).
+		speed, depth := j.Report.DecodeTPS[0], -1
 		for _, sample := range j.Report.Samples {
-			if sample.Mode == "decode" {
-				speed = sample.Speed
-				break
+			if sample.Mode == "decode" && (depth < 0 || sample.Depth < depth) {
+				speed, depth = sample.Speed, sample.Depth
 			}
 		}
 		choices = append(choices, ModelChoice{Row: row, Journal: &j, Speed: figure.Band(speed, 20, "tok/s", figure.Measured, "setup:"+j.Plan.Slug+"/ready")})
