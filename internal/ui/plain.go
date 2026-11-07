@@ -308,16 +308,8 @@ func writingSpeed(r predict.Result) string {
 
 var bandNumber = figure.BandNumber
 
-func suffix(sep, s string) string {
-	if s == "" {
-		return ""
-	}
-	return sep + s
-}
-
 func GB(b float64) string                         { return gb(b) }
 func GBMem(b float64) string                      { return gbMem(b) }
 func Dur(d interface{ Seconds() float64 }) string { return dur(d) }
 func CacheLabel(k string) string                  { return cacheLabel(k) }
 func BandNumber(v float64, pct int) string        { return bandNumber(v, pct) }
-func WritingSpeed(r predict.Result) string        { return writingSpeed(r) }

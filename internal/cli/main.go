@@ -328,13 +328,6 @@ func cmdRuntimes(args []string) error {
 func predictAll(c common, m catalog.Model, t predict.Target, sc predict.Scenario, modes []bool) ([]predict.Result, error) {
 	return core.PredictAll(c.options(), m, t, sc, modes)
 }
-func chooseRuntime(c common, t predict.Target, m catalog.Model, sc predict.Scenario, h harness.Harness) (runtime.Profile, string, error) {
-	p, why, err := core.ChooseRuntime(c.options(), t, m, sc, h)
-	if err == nil && c.recipeRef != "" {
-		why = "recipe " + c.recipeRef + " from your last `trialm find`"
-	}
-	return p, why, err
-}
 func (c common) options() core.Options {
 	return core.Options{Runtime: c.runtime, Quant: c.quant, Context: c.ctx, KV: c.kv, Backend: c.backend, Probe: c.probe, Tuned: c.tuned, Device: c.device, RAM: c.ram, VRAM: c.vram, Engines: c.prefs.Engines, Boosts: c.prefs.Boosts, QualityFloor: c.prefs.QualityFloor, Use: c.prefs.Use, Priority: c.prefs.Priority, MaxDownloadGB: c.prefs.MaxDownloadGB, MinTPS: c.minTPS, MaxTurn: c.maxTurn, MinBits: c.minBits}
 }
@@ -692,13 +685,6 @@ func nonEmptyStr(a, b string) string {
 		return a
 	}
 	return b
-}
-
-func suffix(sep, s string) string {
-	if s == "" {
-		return ""
-	}
-	return sep + s
 }
 
 func capabilities(m catalog.Model) []string {

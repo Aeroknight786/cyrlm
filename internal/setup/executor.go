@@ -444,6 +444,7 @@ func (e *Executor) run(ctx context.Context, s Step, j *Journal, i int, path stri
 		}
 		o.APIs = j.Plan.APIs
 		o.Endpoint = j.effective(o.Endpoint)
+		o.Engine = j.effective(j.Plan.Endpoint)
 		o.Model = e.expand(j.Plan.LocalModelName)
 		o.ContextTokens = j.Plan.ContextTokens
 		o.Predicted = j.Plan.Predicted

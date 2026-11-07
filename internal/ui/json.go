@@ -4,8 +4,10 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/verify"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/figure"
@@ -17,6 +19,7 @@ type Renderer struct {
 	Human io.Writer
 	JSON  bool
 	Err   error
+	shown time.Time // last plain progress line
 }
 
 func (r *Renderer) Handle(e core.Event) {
@@ -42,10 +45,23 @@ func (r *Renderer) Handle(e core.Event) {
 		case "setup_progress":
 			if u, ok := e.Data.(setup.Update); ok && u.Progress != nil {
 				p := u.Progress
-				_, r.Err = fmt.Fprintf(r.Out, "Download %s / %s · %s/s · ETA %s\n", gb(float64(p.Done)), gb(float64(p.Total)), gb(p.BytesPerSec), dur(p.ETA))
+				if p.Reused != "" { // plain lines: one per 2 s, plus reuse and the end
+					_, r.Err = fmt.Fprintf(r.Out, "Already on disk, no download · %s\n", p.Reused)
+				} else if time.Since(r.shown) >= 2*time.Second || p.Done == p.Total {
+					r.shown = time.Now()
+					_, r.Err = fmt.Fprintf(r.Out, "Download %s / %s · %s/s · ETA %s\n", figure.Bytes(p.Done, "download"), figure.Bytes(p.Total, "download"), figure.Bytes(int64(p.BytesPerSec), "download"), dur(p.ETA))
+				}
 			}
 		case "setup_ready":
-			_, r.Err = fmt.Fprintln(r.Out, "✓ Ready")
+			rep, _ := e.Data.(*verify.Report)
+			if rep == nil {
+				rep = &verify.Report{}
+			}
+			_, r.Err = fmt.Fprint(r.Out, "✓ Ready\n"+rep.Plain())
+		case "result":
+			if data, ok := e.Data.(map[string]any); ok && data["ready"] == true && len(e.Next) > 0 {
+				_, r.Err = fmt.Fprintln(r.Out, "Next:", e.Next[0].Cmd)
+			}
 		case "setup_paused":
 			_, r.Err = fmt.Fprintln(r.Out, "Setup paused. Run trialm setup to resume.")
 		case "setup_undone":

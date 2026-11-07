@@ -147,7 +147,7 @@ func (s Session) Launch(ctx context.Context, o LaunchOptions) (l Launch, err err
 	l.Wiring.Unset = []string{"CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"}
 	err = l.Wiring.WriteFiles()
 	if err == nil && o.Check {
-		report, checkErr := verify.Ready(ctx, verify.ReadyOptions{Endpoint: base, Model: p.LocalModelName, ContextTokens: p.ContextTokens, Predicted: p.Predicted, BitsPerWeight: p.BitsPerWeight, Harness: &h, APIs: apis})
+		report, checkErr := verify.Ready(ctx, verify.ReadyOptions{Endpoint: base, Engine: l.Journal.Effective(p.Endpoint), Model: p.LocalModelName, ContextTokens: p.ContextTokens, Predicted: p.Predicted, BitsPerWeight: p.BitsPerWeight, Harness: &h, APIs: apis})
 		l.Journal.Report = &report
 		err = checkErr
 		if err == nil && !report.Ready {

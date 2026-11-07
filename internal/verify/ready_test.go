@@ -150,7 +150,13 @@ func TestSweepCountsAndCache(t *testing.T) {
 					fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":\" world\"}}],\"usage\":{\"prompt_tokens\":128,\"completion_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":%d}}}\n\ndata: [DONE]\n\n", cache)
 					return
 				}
-				n++
+				// Like llama-server's /completion: the new tokens are the " x"
+				// suffix after the cached prefix.
+				prompt, _ := b["prompt"].(string)
+				n = strings.Count(prompt, " x")
+				if r.URL.Path != "/completion" || n == 0 {
+					n = 4
+				}
 				fmt.Fprintf(w, `{"timings":{"prompt_n":%d,"cache_n":64,"prompt_ms":2}}`, n)
 			}))
 			defer s.Close()

@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -25,6 +26,7 @@ type Predicted struct {
 }
 type ReadyOptions struct {
 	Endpoint      string
+	Engine        string // engine base URL for engine-native probes; "" = Endpoint
 	Model         string
 	APIKey        string
 	ContextTokens int
@@ -100,35 +102,44 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		return r, nil
 	}
 	r.add(o, "warmup", warm.TTFTSec > 0, fmt.Sprintf("first token in %s", figure.BandNumber(warm.TTFTSec, 20)+" s"))
-	depths := []int{0}
+	// Deep requests run last: after one, llama-server saves the long slot to
+	// its RAM prompt cache when the next prompt arrives, which would add
+	// seconds to the reading and follow-up timings.
+	var deep []int
 	if o.ContextTokens >= 8192 {
-		depths = append(depths, 8192)
+		deep = append(deep, 8192)
 	}
 	if o.ContextTokens > 0 && o.ContextTokens != 8192 {
-		depths = append(depths, o.ContextTokens)
+		deep = append(deep, o.ContextTokens)
 	}
-	for _, depth := range depths {
-		ask := "Write a detailed explanation of a software cache."
-		m, _, e := fitted(ctx, c, depth, func(n int) *llm.Request {
-			if n <= 0 {
-				return req(ask, 32)
+	decodeAt := func(depths []int) bool {
+		for _, depth := range depths {
+			ask := "Write a detailed explanation of a software cache."
+			m, _, e := fitted(ctx, c, depth, func(n int) *llm.Request {
+				if n <= 0 {
+					return req(ask, 32)
+				}
+				return req(contextOf(n)+"\n"+ask, 32)
+			})
+			if e != nil || m.DecodeTPS <= 0 {
+				detail := "no decode timing"
+				if e != nil {
+					detail = e.Error()
+				}
+				r.add(o, "decode", false, detail)
+				return false
 			}
-			return req(contextOf(n)+"\n"+ask, 32)
-		})
-		if e != nil || m.DecodeTPS <= 0 {
-			detail := "no decode timing"
-			if e != nil {
-				detail = e.Error()
+			r.DecodeTPS[depth] = m.DecodeTPS
+			detail := fmt.Sprintf("writing %s tok/s at %d tokens", figure.BandNumber(m.DecodeTPS, 20), depth)
+			if m.TokensEstimated {
+				detail += " (token count estimated)"
 			}
-			r.add(o, "decode", false, detail)
-			return r, nil
+			r.add(o, "decode", true, detail)
 		}
-		r.DecodeTPS[depth] = m.DecodeTPS
-		detail := fmt.Sprintf("writing %s tok/s at %d tokens", figure.BandNumber(m.DecodeTPS, 20), depth)
-		if m.TokensEstimated {
-			detail += " (token count estimated)"
-		}
-		r.add(o, "decode", true, detail)
+		return true
+	}
+	if !decodeAt([]int{0}) {
+		return r, nil
 	}
 	n := o.UBatch
 	if n <= 0 {
@@ -181,8 +192,15 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		reason = e.Error()
 	}
 	for i := 1; i <= 4 && reason == ""; i++ {
-		body := map[string]any{"model": o.Model, "messages": []any{map[string]any{"role": "user", "content": prefix + strings.Repeat(" x", i)}}, "max_tokens": 1, "stream": false, "temperature": 0}
-		out, err := postJSON(ctx, strings.TrimRight(o.Endpoint, "/")+"/v1/chat/completions", o.APIKey, body)
+		// The raw endpoint has no chat template, so the engine processes
+		// exactly i new tokens after the cached prefix (reset first).
+		raw := func(p string) (map[string]any, error) {
+			return postJSON(ctx, strings.TrimRight(cmp.Or(o.Engine, o.Endpoint), "/")+"/completion", o.APIKey, map[string]any{"prompt": p, "n_predict": 1, "cache_prompt": true, "temperature": 0})
+		}
+		out, err := raw(prefix)
+		if err == nil {
+			out, err = raw(prefix + strings.Repeat(" x", i))
+		}
 		if err != nil {
 			reason = err.Error()
 			break
@@ -214,6 +232,9 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 	if o.BitsPerWeight > 0 && o.BitsPerWeight < 3 {
 		ok, detail := toolCalls(ctx, o)
 		r.add(o, "tool_calls", ok, detail)
+	}
+	if !decodeAt(deep) {
+		return r, nil
 	}
 	target := o.Predicted.DecodeTPSTarget
 	if target > 0 && o.ContextTokens > 0 {
