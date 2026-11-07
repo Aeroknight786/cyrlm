@@ -4,6 +4,7 @@ package trial
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -70,14 +71,7 @@ func Select(endpoints []openrouter.Endpoint, p Policy) (openrouter.Endpoint, err
 	})
 	return eligible[0], nil
 }
-func has(ss []string, s string) bool {
-	for _, x := range ss {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
+func has(ss []string, s string) bool { return slices.Contains(ss, s) }
 func precisionRank(precision, quant string) int {
 	p, q := strings.ToLower(precision), strings.ToUpper(quant)
 	if q == "MXFP4" && (p == "fp4" || p == "mxfp4") {

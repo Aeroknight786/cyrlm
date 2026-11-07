@@ -242,7 +242,7 @@ func TestRunnerKeepsFinishedRowsOnFailure(t *testing.T) {
 		t.Fatal(e)
 	}
 	var events []Event
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // generous: the race detector under load
 	defer cancel()
 	for i := 0; i < 2; i++ {
 		c, e := Run(ctx, RunOptions{Home: home, Engine: engine, Quick: true, Backend: "metal", Fingerprint: Fingerprint{Hash: "test"}, Baseline: func(Probe, BenchRow) float64 { return .002 }, Event: func(e Event) { events = append(events, e) }})

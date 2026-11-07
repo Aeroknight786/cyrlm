@@ -160,3 +160,22 @@ func (s Session) Launch(ctx context.Context, o LaunchOptions) (l Launch, err err
 	s.Emit("launch", map[string]any{"engine": p.Runtime, "endpoint": base, "command": l.Wiring.Command, "env": l.Wiring.Env})
 	return l, err
 }
+
+// StopAll stops the engines of every setup, or of one slug, Ready or not.
+func (s Session) StopAll(ctx context.Context, slug string) (string, error) {
+	e, err := s.SetupExecutor()
+	if err != nil {
+		return "", err
+	}
+	entries, _ := os.ReadDir(filepath.Join(e.Root, "setups"))
+	n := 0
+	for _, entry := range entries {
+		if entry.IsDir() && (slug == "" || entry.Name() == slug) {
+			if _, err = e.LaunchEngine(ctx, entry.Name(), true); err != nil {
+				break
+			}
+			n++
+		}
+	}
+	return fmt.Sprintf("Stopped %d engine(s).", n), err
+}

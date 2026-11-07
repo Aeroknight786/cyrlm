@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -160,14 +161,7 @@ func errOr(err error, fallback string) string {
 	return fallback
 }
 
-func contains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
+func contains(list []string, s string) bool { return slices.Contains(list, s) }
 
 // ---- nvidia-smi -----------------------------------------------------------
 

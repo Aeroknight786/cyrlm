@@ -59,6 +59,11 @@ func cmdLaunch(args []string) error {
 	if *serve && tool == "" {
 		tool = "generic" // any agent: every protocol on one local route
 	}
+	if *stop { // any setup's engine, Ready or not
+		msg, err := session.StopAll(commandContext, *slug)
+		fmt.Fprintln(out(), msg)
+		return errors.Join(err, emit("result", map[string]any{"stopped": msg}))
+	}
 	rows, err := session.ReadySetups(commandContext)
 	if err != nil {
 		return err
@@ -118,10 +123,6 @@ func cmdLaunch(args []string) error {
 			return needs("trialm setup", err.Error())
 		}
 		return setupError(err)
-	}
-	if *stop {
-		fmt.Fprintln(out(), "Engine stopped.")
-		return emit("result", map[string]any{"stopped": true})
 	}
 	if l.Bridge != nil {
 		defer l.Bridge.Close()

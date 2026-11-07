@@ -41,7 +41,7 @@ func TestReadyFake(t *testing.T) {
 					if f, ok := w.(http.Flusher); ok {
 						f.Flush()
 					}
-					time.Sleep(time.Millisecond)
+					time.Sleep(3 * time.Millisecond) // Windows: a measurable gap between tokens
 					fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\" world\"}}],\"usage\":{\"prompt_tokens\":128,\"completion_tokens\":5}}\n\ndata: [DONE]\n\n")
 					return
 				}
@@ -171,7 +171,7 @@ func TestSweepCountsAndCache(t *testing.T) {
 					time.Sleep(3 * time.Millisecond) // a nonzero first-token time on Windows' coarse clock
 					fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\n")
 					w.(http.Flusher).Flush()
-					time.Sleep(time.Millisecond)
+					time.Sleep(3 * time.Millisecond) // Windows: a measurable gap between tokens
 					fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":\" world\"}}],\"usage\":{\"prompt_tokens\":128,\"completion_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":%d}}}\n\ndata: [DONE]\n\n", cache)
 					return
 				}

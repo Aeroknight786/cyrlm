@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -249,14 +250,7 @@ func PrintPrediction(output io.Writer, m catalog.Model, t predict.Target, sc pre
 	fmt.Fprintln(output)
 }
 
-func contains(a []string, s string) bool {
-	for _, x := range a {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
+func contains(a []string, s string) bool { return slices.Contains(a, s) }
 
 func cacheLabel(kv string) string {
 	if kv == "q8_0" {

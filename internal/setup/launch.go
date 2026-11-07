@@ -28,17 +28,17 @@ func (e *Executor) LaunchEngine(ctx context.Context, slug string, stop bool) (Jo
 	if err != nil {
 		return j, err
 	}
+	if stop { // any setup's engine, Ready or not, so none outlives triaLM's control
+		if err = proc.Stop(filepath.Join(e.Root, "run", slug+"-idle.pid")); err != nil {
+			return j, err
+		}
+		return j, e.stopEngine(ctx, j)
+	}
 	if j.State != "ready" || j.Report == nil || !j.Report.Ready {
 		return j, &NotReady{Check: "run trialm setup"}
 	}
 	if err = e.validate(j.Plan); err != nil {
 		return j, err
-	}
-	if stop {
-		if err = proc.Stop(filepath.Join(e.Root, "run", slug+"-idle.pid")); err != nil {
-			return j, err
-		}
-		return j, e.stopEngine(ctx, j)
 	}
 	for i, s := range j.Plan.Steps {
 		if s.Kind == Admin && s.RebootReset && !stop {
