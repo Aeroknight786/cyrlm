@@ -109,8 +109,8 @@ func (m *Root) body() string {
 		}
 		return b
 	case ClaimCard:
-		if m.message == "claim parsing arrives in v0.6" {
-			return "Claim"
+		if m.pendingClaim {
+			return "Claim\nclaim parsing arrives in v0.6"
 		}
 		cs := Claims()
 		c := cs[min(max(0, m.selected), len(cs)-1)]

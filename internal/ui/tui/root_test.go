@@ -572,3 +572,16 @@ func TestFailedPasteReturnsToKeyChoices(t *testing.T) {
 		t.Fatal(m.screen(), m.View().Content)
 	}
 }
+
+func TestUnparsedClaimNeverShowsCuratedSources(t *testing.T) {
+	m := fixture(t)
+	m.cfg.Start = Recipes
+	m.cfg.Preferences.Model = "llama-server -m pasted.gguf"
+	m = New(m.cfg)
+	m.Update(key("?"))
+	m.Update(key("esc"))
+	view := m.View().Content
+	if m.screen() != ClaimCard || !strings.Contains(view, "claim parsing arrives in v0.6") || strings.Contains(view, "Strata") || strings.Contains(m.footer(), "sources") {
+		t.Fatal(view)
+	}
+}

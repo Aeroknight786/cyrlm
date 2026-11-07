@@ -121,6 +121,7 @@ type Root struct {
 	authURL         string
 	balance         figure.Figure
 	autoQuality     bool
+	pendingClaim    bool
 }
 
 func New(cfg Config) *Root {
@@ -146,7 +147,7 @@ func New(cfg Config) *Root {
 	m.makeFields()
 	if cfg.Start == Recipes && isClaimText(cfg.Preferences.Model) {
 		m.replace(ClaimCard)
-		m.message = "claim parsing arrives in v0.6"
+		m.pendingClaim = true
 	}
 	return m
 }
@@ -429,7 +430,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen() == Recipes || m.screen() == Home || m.screen() == Search {
 			m.push(ClaimCard)
-			m.message = "claim parsing arrives in v0.6"
+			m.pendingClaim = true
 			return m, nil
 		}
 	case chatStartedMsg:
@@ -505,7 +506,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if key == "enter" {
 				if isClaimText(m.search.Value()) {
 					m.replace(ClaimCard)
-					m.message = "claim parsing arrives in v0.6"
+					m.pendingClaim = true
 					return m, nil
 				}
 				m.cfg.Preferences.Model = m.search.Value()
@@ -662,10 +663,11 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected = max(0, m.selected-1)
 			}
 			if key == "enter" || key == "?" {
+				m.pendingClaim = false
 				m.push(ClaimCard)
 			}
 		case ClaimCard:
-			if key == "?" {
+			if key == "?" && !m.pendingClaim {
 				m.push(Why)
 			}
 		}
@@ -776,6 +778,9 @@ func (m *Root) footer() string {
 	case Gallery:
 		return "↑↓ move  enter claim  esc back  q quit"
 	case ClaimCard:
+		if m.pendingClaim {
+			return "esc back  q quit"
+		}
 		return "? sources  esc back  q quit"
 	case Search:
 		return "enter search  esc back"

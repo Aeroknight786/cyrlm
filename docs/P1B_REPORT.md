@@ -1,6 +1,6 @@
 # P1b handoff — triaLM v0.4.0 CLI
 
-Implemented on this branch. No commits, tags or pushes were made: `.git` is read-only. The ordered, incremental patches are `/tmp/claude-501/p0b/p1b-1.patch` through `p1b-5.patch`, each with a one-line `.txt`. The series is replayed against a fresh archive of HEAD and compared with the final files. Apply with `git apply --whitespace=nowarn` in numerical order; terminal-frame goldens intentionally contain padding and ANSI bytes.
+Implemented on this branch. No commits, tags or pushes were made: `.git` is read-only. The ordered, incremental patches are `/tmp/claude-501/p0b/p1b-1.patch` through `p1b-6.patch`, each with a one-line `.txt`. The series is replayed against a fresh archive of HEAD and compared with the final files. Apply with `git apply --whitespace=nowarn` in numerical order; terminal-frame goldens intentionally contain padding and ANSI bytes.
 
 ## What changed
 
@@ -36,7 +36,7 @@ All final Go checks use Go 1.26.10 with scratch GOPATH, GOMODCACHE, GOCACHE and 
 
 The PTY mode comparison ignores macOS's transient PENDIN bookkeeping bit; canonical input, echo and all other saved flags match. No model weights or synthetic calibration files were generated during verification.
 
-New tests are in `internal/ui/tui/{root,chat}_test.go`, `internal/ui/window/{window,meter}_test.go`, `internal/ui/architecture_test.go`, `internal/store/history_test.go`, `internal/cli/tui_test.go`, `cmd/trialm/p1b_test.go`, and the focused additions to `internal/core/session_test.go`. The UI float-format guard and source budget now traverse UI subpackages. Tests cover explicit model/context/budget preservation, bracketed pastes into masked input and chat, empty-state and busy footers, the real root tea message loop, fake PKCE/credits and trial servers, a child process handoff, masked/headless key paths, calibration choices/events, preferences, ratings, source grades, console glyphs, footer bindings, shell injection/quoting, script permissions, opener failures, closed windows, checkpoints and chat lifetime shutdown.
+New tests are in `internal/ui/tui/{root,chat}_test.go`, `internal/ui/window/{window,meter}_test.go`, `internal/ui/architecture_test.go`, `internal/store/history_test.go`, `internal/cli/tui_test.go`, `cmd/trialm/p1b_test.go`, and the focused additions to `internal/core/session_test.go`. The UI float-format guard and source budget now traverse UI subpackages. Tests cover explicit model/context/budget preservation, bracketed pastes into masked input and chat, empty-state and busy footers, the real root tea message loop, fake PKCE/credits and trial servers, a child process handoff, masked/headless key paths, calibration choices/events, preferences, ratings, source grades and isolation of unparsed pastes from curated sources, console glyphs, footer bindings, shell injection/quoting, script permissions, opener failures, closed windows, checkpoints and chat lifetime shutdown.
 
 **No file under `cmd/trialm/testdata/` changed.** Only the new TUI goldens were generated, using `go test ./internal/ui/tui -run TestViewGoldens -update`.
 
@@ -44,8 +44,8 @@ New tests are in `internal/ui/tui/{root,chat}_test.go`, `internal/ui/window/{win
 
 | Metric | Measured | Limit |
 |---|---:|---:|
-| Product Go source lines | 25,227 | 26,000 |
-| CLI + all UI subpackages | 5,216 | 5,500 |
+| Product Go source lines | 25,232 | 26,000 |
+| CLI + all UI subpackages | 5,221 | 5,500 |
 | cmd/trialm physical lines | 13 | 30 |
 | Chat implementation physical lines | 213 | 250 |
 | Stripped macOS arm64 binary | 11,357,058 bytes | 14,000,000 |
