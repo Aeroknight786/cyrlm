@@ -224,17 +224,21 @@ func TestRunnerKeepsFinishedRowsOnFailure(t *testing.T) {
 	home := t.TempDir()
 	p := Grid(true)[0]
 	dir := filepath.Join(home, "cache", "calib")
-	_ = os.MkdirAll(dir, 0700)
-	f, e := os.Create(filepath.Join(dir, p.ID()+".gguf"))
-	if e != nil {
-		t.Fatal(e)
+	probeFile := filepath.Join(dir, p.ID()+".gguf")
+	seed := func() { // a failed run deletes its synthetic file; reseed a stand-in
+		_ = os.MkdirAll(dir, 0700)
+		f, e := os.Create(probeFile)
+		if e != nil {
+			t.Fatal(e)
+		}
+		_ = f.Truncate(256 << 20)
+		_ = f.Close()
 	}
-	_ = f.Truncate(256 << 20)
-	_ = f.Close()
+	seed()
 	engine := filepath.Join(t.TempDir(), "bench")
 	exe, _ := os.Executable()
 	script := "#!/bin/sh\nexec '" + strings.ReplaceAll(exe, "'", "'\\''") + "' -test.run=TestCalibBenchHelper\n"
-	if e = os.WriteFile(engine, []byte(script), 0700); e != nil {
+	if e := os.WriteFile(engine, []byte(script), 0700); e != nil {
 		t.Fatal(e)
 	}
 	var events []Event
@@ -249,6 +253,10 @@ func TestRunnerKeepsFinishedRowsOnFailure(t *testing.T) {
 		if se != nil || len(saved.Rows) != 1 || !json.Valid(saved.Rows[0].Raw) {
 			t.Fatal(saved, se)
 		}
+		if _, err := os.Stat(probeFile); !os.IsNotExist(err) {
+			t.Fatal("failed run left its synthetic file", err)
+		}
+		seed()
 	}
 	old, _ := Load(home)
 	old.Rows = append(old.Rows, Row{Probe: "old-machine-row", Seconds: 1})

@@ -27,10 +27,10 @@ func (m *Root) helpView() string {
 }
 func (m *Root) tableView() string {
 	mw, fw := m.width*2/5, m.width-m.width*2/5-12
-	cols := []table.Column{{Title: "MODEL", Width: mw}, {Title: "FILE · ENGINE", Width: fw}, {Title: "TURN", Width: 10}}
+	cols := []table.Column{{Title: "MODEL", Width: mw}, {Title: "FILE · ENGINE", Width: fw}, {Title: fmt.Sprintf("%10s", "TURN"), Width: 10}}
 	if m.width >= 90 {
 		mw, fw = 30, 27
-		cols = []table.Column{{Title: "MODEL", Width: mw}, {Title: "FILE · ENGINE", Width: fw}, {Title: "WRITES", Width: 12}, {Title: "TURN", Width: 10}, {Title: "FIRST", Width: 10}}
+		cols = []table.Column{{Title: "MODEL", Width: mw}, {Title: "FILE · ENGINE", Width: fw}, {Title: fmt.Sprintf("%12s", "WRITES"), Width: 12}, {Title: fmt.Sprintf("%10s", "TURN"), Width: 10}, {Title: fmt.Sprintf("%10s", "FIRST"), Width: 10}}
 	}
 	rows := []table.Row{}
 	for i, row := range m.listing.Rows {

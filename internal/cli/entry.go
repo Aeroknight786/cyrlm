@@ -227,6 +227,10 @@ func finish(err error) int {
 	if strings.HasPrefix(err.Error(), "usage:") {
 		code = 2
 	}
+	if code == 130 && !jsonMode {
+		fmt.Fprintln(os.Stderr, "Stopped.")
+		return code
+	}
 	fmt.Fprintln(os.Stderr, "error:", err)
 	if jsonMode {
 		kind := "error"

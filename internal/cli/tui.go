@@ -23,6 +23,10 @@ func runTUI(ctx context.Context, verb string, args []string) error {
 		return err
 	}
 	c.finish(fs)
+	if c.harness == "" { // bare `trialm`: default to the installed tool
+		h, _ := harness.DetectInstalled()
+		c.harness = h.ID
+	}
 	if err = c.validateRequirements(); err != nil {
 		return err
 	}

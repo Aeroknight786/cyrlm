@@ -391,6 +391,9 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case calibrationEventMsg:
+		if m.calibration == nil {
+			return m, nil // stopped; the job is being drained
+		}
 		if v.done {
 			m.busy = false
 			m.calibration = nil
@@ -400,7 +403,7 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		m.message = v.message
+		m.message = calibrationStatus(v.event.Probe, v.message)
 		m.calibration.record(v.event)
 		return m, m.calibration.next()
 	case pulseMsg:
@@ -455,7 +458,10 @@ func (m *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.headless = nil
 			}
 			if m.calibration != nil {
-				m.calibration.cancel()
+				job := m.calibration
+				m.calibration = nil
+				m.Error = context.Canceled
+				return m, tea.Sequence(func() tea.Msg { job.stop(); return nil }, tea.Interrupt)
 			}
 			if m.chatStop != nil {
 				stop := m.chatStop

@@ -112,6 +112,15 @@ func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 		lastUse[s.Probe.ID()] = i
 	}
 	cacheDir := filepath.Join(o.Home, "cache", "calib")
+	// A stopped or failed run must not leave a multi-GB synthetic file
+	// behind; resuming regenerates it in seconds.
+	current := ""
+	defer func() {
+		if current != "" && !c.Complete {
+			_ = os.Remove(current)
+			_ = os.Remove(cacheDir)
+		}
+	}()
 	for i, s := range steps {
 		p := s.Probe
 		if e := ctx.Err(); e != nil {
@@ -129,6 +138,7 @@ func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 			return c, fmt.Errorf("calibration needs about %d GB of free disk for its temporary files; %.1f GB is free", MinFreeBytes>>30, float64(free)/(1<<30))
 		}
 		path, e := Generate(ctx, o.Home, p)
+		current = path
 		if e != nil {
 			_ = save()
 			return c, e
@@ -205,6 +215,7 @@ func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 		}
 		if lastUse[p.ID()] == i {
 			_ = os.Remove(path)
+			current = ""
 		}
 	}
 	_ = os.Remove(cacheDir) // only succeeds when empty

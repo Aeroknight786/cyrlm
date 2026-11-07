@@ -58,7 +58,7 @@ func (m *Root) body() string {
 			fraction = m.calibration.fraction
 			eta = m.calibration.eta
 		}
-		return "Calibrating this machine\n" + m.progressBar(fraction) + "\nElapsed " + figure.Exact(elapsed, "s", figure.Measured, "clock").String() + " · ETA " + eta + "\nFinished measurements are kept if stopped."
+		return "Calibrating this machine\n" + m.progressBar(fraction) + "\nElapsed " + figure.Exact(math.Round(elapsed), "s", figure.Measured, "clock").String() + " · ETA " + eta + "\nFinished measurements are kept if stopped."
 	case Needs:
 		lines := []string{"What do you need? · Enter accepts every default"}
 		for i, f := range m.fields {
@@ -91,7 +91,7 @@ func (m *Root) body() string {
 		b += "Ready setups: none yet · setup arrives in v0.5\n❯ Find or try another\n\nTrials history\n"
 		for i := len(m.history) - 1; i >= max(0, len(m.history)-5); i-- {
 			r := m.history[i]
-			b += fmt.Sprintf("  %s · %s · rating %d/3\n", r.At.Format("Jan 2"), r.Model, r.Rating)
+			b += fmt.Sprintf("  %s · %s · %s\n", r.At.Format("Jan 2"), r.Model, ratingWord(r.Rating))
 		}
 		b += "Popular configs: c claims gallery\n"
 		if m.notice != "" {
@@ -145,6 +145,9 @@ func (m *Root) body() string {
 func (m *Root) recipes() string {
 	b := fmt.Sprintf("Recipes for %s · %s · %dk native\nSimulated or calibrated · uncertainty shown on ?\n", m.cfg.Preferences.Tool, m.cfg.Preferences.Priority, m.cfg.Preferences.Context/1024)
 	if len(m.listing.Rows) == 0 {
+		if m.busy {
+			return b // the spinner line says it is still ranking
+		}
 		return b + "No working recipe for these needs. Press r to change them."
 	}
 	if m.width >= 60 {
@@ -237,4 +240,17 @@ func (m *Root) split(read, write, fixed float64) string {
 	}
 
 	return bar.String() + "\n" + label + "\n"
+}
+
+// ratingWord names the after-trial answer instead of showing a score.
+func ratingWord(r int) string {
+	switch r {
+	case 1:
+		return "too slow"
+	case 2:
+		return "fine"
+	case 3:
+		return "great"
+	}
+	return "not rated"
 }
