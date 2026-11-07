@@ -8,18 +8,18 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"encoding/json"
+	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/verify"
@@ -43,8 +43,7 @@ func fixture(t testing.TB) *Root {
 	opts := core.Options{Device: "Apple M5", RAM: 24, Runtime: "all", Tuned: true, Context: p.Context, Use: "agent", QualityFloor: p.QualityFloor}
 	cfg := SessionConfig(context.Background(), s, p, opts, 3, "test")
 	cfg.UpdateNotice = nil
-	cfg.Balance = nil
-	cfg.Tools = []string{"Codex", "Claude Code"}
+	cfg.Tools = []string{"codex", "claude-code"}
 	m := New(cfg)
 	d, e := cfg.Detect(context.Background())
 	if e != nil {
@@ -66,7 +65,7 @@ func TestViewGoldens(t *testing.T) {
 	old := lipgloss.Writer.Profile
 	lipgloss.Writer.Profile = colorprofile.TrueColor
 	defer func() { lipgloss.Writer.Profile = old }()
-	screens := []Screen{First, Paste, Calibration, Calibrating, Needs, Recipes, Details, Trial, Summary, Home, Gallery, ClaimCard, Search, Why, Setup, Chat, Ready, Launching, "setup-progress", "setup-paused", "home-running"}
+	screens := []Screen{First, Paste, "launcher-calibrating", "launcher-offer", "detecting", Help, Needs, Recipes, Details, Trial, Summary, Home, Gallery, ClaimCard, Search, Why, Setup, Chat, Ready, Launching, "setup-progress", "setup-paused", "error", "error-details", "setup-details", "ready-details", "setup-disk", "ready-sparkle"}
 	for _, screen := range screens {
 		for _, w := range []int{60, 80, 120} {
 			for _, plain := range []bool{false, true} {
@@ -75,8 +74,26 @@ func TestViewGoldens(t *testing.T) {
 					m := fixture(t)
 					m.Update(tea.WindowSizeMsg{Width: w, Height: 24})
 					m.stack = []Screen{screen}
+					m.detecting = false
+					m.offer = false
+					m.modelIndex = 0
+					if screen == "launcher-offer" {
+						m.stack = []Screen{Home}
+						m.offer = true
+						m.modelIndex = -1
+					}
+					if screen == "detecting" {
+						m.stack = []Screen{Home}
+						m.detecting = true
+						m.detected = false
+					}
+					if screen == "launcher-calibrating" {
+						m.stack = []Screen{Home}
+						m.calibration = &calibrationJob{fraction: .25, eta: "~45 s"}
+						m.busy = true
+					}
 					switch screen {
-					case Setup, Ready, Launching, "setup-progress", "setup-paused", "home-running":
+					case Setup, Ready, Launching, "setup-progress", "setup-paused", "error":
 						setupFrame(m)
 					}
 					if screen == Setup {
@@ -94,11 +111,43 @@ func TestViewGoldens(t *testing.T) {
 						m.setup.journal.State = "paused"
 						m.message = "Setup paused. Enter resumes."
 					}
-					if screen == "home-running" {
+					if screen == "error" || screen == "error-details" {
 						m.stack = []Screen{Home}
-						m.ready[0].Running = map[string]bool{"server": true}
+						m.fail("Could not open the tool. Press enter to retry or d for details.", errors.New("fixture handshake refused"))
+						m.expanded = screen == "error-details"
+					}
+					if screen == "setup-details" || screen == "setup-disk" {
+						m.stack = []Screen{Setup}
+						m.setup.update = setup.Update{}
+						m.setup.states = nil
+						m.setup.journal = setup.Journal{}
+						m.expanded = screen == "setup-details"
+						m.setup.onDisk = screen == "setup-disk"
+					}
+					if screen == "ready-details" || screen == "ready-sparkle" {
+						m.stack = []Screen{Ready}
+						m.expanded = screen == "ready-details"
+						if screen == "ready-sparkle" {
+							m.sparkle = 1
+						}
 					}
 					m.theme = newPalette(plain, false)
+					if plain && screen == "ready-sparkle" {
+						m.sparkle = 3
+					}
+					fraction := 0.0
+					if screen == "setup-progress" {
+						fraction = float64(m.setup.update.Progress.Done) / float64(m.setup.update.Progress.Total)
+					}
+					if screen == "launcher-calibrating" {
+						fraction = m.calibration.fraction
+					}
+					if fraction > 0 && !plain {
+						frame := m.bar.SetPercent(fraction)()
+						for i := 0; i < 120; i++ {
+							m.Update(frame)
+						}
+					}
 					m.started = time.Now().Add(-30 * time.Second)
 					m.password = huh.NewInput().Title("OpenRouter key").Value(&m.secret).EchoMode(huh.EchoModePassword)
 					m.password.Focus()
@@ -212,6 +261,10 @@ type driver struct{ root *Root }
 func (d *driver) Init() tea.Cmd  { return d.root.Init() }
 func (d *driver) View() tea.View { return d.root.View() }
 func (d *driver) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if v, ok := msg.(probeLauncher); ok {
+		v.ready <- !d.root.detecting && len(d.root.models) > 0
+		return d, nil
+	}
 	if v, ok := msg.(probePlan); ok {
 		v.ready <- d.root.setup.plan.ID != "" && !d.root.busy
 		return d, nil
@@ -245,144 +298,122 @@ func waitScreen(t *testing.T, p *tea.Program, want Screen) {
 	}
 	t.Fatalf("never reached %s", want)
 }
-func TestJourneyAKeyCount(t *testing.T) {
-	t.Setenv("OPENROUTER_API_KEY", "")
-	t.Setenv("TRIALM_OFFLINE", "1")
-	s := store.Store{Dir: t.TempDir()}
-	p, _ := s.Preferences()
-	p.Tool = "codex"
-	p.Context = 65536
-	p.QualityFloor = "3bit-ok"
-	clicks := atomic.Int32{}
-	requests := atomic.Int32{}
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/auth/keys":
-			fmt.Fprint(w, `{"key":"fake-secret"}`)
-		case "/credits":
-			fmt.Fprint(w, `{"data":{"total_credits":10,"total_usage":0}}`)
-		default:
-			t.Errorf("unexpected %s", r.URL.Path)
-			w.WriteHeader(404)
-		}
-	}))
-	defer api.Close()
-	trialServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests.Add(1)
-		fmt.Fprint(w, `{"choices":[{"message":{"content":"hello"}}]}`)
-	}))
-	defer trialServer.Close()
-	cfg := SessionConfig(context.Background(), s, p, core.Options{Device: "Apple M5", RAM: 24, Runtime: "all", Tuned: true, Use: "agent", Context: 65536}, 3, "test")
-	cfg.UpdateNotice = nil
-	cfg.Balance = nil
-	cfg.Tools = []string{"Codex", "Claude Code"}
-	cfg.Headless = false
-	cfg.Authorize = func(ctx context.Context, pasted string) error {
-		return Authorize(ctx, s, openrouter.Client{BaseURL: api.URL}, api.URL+"/auth", func(raw string) error {
-			clicks.Add(1)
-			u, _ := url.Parse(raw)
-			cb, _ := url.Parse(u.Query().Get("callback_url"))
-			q := cb.Query()
-			q.Set("code", "browser-code")
-			cb.RawQuery = q.Encode()
-			go func() {
-				r, e := http.Get(cb.String())
-				if e == nil {
-					r.Body.Close()
+func TestLauncherKeyCount(t *testing.T) {
+	for _, state := range []string{"disk-first", "disk", "ready"} {
+		t.Run(state, func(t *testing.T) {
+			t.Setenv("OPENROUTER_API_KEY", "")
+			m := fixture(t)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("TRIALM_HOME", m.cfg.Store.Dir)
+			t.Setenv("HF_HUB_CACHE", filepath.Join(home, "hf"))
+			t.Setenv("OLLAMA_MODELS", filepath.Join(home, "ollama"))
+			model, _ := catalog.Lookup("qwen3.5:9b")
+			file := filepath.Join(home, ".lmstudio", "models", model.HFGGUFRepo, "Qwen3.5-9B-Q4_K_M.gguf")
+			if e := os.MkdirAll(filepath.Dir(file), 0700); e != nil {
+				t.Fatal(e)
+			}
+			if e := os.WriteFile(file, []byte("UI cache fixture"), 0600); e != nil {
+				t.Fatal(e)
+			}
+			if state != "disk-first" {
+				if e := m.choice("skipped"); e != nil {
+					t.Fatal(e)
 				}
-			}()
-			return nil
-		}, pasted)
+			}
+			if state == "ready" {
+				j := *m.models[0].Journal
+				j.Plan.Model, j.Plan.ModelName, j.Plan.Quant = model.ID, model.Name, "Q4_K_M"
+				path := filepath.Join(m.cfg.Store.Dir, "setups", j.Plan.Slug, "journal.json")
+				b, _ := json.Marshal(j)
+				if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+					t.Fatal(e)
+				}
+				if e := os.WriteFile(path, b, 0600); e != nil {
+					t.Fatal(e)
+				}
+			}
+			m = New(m.cfg)
+			approvals, launches := 0, 0
+			m.cfg.Plan = func(context.Context, core.Row, store.Preferences) (setup.Plan, error) {
+				return setup.Plan{ID: "approved", Slug: "local", Harness: "codex"}, nil
+			}
+			m.cfg.Apply = func(ctx context.Context, p setup.Plan, sink core.Sink) (setup.Journal, error) {
+				approvals++
+				return setup.Journal{Plan: p, State: "ready", Report: &verify.Report{Ready: true}}, nil
+			}
+			m.cfg.Process = func(ctx context.Context, exe string, args []string) *exec.Cmd {
+				if args[0] != "launch" || args[1] != "codex" {
+					t.Errorf("unexpected handoff %v", args)
+				}
+				launches++
+				cmd := exec.CommandContext(ctx, exe, "-test.run=TestTrialHelper")
+				cmd.Env = append(os.Environ(), "TRIALM_TUI_HELPER=1", "TRIALM_TUI_LAUNCH=1")
+				return cmd
+			}
+			program := tea.NewProgram(&driver{m}, tea.WithInput(nil), tea.WithOutput(io.Discard), tea.WithoutRenderer(), tea.WithColorProfile(colorprofile.Ascii))
+			done := make(chan error, 1)
+			go func() { _, e := program.Run(); done <- e }()
+			defer program.Kill()
+			keys := 0
+			waitScreen(t, program, Home)
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				ch := make(chan bool, 1)
+				program.Send(probeLauncher{ch})
+				if <-ch {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("launcher discovery did not complete")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			if state == "disk-first" {
+				program.Send(key("s"))
+				keys++
+			}
+			program.Send(key("enter"))
+			keys++
+			if state != "ready" {
+				waitScreen(t, program, Setup)
+				deadline := time.Now().Add(5 * time.Second)
+				for {
+					ch := make(chan bool, 1)
+					program.Send(probePlan{ch})
+					if <-ch {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatal("plan did not arrive")
+					}
+					time.Sleep(time.Millisecond)
+				}
+				program.Send(key("enter"))
+				keys++
+			}
+			// A return to the launcher proves the tool subprocess completed.
+			waitScreen(t, program, Home)
+			program.Send(key("q"))
+			if e := <-done; e != nil {
+				t.Fatal(e)
+			}
+			want := 2
+			if state == "disk-first" {
+				want = 3
+			}
+			if state == "ready" {
+				want = 1
+			}
+			if keys != want || launches != 1 || (state != "ready" && approvals != 1) {
+				t.Fatalf("keys=%d approvals=%d launches=%d", keys, approvals, launches)
+			}
+			t.Logf("%s reached Codex in %d keys", state, keys)
+		})
 	}
-	cfg.Process = func(ctx context.Context, exe string, args []string) *exec.Cmd {
-		cmd := exec.CommandContext(ctx, exe, "-test.run=TestTrialHelper")
-		cmd.Env = append(os.Environ(), "TRIALM_TUI_HELPER=1", "TRIALM_TUI_ENDPOINT="+trialServer.URL, "TRIALM_HOME="+s.Dir)
-		return cmd
-	}
-	approvals := atomic.Int32{}
-	launches := atomic.Int32{}
-	cfg.Plan = func(ctx context.Context, row core.Row, p store.Preferences) (setup.Plan, error) {
-		return setup.Plan{ID: "approved-plan", Slug: "local", Harness: "codex"}, nil
-	}
-	cfg.Apply = func(ctx context.Context, p setup.Plan, sink core.Sink) (setup.Journal, error) {
-		if p.ID != "approved-plan" {
-			return setup.Journal{}, errors.New("wrong approval")
-		}
-		approvals.Add(1)
-		report := &verify.Report{Ready: true}
-		sink(core.Event{Type: "setup_ready", Data: report})
-		return setup.Journal{Plan: p, State: "ready", Report: report}, nil
-	}
-	trialProcess := cfg.Process
-	cfg.Process = func(ctx context.Context, exe string, args []string) *exec.Cmd {
-		cmd := trialProcess(ctx, exe, args)
-		if args[0] == "launch" {
-			launches.Add(1)
-			cmd.Env = append(cmd.Env, "TRIALM_TUI_LAUNCH=1")
-		}
-		return cmd
-	}
-	m := New(cfg)
-	program := tea.NewProgram(&driver{m}, tea.WithInput(nil), tea.WithOutput(io.Discard), tea.WithoutRenderer(), tea.WithColorProfile(colorprofile.Ascii))
-	done := make(chan error, 1)
-	go func() { _, e := program.Run(); done <- e }()
-	defer program.Kill()
-	keys := 0
-	waitScreen(t, program, First)
-	program.Send(key("enter"))
-	keys++
-	waitScreen(t, program, Calibration)
-	program.Send(key("s"))
-	keys++
-	waitScreen(t, program, Recipes)
-	// Ranking completes asynchronously. Query the loop until the first row exists.
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		ready := make(chan bool, 1)
-		program.Send(probeRows{ready})
-		if <-ready {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("no recipes")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	program.Send(key("enter"))
-	keys++
-	waitScreen(t, program, Summary)
-	program.Send(key("s"))
-	keys++
-	waitScreen(t, program, Setup)
-	// The plan callback completes in the model loop before approval.
-	deadline = time.Now().Add(5 * time.Second)
-	for {
-		ready := make(chan bool, 1)
-		program.Send(probePlan{ready})
-		if <-ready {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("plan not shown")
-		}
-		time.Sleep(time.Millisecond)
-	}
-	program.Send(key("enter"))
-	keys++
-	waitScreen(t, program, Ready)
-	program.Send(key("enter"))
-	keys++
-	waitScreen(t, program, Home)
-	program.Send(key("q"))
-	if e := <-done; e != nil {
-		t.Fatal(e)
-	}
-	if keys+1 > 7 || approvals.Load() != 1 || launches.Load() != 1 || clicks.Load() != 1 || requests.Load() != 1 {
-		t.Fatalf("keys=%d browser clicks=%d requests=%d", keys, clicks.Load(), requests.Load())
-	}
-	t.Logf("%d keys including install paste, 1 approval, 1 browser click, 0 copy-paste. Fresh state, displayed defaults and calibration skipped.", keys+1)
 }
 
+type probeLauncher struct{ ready chan bool }
 type probePlan struct{ ready chan bool }
 type probeRows struct{ ready chan bool }
 
@@ -416,26 +447,34 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 	m := fixture(t)
 	t.Setenv("TRIALM_HOME", m.cfg.Store.Dir)
 	t.Setenv("TRIALM_CALIBRATION_HELPER", "1")
-	m.stack = []Screen{Calibration}
+	m.stack = []Screen{Home}
+	m.offer = true
+	m.modelIndex = -1
+	m.detecting = false
 	_, cmd := m.Update(key("s"))
 	if cmd != nil {
 		m.Update(cmd())
 	}
-	if m.screen() != Recipes {
+	if m.screen() != Home {
 		t.Fatal(m.screen())
 	}
 	var prefs map[string]any
 	if e := m.cfg.Store.Read("prefs.json", &prefs); e != nil || prefs["calibration_offer"] != "skipped" {
 		t.Fatal(prefs, e)
 	}
-	m.stack = []Screen{First}
-	m.afterKey()
-	if m.screen() != Needs {
+	m = New(m.cfg)
+	if m.offer {
 		t.Fatal("offer repeated")
 	}
-	m.stack = []Screen{Calibration}
+	if m.screen() != Home {
+		t.Fatal("offer repeated")
+	}
+	m.stack = []Screen{Home}
+	m.offer = true
+	m.modelIndex = -1
+	m.detecting = false
 	m.Update(key("enter"))
-	if m.screen() != Calibrating {
+	if m.calibration == nil || m.screen() != Home {
 		t.Fatal(m.screen())
 	}
 	job := m.calibration
@@ -452,7 +491,7 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 			t.Fatal(job, m.View().Content)
 		}
 	}
-	if m.screen() != Needs {
+	if m.screen() != Home {
 		t.Fatal(m.screen())
 	}
 	_ = m.cfg.Store.Read("prefs.json", &prefs)
@@ -471,7 +510,7 @@ func TestCalibrationScreenAndPersistence(t *testing.T) {
 }
 func TestFooterBindings(t *testing.T) {
 	m := fixture(t)
-	allowed := map[Screen][]string{First: {"enter browser", "p paste", "s skip", "q quit"}, Calibration: {"enter calibrate", "s defaults", "q quit"}, Recipes: {"enter try", "s set up", "d details", "w window", "r needs", "/ search"}, Details: {"enter try", "space boosts", "s set up", "? why", "esc back", "q quit"}, Summary: {"1 too slow", "2 fine", "3 great", "s set up", "t another", "q quit"}}
+	allowed := map[Screen][]string{First: {"enter browser", "p paste", "esc back"}, Recipes: {"enter try", "s set up", "d details", "w window", "n needs", "/ search"}, Details: {"enter try", "space boosts", "s set up", "? why", "esc back", "q quit"}, Summary: {"1 too slow", "2 fine", "3 great", "s set up", "t another", "q quit"}}
 	for screen, want := range allowed {
 		m.stack = []Screen{screen}
 		if got := strings.Split(m.footer(), "  "); len(got) > 6 || strings.Join(got, "|") != strings.Join(want, "|") {
@@ -662,5 +701,149 @@ func TestUnparsedClaimNeverShowsCuratedSources(t *testing.T) {
 	view := m.View().Content
 	if m.screen() != ClaimCard || !strings.Contains(view, "claim parsing arrives in v0.6") || strings.Contains(view, "Strata") || strings.Contains(m.footer(), "sources") {
 		t.Fatal(view)
+	}
+}
+
+func TestDetectionCompletesWhileHelpIsOpen(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{Home}
+	m.Update(key("?"))
+	if m.screen() != Help {
+		t.Fatal(m.screen())
+	}
+	_, cmd := m.Update(detectedMsg{detection: m.detection})
+	if cmd == nil {
+		t.Fatal("discovery was lost behind help")
+	}
+	m.Update(cmd())
+	m.Update(key("esc"))
+	if m.screen() != Home || m.detecting || len(m.models) == 0 {
+		t.Fatal(m.screen(), m.detecting)
+	}
+}
+func TestLauncherKeysAndLazyCloudKey(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	m := fixture(t)
+	m.stack = []Screen{Home}
+	m.offer = false
+	m.modelIndex = 0
+	m.detecting = false
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.cfg.Preferences.Tool != "Claude Code" && m.cfg.Preferences.Tool != "claude-code" {
+		t.Fatal(m.cfg.Preferences.Tool)
+	}
+	m.Update(key("t"))
+	if m.screen() != First {
+		t.Fatal("trial did not offer the key", m.screen())
+	}
+	m.Update(key("esc"))
+	if m.screen() != Home {
+		t.Fatal(m.screen())
+	}
+	m.Update(key("f"))
+	if m.screen() != Recipes {
+		t.Fatal(m.screen())
+	}
+	m.busy = false
+	m.Update(key("n"))
+	if m.screen() != Needs {
+		t.Fatal(m.screen())
+	}
+}
+func TestErrorDetailsAndReducedMotion(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{Setup}
+	m.busy = true
+	m.Update(setupEvent{done: true, err: errors.New("fixture raw failure"), journal: setup.Journal{State: "failed"}})
+	if strings.Contains(m.View().Content, "fixture raw failure") || !strings.Contains(m.View().Content, "Press enter") {
+		t.Fatal(m.View().Content)
+	}
+	m.Update(key("d"))
+	if !strings.Contains(m.View().Content, "fixture raw failure") {
+		t.Fatal(m.View().Content)
+	}
+	m.push(Home)
+	if strings.Contains(m.View().Content, "fixture raw failure") {
+		t.Fatal("stale error")
+	}
+	m.theme = newPalette(true, false)
+	m.cfg.Detect = nil
+	m.cfg.Models = nil
+	m.cfg.UpdateNotice = nil
+	if m.tick() != nil {
+		t.Fatal("NO_COLOR spinner animates")
+	}
+	m.autoLaunch = false
+	m.stack = []Screen{Ready}
+	_, cmd := m.Update(sparkleMsg(1))
+	if cmd != nil || m.sparkle != 3 {
+		t.Fatal("NO_COLOR sparkle animates")
+	}
+}
+
+func TestCloudAuthorizationResumesSelectedTrial(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	m := fixture(t)
+	m.stack = []Screen{Home}
+	m.offer = false
+	m.detecting = false
+	m.modelIndex = 1
+	m.cfg.Headless = false
+	m.cfg.Authorize = func(ctx context.Context, key string) error { return m.cfg.Store.SaveKey("fixture-key") }
+	var selected string
+	m.cfg.TrialArgs = func(row core.Row, p store.Preferences) []string { selected = row.Result.Model.ID; return nil }
+	_, cmd := m.Update(key("t"))
+	if cmd != nil || m.screen() != First {
+		t.Fatal(m.screen())
+	}
+	_, cmd = m.Update(key("enter"))
+	_, cmd = m.Update(cmd())
+	if m.screen() != Trial || selected != m.models[1].Row.Result.Model.ID || cmd == nil {
+		t.Fatal(m.screen(), selected)
+	}
+	// Inspect the handoff without starting a cloud request.
+	if !strings.Contains(fmt.Sprintf("%T", cmd()), "execMsg") {
+		t.Fatal("no TTY handoff")
+	}
+}
+
+func TestWindowFailureKeepsLauncherUsable(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{Home, Trial}
+	m.busy = true
+	m.Update(windowDoneMsg{err: errors.New("fixture raw window failure")})
+	if m.busy || m.screen() != Home || strings.Contains(m.View().Content, "fixture raw window failure") {
+		t.Fatal(m.View().Content)
+	}
+	m.Update(key("d"))
+	if !strings.Contains(m.View().Content, "fixture raw window failure") {
+		t.Fatal(m.View().Content)
+	}
+}
+
+func TestCalibratedPredictionsKeepApproximationMarker(t *testing.T) {
+	m := fixture(t)
+	r := m.listing.Rows[0].Result
+	r.Accuracy.DecodePct = 10
+	r.Kind = "calibrated"
+	if f := metric(r, 21, "tok/s", false); estimated(f) != "~21.0 tok/s" || f.Kind != "calibrated" {
+		t.Fatal(f, estimated(f))
+	}
+}
+
+func TestNoColorRetainsUnicodeBoxes(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "xterm-256color")
+	m := New(Config{NoColor: os.Getenv("NO_COLOR") != "", ASCII: asciiTerminal("linux", os.Getenv)})
+	card := m.card("triaLM")
+	if strings.Contains(card, "\x1b") || !strings.Contains(card, "╭") || !strings.Contains(card, "│") || m.theme.glyph("✓") != "✓" || m.theme.wordmark() != "▲ triaLM" {
+		t.Fatal(card)
+	}
+	for _, goos := range []string{"linux", "windows"} {
+		t.Setenv("TERM", "dumb")
+		m = New(Config{NoColor: true, ASCII: asciiTerminal(goos, os.Getenv)})
+		if strings.Contains(m.card("triaLM"), "╭") || !strings.Contains(m.card("triaLM"), "+") {
+			t.Fatal(goos, m.card("triaLM"))
+		}
 	}
 }

@@ -2,11 +2,11 @@
 Best local models for Claude Code on what-if: RTX 3090 (24 GB VRAM), 128 GB RAM
 
 #  MODEL            RUNTIME                   FILE            FIRST REPLY  FOLLOW-UP  TASK*       FEEL
-1  qwen3.6:35b-a3b  llama.cpp (llama-server)  Q4_K_M 22.1 GB  13 s         2.6 s      1 min 47 s  comfortable
-2  qwen3-coder:30b  llama.cpp (llama-server)  Q4_K_M 18.6 GB  12 s         5.3 s      3 min 01 s  comfortable
-3  glm-4.7-flash    llama.cpp (llama-server)  Q4_K_M 18.3 GB  15 s         8.1 s      4 min 23 s  comfortable
-4  qwen3.8:27b      llama.cpp (llama-server)  Q4_K_M 19.0 GB  19 s         12 s       7 min 56 s  comfortable
-5  gemma4:26b-a4b   llama.cpp (llama-server)  Q4_K_M 16.9 GB  11 s         3.4 s      2 min 14 s  comfortable
+1  qwen3.6:35b-a3b  llama.cpp (llama-server)  Q4_K_M 22.1 GB  14 s         2.6 s      1 min 48 s  comfortable
+2  qwen3-coder:30b  llama.cpp (llama-server)  Q4_K_M 18.6 GB  14 s         5.3 s      3 min 03 s  comfortable
+3  glm-4.7-flash    llama.cpp (llama-server)  Q4_K_M 18.3 GB  16 s         8.1 s      4 min 25 s  comfortable
+4  qwen3.8:27b      llama.cpp (llama-server)  Q4_K_M 19.0 GB  27 s         12 s       8 min 05 s  comfortable
+5  gemma4:26b-a4b   llama.cpp (llama-server)  Q4_K_M 16.9 GB  13 s         3.4 s      2 min 16 s  comfortable
 
 * TASK = a 40-call agent task (cloud: ~2 min 00 s). Tuned settings. ● = runtime installed. More options: --top 20
 Ranked by speed tier, then model size (a rough capability proxy — triaLM does not score coding quality; try the top picks).

@@ -3,12 +3,12 @@ Qwen3.6 35B-A3B on what-if: RX 7900 XT (20 GB VRAM), 64 GB RAM
 Scenario: Claude Code — 12k-token system prompt + tools, then ~2.5k new tokens and ~300 output tokens per turn
 
 RUNTIME                                  FILE            CONTEXT  MEMORY        FIRST REPLY  FOLLOW-UP  WRITES AT             TASK*
-Ollama (defaults)                        Q4_K_M 22.1 GB  4k ⚠     ⚠ 21.5/20 GB  ?18 s        ?4.8 s     ?~100 tok/s at 14.7k  ?✗ breaks
-Ollama (tuned)                           Q4_K_M 22.1 GB  40k      ⚠ 22.2/20 GB  ?19 s        ?7.7 s     ?~78 tok/s at 43.6k   ?4 min 38 s
-llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ⚠ 21.5/20 GB  ?18 s        ?4.7 s     ?~110 tok/s at 14.7k  ?✗ breaks
-llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  40k      ⚠ 22.2/20 GB  ?18 s        ?7.7 s     ?~84 tok/s at 43.6k   ?4 min 37 s
-LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ⚠ 21.7/20 GB  ?18 s        ?4.8 s     ?~110 tok/s at 14.7k  ?✗ breaks
-LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  40k      ⚠ 22.2/20 GB  ?19 s        ?7.7 s     ?~84 tok/s at 43.6k   ?4 min 39 s
+Ollama (defaults)                        Q4_K_M 22.1 GB  4k ⚠     ⚠ 21.5/20 GB  ?21 s        ?4.8 s     ?~100 tok/s at 14.7k  ?✗ breaks
+Ollama (tuned)                           Q4_K_M 22.1 GB  40k      ⚠ 22.2/20 GB  ?22 s        ?7.7 s     ?~78 tok/s at 43.6k   ?4 min 41 s
+llama.cpp (llama-server) (defaults)      Q4_K_M 22.1 GB  4k ⚠     ⚠ 21.5/20 GB  ?20 s        ?4.7 s     ?~110 tok/s at 14.7k  ?✗ breaks
+llama.cpp (llama-server) (tuned)         Q4_K_M 22.1 GB  40k      ⚠ 22.2/20 GB  ?21 s        ?7.7 s     ?~84 tok/s at 43.6k   ?4 min 40 s
+LM Studio (llama.cpp engine) (defaults)  Q4_K_M 22.1 GB  4k ⚠     ⚠ 21.7/20 GB  ?21 s        ?4.8 s     ?~110 tok/s at 14.7k  ?✗ breaks
+LM Studio (llama.cpp engine) (tuned)     Q4_K_M 22.1 GB  40k      ⚠ 22.2/20 GB  ?22 s        ?7.7 s     ?~84 tok/s at 43.6k   ?4 min 42 s
 
 FIRST REPLY = cold start (model load + the whole prompt). FOLLOW-UP = a typical later turn (new tokens only + the reply).
 * TASK = a 40-call agent task; at datacenter speed it would take about 2 min 00 s. "✗ breaks" = the harness prompt does not fit the context.

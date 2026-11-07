@@ -11,7 +11,7 @@
 // Upstream models only know JSON function tools, so DecodeRequest turns each
 // custom tool into a function tool with a single required string property
 // "input" (whose description carries the grammar) and marks the schema with
-// "x-trialm-custom": true (see CustomToolMarker / IsCustomTool).
+// "x-trialm-custom": true (see CustomToolMarker).
 //
 // Encoding needs the reverse mapping, but NewStream and WriteResponse never
 // see the request. The Frontend therefore keeps a name -> custom registry
@@ -43,15 +43,6 @@ import (
 // with strict schema validation may strip it; the frontend does not rely on
 // it when encoding.
 const CustomToolMarker = "x-trialm-custom"
-
-// IsCustomTool reports whether t was decoded from a Responses custom tool.
-func IsCustomTool(t llm.Tool) bool {
-	var probe map[string]json.RawMessage
-	if json.Unmarshal(t.Parameters, &probe) != nil {
-		return false
-	}
-	return string(bytes.TrimSpace(probe[CustomToolMarker])) == "true"
-}
 
 // Frontend is the Responses API frontend. Use New.
 type Frontend struct {

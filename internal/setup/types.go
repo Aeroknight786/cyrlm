@@ -135,7 +135,6 @@ type Input struct {
 	Predicted                                   verify.Predicted
 }
 
-func DefaultPort(p runtime.Profile) int { return p.Port }
 func slug(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(s) {

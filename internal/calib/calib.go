@@ -107,20 +107,21 @@ func fingerprintForSystem(sys *hw.System, build string) (Fingerprint, error) {
 
 // Row retains the engine's unmodified JSON as well as the predictor baseline.
 type Row struct {
-	LoadMode    string          `json:"load_mode,omitempty"`
-	Spread      float64         `json:"repetition_spread_seconds,omitempty"`
-	Repetitions int             `json:"repetitions,omitempty"`
-	Probe       string          `json:"probe"`
-	Class       string          `json:"family_class"`
-	Quant       string          `json:"quant_class"`
-	Layers      int             `json:"layers"`
-	Check       bool            `json:"check"`
-	Depth       int             `json:"depth"`
-	Prompt      int             `json:"prompt"`
-	Gen         int             `json:"gen"`
-	Seconds     float64         `json:"seconds_per_token"`
-	Baseline    float64         `json:"baseline_seconds_per_token"`
-	Raw         json.RawMessage `json:"raw"`
+	TokensEstimated bool            `json:"tokens_estimated,omitempty"`
+	LoadMode        string          `json:"load_mode,omitempty"`
+	Spread          float64         `json:"repetition_spread_seconds,omitempty"`
+	Repetitions     int             `json:"repetitions,omitempty"`
+	Probe           string          `json:"probe"`
+	Class           string          `json:"family_class"`
+	Quant           string          `json:"quant_class"`
+	Layers          int             `json:"layers"`
+	Check           bool            `json:"check"`
+	Depth           int             `json:"depth"`
+	Prompt          int             `json:"prompt"`
+	Gen             int             `json:"gen"`
+	Seconds         float64         `json:"seconds_per_token"`
+	Baseline        float64         `json:"baseline_seconds_per_token"`
+	Raw             json.RawMessage `json:"raw"`
 }
 
 // FitPoint stores uncertainty in seconds, before extrapolation.

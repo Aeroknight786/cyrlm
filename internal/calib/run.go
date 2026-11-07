@@ -43,12 +43,12 @@ type Event struct {
 
 // RunOptions keeps prediction math outside calib (predict imports calib).
 type RunOptions struct {
-	Backend        string
-	Home, Engine   string
-	Fingerprint    Fingerprint
-	Quick, CPUOnly bool
-	Baseline       func(Probe, BenchRow) float64
-	Event          func(Event)
+	Backend              string
+	Home, Engine         string
+	Fingerprint          Fingerprint
+	Quick, CPUOnly, Spec bool
+	Baseline             func(Probe, BenchRow) float64
+	Event                func(Event)
 }
 
 // Run saves every finished row and resumes completed groups. The plan is a
@@ -75,7 +75,7 @@ func Run(ctx context.Context, o RunOptions) (*Calibration, error) {
 			}
 		}
 	}
-	steps := Plan(o.Quick)
+	steps := Plan(o.Quick, o.Spec)
 	remaining := func(from int) float64 {
 		total := 0.
 		for _, s := range steps[from:] {

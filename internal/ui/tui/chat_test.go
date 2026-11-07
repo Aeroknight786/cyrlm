@@ -34,3 +34,17 @@ func TestChatConversation(t *testing.T) {
 		t.Fatal(c.view())
 	}
 }
+
+func TestChatFailureKeepsRawDetailsHidden(t *testing.T) {
+	m := fixture(t)
+	m.stack = []Screen{Chat}
+	m.chat = newChat(context.Background(), nil)
+	m.Update(chatResponseMsg{err: fmt.Errorf("fixture raw chat failure")})
+	if strings.Contains(m.View().Content, "fixture raw chat failure") || !strings.Contains(m.View().Content, "The reply stopped") {
+		t.Fatal(m.View().Content)
+	}
+	m.Update(key("d"))
+	if !strings.Contains(m.View().Content, "fixture raw chat failure") {
+		t.Fatal(m.View().Content)
+	}
+}

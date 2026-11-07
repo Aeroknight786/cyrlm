@@ -132,3 +132,43 @@ func TestCalibrationCheckPredictor(t *testing.T) {
 		t.Fatal("uncalibrated validation")
 	}
 }
+
+func TestSpecFlagAndEnvironmentPlan(t *testing.T) {
+	t.Setenv("TRIALM_HOME", t.TempDir())
+	for _, tc := range []struct {
+		env     string
+		flags   []string
+		count   int
+		seconds float64
+	}{
+		// The sweep is on by default (the owner kept it: ~30 s for 27 steps).
+		{"", nil, 54, 377}, {"", []string{"--quick"}, 12, 116}, {"", []string{"--spec=false"}, 27, 347}, {"0", []string{"--quick"}, 6, 109}, {"0", []string{"--spec", "--quick"}, 12, 116}, {"1", []string{"--quick"}, 12, 116},
+	} {
+		t.Setenv("TRIALM_CALIBRATE_SPEC", tc.env)
+		f, err := os.CreateTemp(t.TempDir(), "plan")
+		if err != nil {
+			t.Fatal(err)
+		}
+		original := os.Stdout
+		os.Stdout = f
+		err = Run(append([]string{"--plan", "--json"}, tc.flags...))
+		os.Stdout = original
+		if err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+		if _, err = f.Seek(0, 0); err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+		var plan struct {
+			Steps   []calib.Step `json:"steps"`
+			Seconds float64      `json:"estimated_seconds"`
+		}
+		err = json.NewDecoder(f).Decode(&plan)
+		f.Close()
+		if err != nil || len(plan.Steps) != tc.count || plan.Seconds != tc.seconds {
+			t.Fatal(tc, plan, err)
+		}
+	}
+}

@@ -1,6 +1,9 @@
 package tui
 
-import "testing"
+import (
+	"github.com/aeroknight786/trialm/internal/core"
+	"testing"
+)
 
 func TestCalibrationStatusIsPlainWords(t *testing.T) {
 	for msg, want := range map[string]string{
@@ -10,7 +13,7 @@ func TestCalibrationStatusIsPlainWords(t *testing.T) {
 		"Saved depth 0, prompt 1, decode 0 (mlock)":               "Measured at short context · qwen3-moe IQ3_XXS · 24 layers",
 		"Optional machine calibration; estimated 190 seconds ...": "Optional machine calibration; estimated 190 seconds ...",
 	} {
-		if got := calibrationStatus("v2-qwen3-moe-IQ3_XXS-24", msg); got != want {
+		if got := core.CalibrationStatus("v2-qwen3-moe-IQ3_XXS-24", msg); got != want {
 			t.Errorf("%q: got %q want %q", msg, got, want)
 		}
 	}

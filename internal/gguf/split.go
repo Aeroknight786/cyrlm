@@ -11,7 +11,7 @@ import (
 // plus split.no / split.count / split.tensors.count; later parts carry only
 // the split keys and their tensors. Summary of a single part has complete
 // architecture data but tensor totals for that part only; open every part
-// (SplitPartNames) and combine them with MergeSplits for whole-model totals.
+// (SplitPartNames) for whole-model totals.
 
 // SplitInfo describes a llama.cpp split (sharded) model part.
 type SplitInfo struct {
@@ -68,67 +68,4 @@ func SplitPartNames(name string) ([]string, bool) {
 		out[i] = fmt.Sprintf("%s-%05d-of-%05d.gguf%s", prefix, i+1, count, query)
 	}
 	return out, true
-}
-
-// MergeSplits combines the parts of a split model (in any order) into one
-// File: metadata from part 0 (llama-gguf-split writes all metadata there),
-// tensors from every part (TensorInfo.Split records the part), FileSize
-// and HeaderBytesRead summed. Summary of the result covers the whole model.
-func MergeSplits(parts []*File) (*File, error) {
-	if len(parts) == 0 {
-		return nil, fmt.Errorf("gguf: MergeSplits: no parts")
-	}
-	ordered := make([]*File, len(parts))
-	for _, p := range parts {
-		si, ok := p.Split()
-		if !ok {
-			if len(parts) == 1 {
-				return p, nil
-			}
-			return nil, fmt.Errorf("gguf: MergeSplits: %s has no split.count", p.Source)
-		}
-		if si.Count != len(parts) {
-			return nil, fmt.Errorf("gguf: MergeSplits: %s says split.count=%d, got %d parts", p.Source, si.Count, len(parts))
-		}
-		if si.No < 0 || si.No >= len(parts) || ordered[si.No] != nil {
-			return nil, fmt.Errorf("gguf: MergeSplits: duplicate or invalid split.no %d (%s)", si.No, p.Source)
-		}
-		ordered[si.No] = p
-	}
-	first := ordered[0]
-	m := &File{
-		Source:     first.Source,
-		Version:    first.Version,
-		Alignment:  first.Alignment,
-		KVs:        first.KVs,
-		DataOffset: first.DataOffset,
-		index:      first.index,
-	}
-	if m.index == nil {
-		m.buildIndex()
-	}
-	names := map[string]int{}
-	for i, p := range ordered {
-		if m.FileSize >= 0 && p.FileSize >= 0 {
-			m.FileSize += p.FileSize
-		} else {
-			m.FileSize = -1
-		}
-		m.HeaderBytesRead += p.HeaderBytesRead
-		for _, w := range p.Warnings {
-			m.Warnings = append(m.Warnings, fmt.Sprintf("part %d: %s", i+1, w))
-		}
-		for _, t := range p.Tensors {
-			if j, dup := names[t.Name]; dup {
-				return nil, fmt.Errorf("gguf: MergeSplits: tensor %q in parts %d and %d", t.Name, j+1, i+1)
-			}
-			names[t.Name] = i
-			t.Split = i
-			m.Tensors = append(m.Tensors, t)
-		}
-	}
-	if si, _ := first.Split(); si.TensorsCount > 0 && si.TensorsCount != len(m.Tensors) {
-		m.Warnings = append(m.Warnings, fmt.Sprintf("split.tensors.count is %d but the parts hold %d tensors", si.TensorsCount, len(m.Tensors)))
-	}
-	return m, nil
 }

@@ -117,16 +117,3 @@ func Candidates(home, repo, file, sha string) []string {
 	}
 	return found
 }
-
-// FallbackHint returns an engine-native command for display; it never executes it.
-func FallbackHint(engine, repo, variant string) []string {
-	switch strings.ToLower(engine) {
-	case "llama.cpp", "llama-cli":
-		return []string{"llama-cli", "-hf", repo + ":" + variant}
-	case "ollama":
-		return []string{"ollama", "pull", "hf.co/" + repo + ":" + variant}
-	case "lm studio", "lmstudio", "lms":
-		return []string{"lms", "get", repo}
-	}
-	return nil
-}

@@ -15,7 +15,7 @@ type Step struct {
 	EstimatedSeconds float64 `json:"estimated_seconds"`
 }
 
-func Plan(quick bool) []Step {
+func Plan(quick bool, spec ...bool) []Step {
 	var steps []Step
 	for _, p := range Grid(quick) {
 		depths := "0"
@@ -40,7 +40,9 @@ func Plan(quick bool) []Step {
 		}
 		// Allow 15% for process/load variance and the extra state restore at r=3.
 		steps = append(steps, Step{Probe: p, Depths: depths, EstimatedSeconds: math.Ceil(1.15 * estimate)})
-		steps = append(steps, Step{Probe: p, Group: 1, Depths: "0", EstimatedSeconds: math.Ceil(1.15 * (.5 + .04*float64(p.Layers)))})
+		if len(spec) > 0 && spec[0] {
+			steps = append(steps, Step{Probe: p, Group: 1, Depths: "0", EstimatedSeconds: math.Ceil(1.15 * (.5 + .04*float64(p.Layers)))})
+		}
 	}
 	return steps
 }
@@ -69,4 +71,11 @@ func (s Step) Description() string {
 		check = " (held out)"
 	}
 	return fmt.Sprintf("%s%s · %s", s.Probe.ID(), check, strings.Join(s.Args("probe.gguf", false)[2:], " "))
+}
+
+// Duration is a plan's estimated run time for people, e.g. "about 5–8 min";
+// the estimate comes from one machine, so it is a range, not a figure.
+func Duration(steps []Step) string {
+	m := math.Round(EstimatedSeconds(steps) / 60)
+	return fmt.Sprintf("about %.0f–%.0f min", math.Max(1, m-1), m+2)
 }

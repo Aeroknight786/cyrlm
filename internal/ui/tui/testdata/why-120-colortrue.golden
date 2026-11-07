@@ -8,4 +8,4 @@ quality caveat: IQ3_XXS is a ~3-bit file chosen so this model fits and runs fast
 the cloud's provider-dependent weights the trial uses (often a few points on coding benchmarks, more tool-call errors).
 A 4-bit file of the same model, or a smaller model at 4-bit, is the safer choice when quality matters more than speed
 
-[36mesc[m [90mback[m[90m  [m[36mq[m [90mquit[m
+[90mesc back  q quit[m

@@ -90,12 +90,3 @@ func renderTool(t llm.Tool) string {
 	}
 	return b.String()
 }
-
-// ToolsJSONSize returns the estimated tokens spent on tool definitions.
-func ToolsJSONSize(req *llm.Request) int {
-	n := 0
-	for _, t := range req.Tools {
-		n += Count(renderTool(t))
-	}
-	return n
-}

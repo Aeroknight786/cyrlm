@@ -461,8 +461,6 @@ func TestSplit(t *testing.T) {
 	}
 	p1 := part(0, []kv{{"general.architecture", "llama"}, {"llama.block_count", uint32(1)}},
 		tensorSpec{"token_embd.weight", []uint64{32, 4}, TypeF32}, tensorSpec{"output.weight", []uint64{32, 4}, TypeF32})
-	p2 := part(1, nil, tensorSpec{"blk.0.attn_q.weight", []uint64{32, 32}, TypeQ8_0})
-
 	si, ok := p1.Split()
 	if !ok || si != (SplitInfo{No: 0, Count: 2, TensorsCount: 3}) {
 		t.Errorf("Split() = %+v %v", si, ok)
@@ -471,25 +469,8 @@ func TestSplit(t *testing.T) {
 		t.Error("unsplit file reported as split")
 	}
 	s := p1.Summary()
-	if s.Split == nil || s.Split.Count != 2 || !hasNote(s.Notes, "MergeSplits") {
+	if s.Split == nil || s.Split.Count != 2 || !hasNote(s.Notes, "open every part") {
 		t.Errorf("first part summary split %+v notes %q", s.Split, s.Notes)
 	}
 
-	m, err := MergeSplits([]*File{p2, p1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(m.Tensors) != 3 || m.Tensors[2].Split != 1 || m.FileSize != p1.FileSize+p2.FileSize || m.Architecture() != "llama" {
-		t.Errorf("merged: %d tensors, size %d", len(m.Tensors), m.FileSize)
-	}
-	ms := m.Summary()
-	if ms.TensorBytes != 512+512+32*34 || hasNote(ms.Notes, "MergeSplits") {
-		t.Errorf("merged bytes %d notes %q", ms.TensorBytes, ms.Notes)
-	}
-	if _, err := MergeSplits([]*File{p1}); err == nil {
-		t.Error("merging 1 of 2 parts should fail")
-	}
-	if _, err := MergeSplits([]*File{p1, p1}); err == nil {
-		t.Error("merging a duplicate part should fail")
-	}
 }

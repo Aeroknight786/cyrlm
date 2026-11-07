@@ -1,0 +1,18 @@
+[36m╭────────────────────────────────────────────────────────────────────────────╮[m
+[36m│[m [1;36mSet up Qwen3.6 35B-A3B for Codex[m                                           [36m│[m
+[36m│[m 13.2 GB download · 1 approval · no password                                [36m│[m
+[36m│[m Not touched · Codex config, shell profile, other models                    [36m│[m
+[36m│[m                                                                            [36m│[m
+[36m│[m · llama.cpp b12182                                                         [36m│[m
+[36m│[m · Qwen3.6-35B-A3B.gguf                                                     [36m│[m
+[36m│[m · Save owned launcher                                                      [36m│[m
+[36m│[m · llama-server :8080 · in-process bridge                                   [36m│[m
+[36m│[m · speed · greeting · tool call · follow-up                                 [36m│[m
+[36m│[m sha256 checked                                                             [36m│[m
+[36m│[m archive extracted                                                          [36m│[m
+[36m│[m download resumed                                                           [36m│[m
+[36m│[m range accepted                                                             [36m│[m
+[36m│[m 8.1 GB received                                                            [36m│[m
+[36m╰────────────────────────────────────────────────────────────────────────────╯[m
+
+[90menter go  esc back  d details[m

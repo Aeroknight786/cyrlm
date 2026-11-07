@@ -62,9 +62,6 @@ func TestTypeTable(t *testing.T) {
 		if c.typ.String() != c.name {
 			t.Errorf("String() = %q, want %q", c.typ.String(), c.name)
 		}
-		if p, ok := ParseGGMLType(strings.ToLower(c.name)); !ok || p != c.typ {
-			t.Errorf("ParseGGMLType(%q) = %v, %v", c.name, p, ok)
-		}
 	}
 	// The spot checks the predictor relies on.
 	for _, c := range []struct {

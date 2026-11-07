@@ -93,8 +93,9 @@ func TestRunMedianFallbackAndResume(t *testing.T) {
 	if os.PathSeparator == '\\' {
 		t.Skip("shell adapter")
 	}
-	for _, fallback := range []bool{false, true} {
-		t.Run(fmt.Sprint(fallback), func(t *testing.T) {
+	for _, tc := range []struct{ fallback, spec bool }{{false, false}, {false, true}, {true, false}, {true, true}} {
+		t.Run(fmt.Sprint(tc), func(t *testing.T) {
+			fallback := tc.fallback
 			t.Setenv("TRIALM_SUCCESSFUL_BENCH_HELPER", "1")
 			t.Setenv("GORACE", "atexit_sleep_ms=0")
 			if fallback {
@@ -121,14 +122,22 @@ func TestRunMedianFallbackAndResume(t *testing.T) {
 			if e := os.WriteFile(engine, []byte(script), 0700); e != nil {
 				t.Fatal(e)
 			}
-			options := RunOptions{Home: home, Engine: engine, Quick: true, Backend: "metal", Fingerprint: Fingerprint{Hash: "fake"}, Baseline: func(p Probe, b BenchRow) float64 {
+			var events []Event
+			options := RunOptions{Spec: tc.spec, Event: func(e Event) { events = append(events, e) }, Home: home, Engine: engine, Quick: true, Backend: "metal", Fingerprint: Fingerprint{Hash: "fake"}, Baseline: func(p Probe, b BenchRow) float64 {
 				return .02 + .003*float64(p.Layers) + float64(b.Depth)*float64(p.Layers)*2e-8
 			}}
 			c, e := Run(context.Background(), options)
 			if e != nil {
 				t.Fatal(e)
 			}
-			if !c.Complete || !c.Usable() || len(c.Coverage) != 2 || len(c.Rows) != 44 {
+			wantRows, wantSteps, wantETA := 20, 6, 109.0
+			if tc.spec {
+				wantRows, wantSteps, wantETA = 44, 12, 116
+			}
+			if len(events) == 0 || events[0].Total != wantSteps || events[0].ETA != wantETA {
+				t.Fatal("wrong grid progress", events)
+			}
+			if !c.Complete || !c.Usable() || len(c.Coverage) != 2 || len(c.Rows) != wantRows {
 				t.Fatal("incomplete grid", c.Complete, len(c.Rows))
 			}
 			wantMode := "mlock"
@@ -159,7 +168,7 @@ func TestRunMedianFallbackAndResume(t *testing.T) {
 			}
 			before, _ := os.ReadFile(calls)
 			// Resume must skip all groups, including those completed with mmap.
-			var events []Event
+			events = nil
 			options.Event = func(e Event) { events = append(events, e) }
 			c, e = Run(context.Background(), options)
 			if e != nil || !c.Complete {
@@ -175,6 +184,15 @@ func TestRunMedianFallbackAndResume(t *testing.T) {
 			for _, e := range events {
 				if e.ETA != 0 {
 					t.Fatal("resume ETA counted skipped work", e)
+				}
+			}
+			if tc.spec {
+				options.Spec = false
+				events = nil
+				c, e = Run(context.Background(), options)
+				after, _ = os.ReadFile(calls)
+				if e != nil || string(before) != string(after) || len(c.Rows) != 44 || len(events) == 0 || events[0].Total != 6 || events[0].ETA != 0 {
+					t.Fatal("default resume lost verify rows", c, e, events)
 				}
 			}
 			// Legacy default-mmap rows do not satisfy the new robust grid.

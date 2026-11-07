@@ -70,11 +70,6 @@ func Opener(goos, script, dir string, getenv func(string) string, look func(stri
 	return nil, errors.New("no supported terminal opener")
 }
 
-// Generate writes a private executable script. Completion is recorded even
-// after the harness exits with an error, so the parent can resume its card.
-func Generate(s store.Store, goos, exe, dir string, args []string) (string, string, error) {
-	return generate(s, goos, exe, dir, "try", args)
-}
 func generate(s store.Store, goos, exe, dir, verb string, args []string) (string, string, error) {
 	raw := make([]byte, 12)
 	if _, e := rand.Read(raw); e != nil {

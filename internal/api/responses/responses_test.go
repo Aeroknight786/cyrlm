@@ -107,17 +107,18 @@ func TestDecodeCodexRequest(t *testing.T) {
 	if len(req.Tools) != 2 {
 		t.Fatalf("tools: %+v", req.Tools)
 	}
-	if req.Tools[0].Name != "shell" || IsCustomTool(req.Tools[0]) {
+	if req.Tools[0].Name != "shell" {
 		t.Errorf("shell tool: %+v", req.Tools[0])
 	}
 	if llm.CanonicalJSON(string(req.Tools[0].Parameters)) != `{"additionalProperties":false,"properties":{"command":{"items":{"type":"string"},"type":"array"},"workdir":{"type":"string"}},"required":["command"],"type":"object"}` {
 		t.Errorf("shell params %s", req.Tools[0].Parameters)
 	}
 	ap := req.Tools[1]
-	if ap.Name != "apply_patch" || ap.Description != "Use the apply_patch tool to edit files." || !IsCustomTool(ap) {
+	if ap.Name != "apply_patch" || ap.Description != "Use the apply_patch tool to edit files." {
 		t.Errorf("apply_patch tool: %+v", ap)
 	}
 	var schema struct {
+		Marker     bool   `json:"x-trialm-custom"`
 		Type       string `json:"type"`
 		Properties map[string]struct {
 			Type        string `json:"type"`
@@ -129,7 +130,7 @@ func TestDecodeCodexRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := schema.Properties["input"]
-	if schema.Type != "object" || in.Type != "string" || !reflect.DeepEqual(schema.Required, []string{"input"}) ||
+	if !schema.Marker || schema.Type != "object" || in.Type != "string" || !reflect.DeepEqual(schema.Required, []string{"input"}) ||
 		!strings.Contains(in.Description, "lark grammar") || !strings.Contains(in.Description, applyPatchGrammar) {
 		t.Errorf("custom schema: %s", ap.Parameters)
 	}

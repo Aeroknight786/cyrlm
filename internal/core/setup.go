@@ -19,6 +19,7 @@ import (
 )
 
 type PlanOptions struct {
+	LocalModel string
 	Options
 	Model              catalog.Model
 	Target             predict.Target
@@ -51,6 +52,7 @@ func (s Session) Plan(ctx context.Context, o PlanOptions) (setup.Plan, error) {
 		return setup.Plan{}, fmt.Errorf("%s does not fit with %s here (needs %.1f GB, %.1f GB available); try a smaller --quant or --ctx, or --force", o.Model.Name, p.Name, res.Memory.TotalBytes/(1<<30), res.Memory.BudgetBytes/(1<<30))
 	}
 	input := setup.Input{
+		LocalModel:      o.LocalModel,
 		DecodeErrorPct:  res.Accuracy.DecodePct,
 		PrefillErrorPct: res.Accuracy.PrefillPct,
 		Model:           o.Model,
@@ -128,21 +130,6 @@ func (s Session) Apply(ctx context.Context, p setup.Plan, policy setup.Policy) (
 	}
 	return j, err
 }
-func (s Session) Status(ctx context.Context, slug string) (setup.Journal, error) {
-	e, err := s.SetupExecutor()
-	if err != nil {
-		return setup.Journal{}, err
-	}
-	if err = ctx.Err(); err != nil {
-		return setup.Journal{}, err
-	}
-	j, err := e.Status(slug)
-	if err == nil {
-		j.Running = e.Running(ctx, j)
-		s.Emit("setup_status", j, Next{Cmd: "trialm setup --json", Why: "resume saved setup"})
-	}
-	return j, err
-}
 
 // SetupResult closes the agent contract after the journal reaches Ready.
 func (s Session) SetupResult(ctx context.Context, j setup.Journal) {
@@ -159,7 +146,7 @@ func (s Session) SetupResult(ctx context.Context, j setup.Journal) {
 	}
 	root, _ := paths.Home()
 	enginePath = strings.ReplaceAll(enginePath, "~/.trialm", root)
-	if err := calib.RecordReal(ctx, store.Default().Dir, enginePath, calib.RealMeasurement{Model: p.Model, Quant: p.Quant, Engine: p.Runtime, Decode: j.Report.DecodeTPS, Prefill: j.Report.PrefillTPS}); err == nil {
+	if err := calib.RecordReal(ctx, store.Default().Dir, enginePath, calib.RealMeasurement{Model: p.Model, Quant: p.Quant, Engine: p.Runtime, Decode: j.Report.DecodeTPS, Prefill: j.Report.PrefillTPS, Samples: j.Report.Samples}); err == nil {
 		s.Emit("setup_calibrated", true)
 	} else {
 		s.Emit("setup_log", setup.Update{Lines: []string{"Calibration was not saved · " + err.Error()}})
@@ -167,7 +154,7 @@ func (s Session) SetupResult(ctx context.Context, j setup.Journal) {
 	s.Emit("result", map[string]any{"ready": true}, Next{Cmd: "trialm launch " + p.Harness, Why: "open this Ready setup"})
 }
 
-func (s Session) PlanRecipe(ctx context.Context, r predict.Result, o Options, tool string) (setup.Plan, error) {
+func (s Session) PlanRecipe(ctx context.Context, r predict.Result, o Options, tool string, local ...string) (setup.Plan, error) {
 	h, err := harness.Get(tool)
 	if err != nil {
 		return setup.Plan{}, err
@@ -178,5 +165,9 @@ func (s Session) PlanRecipe(ctx context.Context, r predict.Result, o Options, to
 	if err != nil {
 		return setup.Plan{}, err
 	}
-	return s.Plan(ctx, PlanOptions{Options: o, Model: r.Model, Target: d.Target, Scenario: h.Scenario, Harness: h, WireHarness: true})
+	file := ""
+	if len(local) > 0 {
+		file = local[0]
+	}
+	return s.Plan(ctx, PlanOptions{LocalModel: file, Options: o, Model: r.Model, Target: d.Target, Scenario: h.Scenario, Harness: h, WireHarness: true})
 }

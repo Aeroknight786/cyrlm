@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -334,5 +335,27 @@ func TestOlderPredictorRebaselinesWithoutLosingRows(t *testing.T) {
 		if r.Probe != "real" && r.Baseline != 0.01 {
 			t.Fatal("row kept its old baseline", r)
 		}
+	}
+}
+
+func TestSpecSweepIsOptional(t *testing.T) {
+	for _, tc := range []struct {
+		quick                bool
+		count                int
+		seconds, specSeconds float64
+	}{{false, 27, 347, 377}, {true, 6, 109, 116}} {
+		regular, spec := Plan(tc.quick), Plan(tc.quick, true)
+		if len(regular) != tc.count || EstimatedSeconds(regular) != tc.seconds || len(spec) != 2*tc.count || EstimatedSeconds(spec) != tc.specSeconds {
+			t.Fatal(tc, len(regular), EstimatedSeconds(regular), len(spec), EstimatedSeconds(spec))
+		}
+		for i, s := range regular {
+			if s.Group != 0 || !reflect.DeepEqual(spec[2*i], s) || spec[2*i+1].Group != 1 {
+				t.Fatal("default invocation changed", i)
+			}
+			if !strings.Contains(strings.Join(spec[2*i+1].Args("x", true), " "), "-p 1,2,3,4 -n 0") {
+				t.Fatal("spec sweep lost")
+			}
+		}
+		t.Logf("quick=%t default %d steps / %g seconds; spec %d / %g", tc.quick, len(regular), EstimatedSeconds(regular), len(spec), EstimatedSeconds(spec))
 	}
 }

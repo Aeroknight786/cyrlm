@@ -278,7 +278,7 @@ type TensorInfo struct {
 	// Bytes is the stored size of the tensor data.
 	Bytes uint64
 	// Split is the index of the split part holding the tensor (0 unless
-	// the File came from MergeSplits).
+	// the File combines split parts).
 	Split int
 	// Err explains why Bytes could not be computed.
 	Err string
@@ -327,13 +327,6 @@ func (f *File) Get(key string) (Value, bool) {
 		return Value{}, false
 	}
 	return f.KVs[i].Value, true
-}
-
-func (f *File) buildIndex() {
-	f.index = make(map[string]int, len(f.KVs))
-	for i, kv := range f.KVs {
-		f.index[kv.Key] = i
-	}
 }
 
 // String returns a string value.

@@ -47,9 +47,20 @@ func TestReadyFake(t *testing.T) {
 				fmt.Fprint(w, `{"choices":[{"message":{"content":"ok"}}],"timings":{"prompt_ms":2}}`)
 			}))
 			defer s.Close()
-			r, err := Ready(context.Background(), ReadyOptions{Endpoint: s.URL, Model: "m", BitsPerWeight: 2, Predicted: Predicted{DecodeTPS0: 100, PrefillTPS: 100}})
+			r, err := Ready(context.Background(), ReadyOptions{Endpoint: s.URL, Model: "m", ContextTokens: 512, BitsPerWeight: 2, Predicted: Predicted{DecodeTPS0: 100, PrefillTPS: 100}})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if len(r.Samples) != 3 || r.DecodeTPS[128] <= 0 || r.DecodeTPS[512] != 0 || r.DecodeTPS[0] != 0 {
+				t.Fatalf("requested depths retained: %+v", r)
+			}
+			for _, sample := range r.Samples {
+				if sample.Prompt != 128 || sample.Generated != 5 || sample.TokensEstimated || sample.TTFTSec <= 0 || sample.Mode == "decode" && sample.Depth != 128 {
+					t.Fatalf("actual usage lost: %+v", sample)
+				}
+			}
+			if !strings.Contains(r.Plain(), "processed 128 prompt tokens. First token in") {
+				t.Fatal(r.Plain())
 			}
 			if r.Ready == bad {
 				t.Fatalf("%+v", r)
@@ -106,11 +117,14 @@ func TestRealEngine(t *testing.T) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	r, err := Ready(ctx, ReadyOptions{Endpoint: endpoint, Model: "test", UBatch: 128})
+	r, err := Ready(ctx, ReadyOptions{Endpoint: endpoint, Model: "test", UBatch: 128, ContextTokens: 512})
 	if err != nil || !r.Ready {
 		t.Fatalf("%+v %v", r, err)
 	}
-	t.Logf("decode=%v prefill=%g followup=%g spec=%v", r.DecodeTPS, r.PrefillTPS, r.FollowUpTTFT, r.SpecVerifySecs)
+	if len(r.Samples) != 3 || r.Samples[2].Depth == 512 || r.Samples[2].TokensEstimated {
+		t.Fatal(r.Samples)
+	}
+	t.Logf("samples=%+v decode=%v prefill=%g followup=%g spec=%v", r.Samples, r.DecodeTPS, r.PrefillTPS, r.FollowUpTTFT, r.SpecVerifySecs)
 }
 
 func TestReadyMissingUsageAndSlowDepth(t *testing.T) {
@@ -133,6 +147,15 @@ func TestReadyMissingUsageAndSlowDepth(t *testing.T) {
 	if err != nil || r.Ready || r.Failing != "spill" || !strings.Contains(r.Plain(), "below 25%") || !strings.Contains(r.Plain(), "estimated") || !strings.Contains(r.Plain(), "cache unknown") || !strings.Contains(r.Plain(), "inconclusive") {
 		t.Fatalf("%+v %v", r, err)
 	}
+	for _, sample := range r.Samples {
+		if !sample.TokensEstimated || sample.Prompt <= 0 || sample.Generated <= 0 || sample.Mode == "decode" && sample.Depth != sample.Prompt {
+			t.Fatal("missing usage was not flagged", sample)
+		}
+	}
+	if len(r.DecodeTPS) != 2 || r.DecodeTPS[512] != 0 {
+		t.Fatal(r.DecodeTPS)
+	}
+
 }
 
 func TestSweepCountsAndCache(t *testing.T) {
@@ -164,6 +187,11 @@ func TestSweepCountsAndCache(t *testing.T) {
 			want := "cache reused"
 			if cache == 0 {
 				want = "cache not reused"
+			}
+			for _, sample := range r.Samples {
+				if sample.Mode == "prefill" && (sample.Depth != cache || sample.Prompt != 128-cache) {
+					t.Fatal("cached prompt counted as processed", sample)
+				}
 			}
 			if err != nil || !r.Ready || len(r.SpecVerifySecs) != 4 || !strings.Contains(r.Plain(), want) {
 				t.Fatalf("%+v %v", r, err)

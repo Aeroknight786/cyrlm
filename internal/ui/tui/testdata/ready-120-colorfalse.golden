@@ -1,12 +1,13 @@
-✓ Ready · what-if: Apple M5 (10-core GPU), 24 GB unified memory
-                         predicted    measured    miss
-writing @ start               ~44 t/s       40 t/s      -10%
-writing @ 40K                 ~36 t/s       31 t/s      -13%
-reading                      ~800 t/s      660 t/s      -18%
-✓ Codex greeting
-✓ tool call
-✓ follow-up
-calibrated this Mac · re-ranked
-enter open Codex CLI now  later: trialm launch
+╭────────────────────────────────────────────────────────────────────────────╮
+│ ✦ Ready · Qwen3.6 35B-A3B                                                  │
+│                                                                            │
+│                          measured       predicted                          │
+│ Writing at start            40 tok/s       ~44 tok/s                       │
+│ Writing at 40K              31 tok/s       ~36 tok/s                       │
+│ Reading                    660 tok/s      ~800 tok/s                       │
+│ ✓ Codex · harness                                                          │
+│                                                                            │
+│ Slower than modeled at 40K · saved for future picks                        │
+╰────────────────────────────────────────────────────────────────────────────╯
 
-enter launch  u undo  q later
+enter open Codex now  d details  q later

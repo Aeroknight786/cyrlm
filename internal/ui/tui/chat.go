@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/core"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,9 +87,7 @@ func (c *chatModel) update(msg tea.KeyPressMsg) tea.Cmd {
 }
 func (c *chatModel) receive(v chatResponseMsg) tea.Cmd {
 	c.busy = false
-	if v.err != nil {
-		c.transcript = append(c.transcript, "Error: "+v.err.Error())
-	} else {
+	if v.err == nil {
 		c.messages = append(c.messages, llm.Message{Role: "assistant", Content: v.text})
 		c.transcript = append(c.transcript, "Model: "+v.text)
 	}
@@ -126,7 +125,7 @@ func (m *Root) startChat(args []string) tea.Cmd {
 	return func() tea.Msg {
 		runArgs := append([]string{"try", "--serve", "--json", "--port", "0"}, args...)
 		cmd := exec.CommandContext(m.cfg.Context, m.cfg.Executable, runArgs...)
-		cmd.Env = append(childEnv(os.Environ()), "TRIALM_PARENT_PIPE=1")
+		cmd.Env = append(core.ChildEnv(os.Environ()), "TRIALM_PARENT_PIPE=1")
 		in, e := cmd.StdinPipe()
 		if e != nil {
 			return chatStartedMsg{err: e}

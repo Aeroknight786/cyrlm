@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aeroknight786/trialm/internal/calib"
 	"github.com/aeroknight786/trialm/internal/figure"
 	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/llm"
@@ -44,14 +45,15 @@ type Check struct {
 	Detail string `json:"detail"`
 }
 type Report struct {
-	Ready          bool            `json:"ready"`
-	Checks         []Check         `json:"checks"`
-	Failing        string          `json:"failing,omitempty"`
-	DecodeTPS      map[int]float64 `json:"decode_tps"`
-	PrefillTPS     float64         `json:"prefill_tps"`
-	FollowUpTTFT   float64         `json:"follow_up_ttft_s"`
-	SpecVerifySecs []float64       `json:"spec_verify_s,omitempty"`
-	Misses         []string        `json:"misses,omitempty"`
+	Samples        []calib.RealSample `json:"samples,omitempty"`
+	Ready          bool               `json:"ready"`
+	Checks         []Check            `json:"checks"`
+	Failing        string             `json:"failing,omitempty"`
+	DecodeTPS      map[int]float64    `json:"decode_tps"`
+	PrefillTPS     float64            `json:"prefill_tps"`
+	FollowUpTTFT   float64            `json:"follow_up_ttft_s"`
+	SpecVerifySecs []float64          `json:"spec_verify_s,omitempty"`
+	Misses         []string           `json:"misses,omitempty"`
 }
 
 func (r *Report) add(o ReadyOptions, name string, ok bool, detail string) {
@@ -112,6 +114,7 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 	if o.ContextTokens > 0 && o.ContextTokens != 8192 {
 		deep = append(deep, o.ContextTokens)
 	}
+	var shortSpeed, targetSpeed float64
 	decodeAt := func(depths []int) bool {
 		for _, depth := range depths {
 			if o.Progress != nil && depth > 0 { // a deep prompt can take minutes
@@ -136,8 +139,15 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 				r.add(o, "decode", false, detail)
 				return false
 			}
-			r.DecodeTPS[depth] = m.DecodeTPS
-			detail := fmt.Sprintf("writing %s tok/s at %d tokens", figure.BandNumber(m.DecodeTPS, 20), depth)
+			r.DecodeTPS[m.PromptTokens] = m.DecodeTPS
+			r.Samples = append(r.Samples, calib.RealSample{Mode: "decode", Depth: m.PromptTokens, Prompt: m.PromptTokens, Generated: m.CompletionTokens, TokensEstimated: m.TokensEstimated, Speed: m.DecodeTPS, TTFTSec: m.TTFTSec})
+			if depth == 0 {
+				shortSpeed = m.DecodeTPS
+			}
+			if depth == o.ContextTokens {
+				targetSpeed = m.DecodeTPS
+			}
+			detail := fmt.Sprintf("writing %s tok/s at %d tokens", figure.BandNumber(m.DecodeTPS, 20), m.PromptTokens)
 			if m.TokensEstimated {
 				detail += " (token count estimated)"
 			}
@@ -165,8 +175,10 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		r.add(o, "prefill", false, detail)
 		return r, nil
 	}
-	r.PrefillTPS = float64(m.PromptTokens) / m.TTFTSec
-	detail := fmt.Sprintf("reading %s tok/s", figure.BandNumber(r.PrefillTPS, 20))
+	processed := m.PromptTokens - m.CachedTokens
+	r.PrefillTPS = float64(processed) / m.TTFTSec
+	r.Samples = append(r.Samples, calib.RealSample{Mode: "prefill", Depth: m.CachedTokens, Prompt: processed, Generated: m.CompletionTokens, TokensEstimated: m.TokensEstimated, Speed: r.PrefillTPS, TTFTSec: m.TTFTSec})
+	detail := fmt.Sprintf("processed %d prompt tokens. First token in %s s. Reading %s tok/s", processed, figure.BandNumber(m.TTFTSec, 20), figure.BandNumber(r.PrefillTPS, 20))
 	if m.TokensEstimated {
 		detail += " (token count estimated)"
 	}
@@ -248,7 +260,7 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		// Below half the prediction is a warning (our model can be wrong at
 		// depth; the measurement is recorded for calibration). Only a
 		// collapse below a quarter blocks Ready as a likely spill.
-		actual := r.DecodeTPS[o.ContextTokens]
+		actual := targetSpeed
 		ok := actual >= target*.25
 		detail := "writing at depth is within the spill threshold"
 		if actual < target*.5 {
@@ -259,9 +271,9 @@ func Ready(ctx context.Context, o ReadyOptions) (Report, error) {
 		}
 		r.add(o, "spill", ok, detail)
 	}
-	r.miss("writing near depth 0", o.Predicted.DecodeTPS0, r.DecodeTPS[0], o.Predicted.BandPct)
+	r.miss("writing near depth 0", o.Predicted.DecodeTPS0, shortSpeed, o.Predicted.BandPct)
 	if o.ContextTokens > 0 {
-		r.miss("writing at depth", target, r.DecodeTPS[o.ContextTokens], o.Predicted.BandPct)
+		r.miss("writing at depth", target, targetSpeed, o.Predicted.BandPct)
 	}
 	r.miss("prompt reading", o.Predicted.PrefillTPS, r.PrefillTPS, o.Predicted.BandPct)
 	r.Ready = r.Failing == ""

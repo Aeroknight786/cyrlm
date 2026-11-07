@@ -155,7 +155,7 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 			break
 		}
 	}
-	usedReal := false
+	usedReal, prefillMeasured := false, false
 	if in.Target.CPUOnly && !hasReal {
 		return
 	}
@@ -164,24 +164,20 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 		// operation so every headline and validation depth has honest coverage.
 		for _, mode := range []string{"decode", "prefill"} {
 			f, ok := c.FactorEvidence(class, q, depth, in.Model.Layers, mode)
-			speed, realBand, real := c.RealSpeed(in.Model.ID, r.Quant.Name, in.Runtime.ID, mode, depth)
-			if real {
+			real, found := c.RealFactor(in.Model.ID, r.Quant.Name, in.Runtime.ID, mode, func(row calib.Row) float64 {
+				if mode == "decode" {
+					return r.Timing.DecodeTPS(row.Depth)
+				}
+				prompt := row.Prompt
+				// Legacy rows omitted prompt length. Keep their former 512-token interval.
+				if prompt <= 0 {
+					prompt = 512
+				}
+				return r.Timing.PrefillTPS(row.Depth, row.Depth+prompt)
+			})
+			if found {
 				usedReal = true
-				baseline := r.Timing.DecodeTPS(depth)
-				if mode == "prefill" {
-					baseline = r.Timing.PrefillTPS(depth, depth+512)
-				}
-				if baseline > 0 {
-					band := realBand
-					if band < 0 {
-						band = r.Accuracy.DecodePct
-						if mode == "prefill" {
-							band = r.Accuracy.PrefillPct
-						}
-					}
-					f = calib.FactorResult{Multiplier: speed / baseline, BandPct: band, Basis: "real-model measurement (single run uses default band when needed)"}
-					ok = true
-				}
+				f, ok = real, true
 			}
 			if !ok {
 				if !hasReal {
@@ -193,8 +189,11 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 				}
 				f = calib.FactorResult{Multiplier: 1, BandPct: band, Basis: "uncalibrated default band"}
 			}
+			if mode == "prefill" && ok {
+				prefillMeasured = true
+			}
 			band := f.BandPct
-			if f.Fallback {
+			if f.Fallback || found {
 				prior := r.Accuracy.DecodePct
 				if mode == "prefill" {
 					prior = r.Accuracy.PrefillPct
@@ -224,7 +223,9 @@ func applyMachineCalibration(r *Result, in Input, c *calib.Calibration) {
 	r.Kind = "calibrated"
 	r.Accuracy.DecodePct = db
 	r.Accuracy.PrefillPct = pb
-	r.Accuracy.PrefillMeasureOnly = false
+	if prefillMeasured {
+		r.Accuracy.PrefillMeasureOnly = false
+	}
 	r.Accuracy.Basis = "calibrated on this machine; bands follow the evidence or stated defaults; " + strings.Join(paths, "; ")
 	r.DecodeTPS0 = r.Timing.DecodeTPS(512)
 	r.PrefillTPS2k = r.Timing.PrefillTPS(0, 2048)

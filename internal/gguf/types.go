@@ -3,7 +3,6 @@ package gguf
 import (
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 // GGMLType is a tensor storage type (enum ggml_type in ggml/include/ggml.h).
@@ -125,16 +124,6 @@ func (t GGMLType) String() string {
 		return tr.Name
 	}
 	return "type(" + strconv.FormatUint(uint64(t), 10) + ")"
-}
-
-// ParseGGMLType parses a type name such as "q8_0" or "F16" (case-insensitive).
-func ParseGGMLType(name string) (GGMLType, bool) {
-	for t, tr := range typeTraits {
-		if strings.EqualFold(tr.Name, name) {
-			return t, true
-		}
-	}
-	return 0, false
 }
 
 // RowBytes returns the stored size of n elements of type t, which must be

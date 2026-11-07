@@ -81,31 +81,33 @@ func (c Client) Check(ctx context.Context) (Release, error) {
 	}
 	return r, err
 }
+
+// Newer reports whether release remote is newer than build current. A
+// pre-release build ("0.3.0-dev") is older than its own release (0.3.0) and
+// newer than every earlier one; an unparsable remote is never newer.
 func Newer(remote, current string) bool {
-	parse := func(s string) ([3]int, bool) {
-		var n [3]int
+	parse := func(s string) (n [3]int, pre, ok bool) {
 		s = strings.TrimPrefix(s, "v")
-		if strings.ContainsAny(s, "-+") {
-			return n, false
+		if i := strings.IndexAny(s, "-+"); i >= 0 {
+			s, pre = s[:i], true
 		}
 		p := strings.Split(s, ".")
 		if len(p) != 3 {
-			return n, false
+			return n, pre, false
 		}
 		for i, v := range p {
 			var err error
-			n[i], err = strconv.Atoi(v)
-			if err != nil || n[i] < 0 {
-				return n, false
+			if n[i], err = strconv.Atoi(v); err != nil || n[i] < 0 {
+				return n, pre, false
 			}
 		}
-		return n, true
+		return n, pre, true
 	}
-	a, ok := parse(remote)
-	if !ok {
+	a, apre, ok := parse(remote)
+	if !ok || apre {
 		return false
 	}
-	b, ok := parse(current)
+	b, bpre, ok := parse(current)
 	if !ok {
 		return true
 	}
@@ -114,7 +116,7 @@ func Newer(remote, current string) bool {
 			return a[i] > b[i]
 		}
 	}
-	return false
+	return bpre
 }
 func (c Client) Install(ctx context.Context, r Release, target string) error {
 	goos, arch := c.OS, c.Arch

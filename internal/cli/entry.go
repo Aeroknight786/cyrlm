@@ -101,9 +101,7 @@ func Main(ctx context.Context, argv []string, v string) int {
 		events = &ui.Renderer{Out: os.Stdout, Human: os.Stderr, JSON: jsonMode}
 	}
 	migrateHome()
-	if home, err := paths.Home(); err == nil {
-		calibrationcli.Upgrade(home) // a no-op unless the speed model changed
-	}
+	calibrationcli.Upgrade() // a no-op unless the speed model changed
 	if selectedMode == Interactive && (currentVerb == "home" || currentVerb == "find") {
 		return finish(runTUI(ctx, currentVerb, args))
 	}

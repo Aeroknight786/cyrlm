@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/aeroknight786/trialm/internal/paths"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -20,7 +21,8 @@ import (
 
 func Run(args []string) error {
 	fs := flag.NewFlagSet("calibrate", flag.ContinueOnError)
-	quick := fs.Bool("quick", false, "about 2 min; the two default hybrid and sliding MoE picks")
+	quick := fs.Bool("quick", false, "the two default hybrid and sliding MoE picks")
+	spec := fs.Bool("spec", os.Getenv("TRIALM_CALIBRATE_SPEC") != "0", "include the speculative verify sweep (on by default; --spec=false or TRIALM_CALIBRATE_SPEC=0 skips it)")
 	plan := fs.Bool("plan", false, "print the grid and estimated M5 seconds without running a benchmark")
 	refit := fs.Bool("refit", false, "rebuild fits from saved raw rows without hardware or llama-bench")
 	check := fs.String("check", "", "check an existing local GGUF against calibration (about 1–2 min; no downloads)")
@@ -40,7 +42,7 @@ func Run(args []string) error {
 		return errors.New("--check needs a local GGUF path")
 	}
 	if len(pos) > 0 {
-		return errors.New("usage: trialm calibrate [--quick] [--status | --plan | --refit | --check model.gguf] [--json]")
+		return errors.New("usage: trialm calibrate [--quick] [--spec] [--status | --plan | --refit | --check model.gguf] [--json]")
 	}
 	selected := 0
 	for _, v := range []bool{*status, *plan, *refit, *check != ""} {
@@ -56,7 +58,7 @@ func Run(args []string) error {
 	}
 	home := trialmHome()
 	if *plan {
-		steps := calib.Plan(*quick)
+		steps := calib.Plan(*quick, *spec)
 		if *jsonOut {
 			return json.NewEncoder(os.Stdout).Encode(map[string]any{"v": 1, "type": "calibration_plan", "estimated_seconds": calib.EstimatedSeconds(steps), "estimate_basis": "Apple M5, llama-bench 11960; includes cold synthetic generation; allow about 25% variation", "steps": steps})
 		}
@@ -140,7 +142,7 @@ func Run(args []string) error {
 		return fail(errors.New("synthetic GPU calibration needs a detected GPU; use trialm detect --probe for CPU bandwidth"))
 	}
 	baseline, backend := baselineFor(t)
-	_, e = calib.Run(ctx, calib.RunOptions{Backend: backend, Home: home, Engine: engine, Fingerprint: fp, Quick: *quick, Baseline: baseline, Event: emit})
+	_, e = calib.Run(ctx, calib.RunOptions{Backend: backend, Home: home, Engine: engine, Fingerprint: fp, Quick: *quick, Spec: *spec, Baseline: baseline, Event: emit})
 	if errors.Is(e, context.Canceled) {
 		return fail(fmt.Errorf("calibration interrupted; finished rows kept: %w", e))
 	}
@@ -283,7 +285,7 @@ func MaybeOffer(args []string) error {
 	if !predictCalibrationMissing(home) {
 		return nil
 	}
-	fmt.Fprintln(os.Stderr, "Recommended: calibrate this machine once for tighter speed estimates (5–7 min).")
+	fmt.Fprintf(os.Stderr, "Recommended: calibrate this machine once for tighter speed estimates (about %.0f min on the M5).\n", calib.EstimatedSeconds(calib.Plan(false, os.Getenv("TRIALM_CALIBRATE_SPEC") != "0"))/60)
 	fmt.Fprintln(os.Stderr, "triaLM writes synthetic models (random weights, real shapes) and runs llama-bench on them. No model downloads. It needs about 6 GB of free disk for temporary files, deleted as it goes, and keeps only calib.json and prefs.json under", home+".")
 	fmt.Fprint(os.Stderr, "Enter calibrates (recommended) · s or any other key skips: ")
 	key, e := terminal.Key(os.Stdin)
@@ -372,7 +374,11 @@ func rebaseline(c *calib.Calibration) error {
 
 // Upgrade refits a calibration saved by an older speed model, keeping its
 // measurements; it runs once, quietly, after an update.
-func Upgrade(home string) {
+func Upgrade() {
+	home, e := paths.Home()
+	if e != nil {
+		return
+	}
 	c, e := calib.Load(home)
 	if e != nil || !c.NeedsRebaseline {
 		return

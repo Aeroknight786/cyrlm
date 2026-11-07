@@ -6,14 +6,13 @@ import (
 	"math"
 	"os/exec"
 	"strings"
+	"time"
 
-	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/aeroknight786/trialm/internal/catalog"
 	"github.com/aeroknight786/trialm/internal/core"
 	"github.com/aeroknight786/trialm/internal/engine"
 	"github.com/aeroknight786/trialm/internal/figure"
-	"github.com/aeroknight786/trialm/internal/harness"
 	"github.com/aeroknight786/trialm/internal/setup"
 	"github.com/aeroknight786/trialm/internal/store"
 	"github.com/aeroknight786/trialm/internal/verify"
@@ -32,16 +31,15 @@ type setupEvent struct {
 	done    bool
 }
 type setupView struct {
-	plan       setup.Plan
-	journal    setup.Journal
-	report     *verify.Report
-	update     setup.Update
-	states     map[int]string
-	logs       []string
-	events     chan setupEvent
-	cancel     context.CancelFunc
-	calibrated bool
-	failed     bool // a finished run that did not reach Ready
+	plan    setup.Plan
+	journal setup.Journal
+	report  *verify.Report
+	update  setup.Update
+	states  map[int]string
+	logs    []string
+	events  chan setupEvent
+	cancel  context.CancelFunc
+	onDisk  bool
 }
 
 func (m *Root) planSetup() tea.Cmd {
@@ -56,9 +54,10 @@ func (m *Root) planSetup() tea.Cmd {
 	if !ok || m.cfg.Plan == nil {
 		return nil
 	}
+	m.autoLaunch = m.screen() == Home
 	m.push(Setup)
 	m.busy = true
-	m.setup = setupView{states: map[int]string{}}
+	m.setup = setupView{states: map[int]string{}, onDisk: row.LocalPath != ""}
 	return func() tea.Msg {
 		p, e := m.cfg.Plan(m.cfg.Context, row, m.cfg.Preferences)
 		executor, _ := (core.Session{}).SetupExecutor()
@@ -96,20 +95,18 @@ func (m *Root) setupEvent(v setupEvent) tea.Cmd {
 		if v.journal.Report != nil {
 			m.setup.report = v.journal.Report
 		}
-		m.setup.failed = v.err != nil
 		if v.err != nil {
-			m.message = v.err.Error()
-		} else if v.journal.State == "ready" {
+			m.fail("Setup needs another try. Press enter to resume or d for details.", v.err)
+		} else if v.journal.State == "ready" && v.journal.Report != nil && v.journal.Report.Ready {
 			m.replace(Ready)
-			if m.setup.calibrated {
-				return m.find()
-			}
+			m.sparkle = 0
+			return tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg { return sparkleMsg(1) })
 		}
 		return nil
 	}
 	if v.err != nil {
 		m.busy = false
-		m.message = v.err.Error()
+		m.fail("Setup could not be planned. Press esc to choose another model or d for details.", v.err)
 		return nil
 	}
 	switch v.event.Type {
@@ -129,7 +126,7 @@ func (m *Root) setupEvent(v setupEvent) tea.Cmd {
 		if m.setup.states == nil {
 			m.setup.states = map[int]string{}
 		}
-		if u.Index > 0 {
+		if u.Index > 0 && v.event.Type != "setup_log" {
 			m.setup.update = u
 			m.setup.states[u.Index] = u.State
 		}
@@ -139,11 +136,9 @@ func (m *Root) setupEvent(v setupEvent) tea.Cmd {
 		}
 	case "setup_ready":
 		m.setup.report, _ = v.event.Data.(*verify.Report)
-	case "setup_calibrated":
-		m.setup.calibrated = true
 	}
 	if m.setup.events != nil {
-		return m.nextSetup()
+		return tea.Batch(m.nextSetup(), m.animateProgress())
 	}
 	return nil
 }
@@ -154,91 +149,109 @@ func (m *Root) launchSetup(j setup.Journal) tea.Cmd {
 	m.busy = true
 	return tea.ExecProcess(cmd, func(e error) tea.Msg { return childMsg{kind: Launching, err: e} })
 }
+func (m *Root) animateProgress() tea.Cmd {
+	if m.theme.plain || m.theme.ascii {
+		return nil
+	}
+	if u := m.setup.update; u.Progress != nil && u.Progress.Total > 0 {
+		return m.bar.SetPercent(float64(u.Progress.Done) / float64(u.Progress.Total))
+	}
+	return nil
+}
 func (m *Root) setupBody() string {
 	p := m.setup.plan
 	if p.ID == "" {
-		return "Planning local setup…"
+		return m.card(m.waiting() + " Planning your setup")
 	}
-	b := fmt.Sprintf("Set up %s · %s · %s\n%d approval · %d OS password prompts · %s\n", p.ModelName, p.Quant, p.RuntimeName, p.Prompts.Approvals, p.Prompts.Passwords, p.DownloadSummary())
-	if p.DownloadUnknown {
-		b += "Plus installer downloads of unknown size\n"
+	summary := p.DownloadSummary()
+	if m.setup.onDisk {
+		summary = "already on disk · " + summary
 	}
-	if p.Prompts.AfterRestart != "" {
-		b += p.Prompts.AfterRestart + "\n"
+	password := "no password"
+	if p.Prompts.Passwords > 0 {
+		password = fmt.Sprintf("%d OS password prompt(s)", p.Prompts.Passwords)
 	}
-	for i, s := range p.Steps {
-		mark := " "
-		if m.setup.states[i+1] == "done" {
-			mark = "✓"
-		}
-		b += fmt.Sprintf("%s %-8s %s", mark, s.Kind, s.Title)
-		bytes := s.DownloadBytes
-		if s.Request != nil {
-			bytes += s.Request.Size
-		}
-		if bytes > 0 {
-			b += " · " + figure.Bytes(bytes, "setup:resolved-files").String() + " · sha256 pinned"
-		}
-		b += "\n"
-	}
+	b := m.theme.selected.Bold(true).Render("Set up "+p.ModelName+" for "+toolName(m.cfg.Preferences.Tool)) + "\n" + summary + fmt.Sprintf(" · %d approval · ", p.Prompts.Approvals) + password + "\n"
 	b += "Not touched · " + strings.Join(p.Untouched, ", ") + "\n"
-	for _, warning := range p.Warnings {
-		b += warning + "\n"
+	if p.Prompts.AfterRestart != "" {
+		b += m.theme.caveat.Render(p.Prompts.AfterRestart) + "\n"
 	}
-	if len(m.setup.journal.Steps) > 0 {
-		b += m.setup.journal.Summary() + "\n"
+	for i, step := range p.Steps {
+		state := m.setup.states[i+1]
+		if !m.expanded && !m.busy {
+			continue
+		}
+		if !m.expanded && state == "" {
+			continue
+		}
+		mark := "·"
+		if state == "done" {
+			mark = m.theme.good.Render("✓")
+		} else if state != "" {
+			mark = m.waiting()
+		}
+		b += "\n" + mark + " " + step.Title
+		if m.expanded && len(step.Argv) > 0 {
+			b += "\n  " + fmt.Sprintf("%q", step.Argv)
+		}
 	}
 	if u := m.setup.update; u.Progress != nil && u.Progress.Total > 0 {
-		progress := u.Progress
-		b += "Downloading " + m.progressBar(float64(progress.Done)/float64(progress.Total)) + "\n"
-		b += fmt.Sprintf("%d%% · %s / %s · %s · ETA %s\n", progress.Done*100/progress.Total, figure.Bytes(progress.Done, "download").String(), figure.Bytes(progress.Total, "download").String(), figure.Exact(progress.BytesPerSec/1e6, "MB/s", figure.Measured, "download").String(), figure.Exact(math.Round(progress.ETA.Seconds()), "s", figure.Measured, "download").String())
+		p := u.Progress
+		b += "\n\n" + m.progressBar(float64(p.Done)/float64(p.Total)) + fmt.Sprintf(" %d%%", p.Done*100/p.Total)
+		b += "\n" + figure.Exact(p.BytesPerSec/1e6, "MB/s", figure.Measured, "download").String() + " · ETA " + figure.Exact(math.Round(p.ETA.Seconds()), "s", figure.Measured, "download").String()
 	}
-	if len(m.setup.logs) > 0 {
-		log := viewport.New(viewport.WithWidth(max(20, m.width-2)), viewport.WithHeight(len(m.setup.logs)))
-		log.SetContent(strings.Join(m.setup.logs, "\n"))
-		b += log.View() + "\n"
+	if m.setup.journal.State == "paused" {
+		b += "\n" + m.setup.journal.Summary()
 	}
-	if m.busy {
-		return strings.TrimSuffix(b, "\n") // the footer says ctrl-c pauses
+	if m.expanded {
+		b += "\n" + strings.Join(m.setup.logs, "\n")
+	} else if m.busy && m.setup.update.Kind == setup.Check {
+		for _, line := range m.setup.logs {
+			name, _, _ := strings.Cut(line, ":")
+			b += "\n" + clip(name, min(m.width, 80)-6)
+		}
 	}
-	if m.setup.failed {
-		return b + "Not Ready yet. enter tries again (finished steps are kept)."
+	if m.expanded {
+		b += "\n" + strings.Join(p.Warnings, "\n")
 	}
-	return b + "Go? [Y/n]"
+	return m.card(strings.TrimSpace(b))
 }
 func (m *Root) readyBody() string {
 	p, r := m.setup.plan, m.setup.report
-	b := "✓ Ready · " + m.detection.Target.Name + "\n                         predicted    measured    miss\n"
+	sparkle := []string{"✦ Ready", "✧ ✦ Ready ✧", "✦ Ready  ✧", "✦ Ready"}[min(3, m.sparkle)]
+	b := m.theme.good.Bold(true).Render(sparkle) + " · " + p.ModelName + "\n\n                         measured       predicted\n"
 	if r == nil {
-		return b
+		return m.card(b)
 	}
-	row := func(label string, predicted, actual float64, band int) {
-		prediction := figure.Band(predicted, band, "t/s", figure.Simulated, "setup:prediction").String()
-		measured := figure.Band(actual, 20, "t/s", figure.Measured, "verify:ready").String()
-		miss := "—"
-		if predicted > 0 {
-			miss = fmt.Sprintf("%+d%%", int(math.Round(100*(actual/predicted-1))))
+	row := func(label string, actual, predicted float64, band int) {
+		measured := "—"
+		if actual > 0 {
+			measured = figure.Band(actual, 20, "tok/s", figure.Measured, "verify:ready").String()
 		}
-		b += fmt.Sprintf("%-24s %12s %12s %9s\n", label, prediction, measured, miss)
+		pred := "~" + strings.TrimPrefix(figure.Band(predicted, band, "tok/s", figure.Simulated, "setup:prediction").String(), "~")
+		b += fmt.Sprintf("%-23s %12s %15s\n", label, measured, pred)
 	}
-	row("writing @ start", p.Predicted.DecodeTPS0, r.DecodeTPS[0], p.DecodeErrorPct)
-	row(fmt.Sprintf("writing @ %dK", p.ContextTokens/1024), p.Predicted.DecodeTPSTarget, r.DecodeTPS[p.ContextTokens], p.DecodeErrorPct)
-	row("reading", p.Predicted.PrefillTPS, r.PrefillTPS, p.PrefillErrorPct)
+	row("Writing at start", r.DecodeTPS[0], p.Predicted.DecodeTPS0, p.DecodeErrorPct)
+	row(fmt.Sprintf("Writing at %dK", p.ContextTokens/1024), r.DecodeTPS[p.ContextTokens], p.Predicted.DecodeTPSTarget, p.DecodeErrorPct)
+	row("Reading", r.PrefillTPS, p.Predicted.PrefillTPS, p.PrefillErrorPct)
 	for _, c := range r.Checks {
-		mark := "✗"
-		if c.OK {
-			mark = "✓"
+		if c.OK && (c.Name == "harness" || m.expanded) {
+			b += m.theme.good.Render("✓ "+toolName(p.Harness)+" · "+c.Name) + "\n"
 		}
-		b += strings.TrimSuffix(mark+" "+c.Name+" · "+c.Detail, " · ") + "\n"
 	}
-	if m.setup.calibrated {
-		machine := "this machine"
-		if m.detection.Target.OS == "darwin" {
-			machine = "this Mac"
-		}
-		b += "calibrated " + machine + " · re-ranked\n"
+	warning := ""
+	if r.DecodeTPS[p.ContextTokens] < p.Predicted.DecodeTPSTarget {
+		warning = fmt.Sprintf("Slower than modeled at %dK · saved for future picks", p.ContextTokens/1024)
+	} else if r.PrefillTPS < p.Predicted.PrefillTPS {
+		warning = "Reading was slower than modeled · saved for future picks"
 	}
-	return b + "enter open " + harness.DisplayName(m.cfg.Preferences.Tool) + " now  later: trialm launch"
+	if warning != "" {
+		b += "\n" + m.theme.dim.Render(clip(warning, min(m.width, 80)-6)) + "\n"
+	}
+	if m.expanded {
+		b += "\n" + strings.Join(m.setup.logs, "\n")
+	}
+	return m.card(strings.TrimSpace(b))
 }
 
 func RunSetup(ctx context.Context, p setup.Plan) error {
@@ -252,6 +265,5 @@ func RunSetup(ctx context.Context, p setup.Plan) error {
 	cfg.Start = Setup
 	cfg.LocalPlan = &p
 	cfg.UpdateNotice = nil
-	cfg.Balance = nil
 	return Run(cfg)
 }
